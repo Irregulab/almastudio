@@ -13,15 +13,21 @@ of blocked threads — no Electron, no per-tab browser process.
   the AI harness. The main folder is only the *default* for new tabs; any tab
   can be opened in any folder on the machine.
 - **Tabs** — each tab runs Claude Code, Codex or a plain shell in a real PTY,
-  or shows a diff or a file. Opening a tab starts it immediately; only tabs
+  or shows a diff, an editable file, or a browser. Opening a tab starts it immediately; only tabs
   restored from a previous run consult the auto-start setting. Split panes
   horizontally and vertically, drag tabs between them.
 - **Right panel** — three views: changed files, the full file tree, and git
   (branch, staging, commit, history, branch switching). Clicking a changed file
   opens its diff as a tab in the main area.
-- **Code and Markdown** — syntax highlighting in both the file view and diffs,
-  themed from the same tokens as the rest of the app. Markdown files open as a
-  rendered preview with a toggle back to source.
+- **Code and Markdown** — syntax highlighting in the editor and in diffs,
+  themed from the same tokens as the rest of the app. Files are editable, with
+  explicit save and a conflict check. Markdown opens as a rendered preview with
+  a toggle back to source.
+- **Files** — VS Code-style type icons throughout, and create / rename /
+  move-to-trash for files and folders from the tree.
+- **At a glance** — a tab spins while its harness is producing output and shows
+  a solid dot when it is waiting on you; the same indicator appears on the
+  project in the sidebar whenever a harness is loaded there.
 - **Survives restarts** — projects, tabs, folders, tile layout and recent
   terminal output are written to disk continuously, so an app restart or a
   machine reboot brings the workspace back. Agents can be relaunched with their
@@ -96,6 +102,19 @@ untrusted text, so parsed HTML goes through DOMPurify before it reaches the
 DOM, on top of the CSP that already blocks inline scripts. Remote images do not
 load: allowing them would let a preview phone home to a third party. Links open
 in the system browser rather than navigating the app's own webview.
+
+**Browser tabs are real webviews.** A browser tab is a Tauri child webview
+layered over its pane, not an iframe — most sites refuse to be framed, and an
+iframe would also be subject to this app's own CSP. The cost is that a native
+webview sits outside the HTML stacking order, so it would cover menus and
+dialogs: the UI keeps a count of open overlays and hides the webview while any
+is up. Navigation is reported through `on_navigation` rather than polled.
+
+**Editing assumes something else is editing too.** Agents are changing the same
+files in the next tab along, so a save re-reads the file first and compares it
+with what was loaded; if it moved underneath, you choose between overwriting
+and taking what is on disk. Reloading keeps unsaved edits rather than dropping
+them.
 
 **Only the active project is mounted.** Switching projects disposes the
 terminals of the one you left but never kills its processes; coming back

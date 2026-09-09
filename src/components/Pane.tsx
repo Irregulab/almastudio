@@ -1,8 +1,8 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import {
-  Bot, Columns2, FileDiff, FileText, FolderOpen, Loader2, PanelsTopLeft, Plus,
-  RotateCw, Rows2, Sparkles, Square, SquareTerminal, Terminal, X,
+  Bot, Columns2, FileDiff, FileText, FolderOpen, Globe, Loader2, PanelsTopLeft,
+  Plus, RotateCw, Rows2, Sparkles, Square, SquareTerminal, Terminal, X,
 } from 'lucide-react'
 
 import { ptyKill } from '../lib/ipc'
@@ -12,6 +12,7 @@ import { useSettings } from '../store/settings'
 import { useT } from '../i18n'
 import { defaultTabTitle } from '../lib/harness'
 import { TerminalView } from './TerminalView'
+import { BrowserView } from './BrowserView'
 import { DiffView } from './DiffView'
 import { FileView } from './FileView'
 import { ConfirmDialog, MenuItem, MenuSeparator, Popover } from './ui'
@@ -30,6 +31,7 @@ export function tabIcon(kind: Tab['kind'], size = 13) {
     case 'shell': return <Terminal size={size} />
     case 'diff': return <FileDiff size={size} />
     case 'file': return <FileText size={size} />
+    case 'browser': return <Globe size={size} />
   }
 }
 
@@ -75,6 +77,7 @@ function TabContent({
     return <TerminalView tab={tab} visible={visible} focused={focused} />
   }
   if (tab.kind === 'diff') return <DiffView tab={tab} visible={visible} />
+  if (tab.kind === 'browser') return <BrowserView tab={tab} visible={visible} />
   return <FileView tab={tab} visible={visible} />
 }
 
@@ -130,7 +133,7 @@ function TabBar({ leaf, tabs }: { leaf: LeafNode; tabs: Tab[] }) {
         <ConfirmDialog
           title={t('editor.discardTitle')}
           message={t('editor.discardBody', {
-            name: confirmClose.title || (isTerminalTab(confirmClose) ? '' : confirmClose.path),
+            name: confirmClose.title || tabTooltip(confirmClose),
           })}
           confirmLabel={t('editor.closeAnyway')}
           danger
@@ -205,7 +208,7 @@ function TabChip({
           e.preventDefault()
           setMenuAnchor(ref.current)
         }}
-        title={isTerminalTab(tab) ? tab.cwd : tab.path}
+        title={tabTooltip(tab)}
       >
         <span className={`tab__icon tab__icon--${tab.kind}`}>{tabIcon(tab.kind)}</span>
         {renaming ? (
@@ -315,8 +318,22 @@ function TabStatus({ status, busy }: { status: TerminalStatus; busy: boolean }) 
 }
 
 function autoTitle(tab: Tab, projectRoot: string | undefined): string {
-  if (!isTerminalTab(tab)) return tab.path.split('/').pop() ?? tab.path
-  return defaultTabTitle(tab.cwd, projectRoot, KIND_LABEL[tab.kind])
+  if (isTerminalTab(tab)) return defaultTabTitle(tab.cwd, projectRoot, KIND_LABEL[tab.kind])
+  if (tab.kind === 'browser') return hostOf(tab.url)
+  return tab.path.split('/').pop() ?? tab.path
+}
+
+function tabTooltip(tab: Tab): string {
+  if (isTerminalTab(tab)) return tab.cwd
+  return tab.kind === 'browser' ? tab.url : tab.path
+}
+
+function hostOf(url: string): string {
+  try {
+    return new URL(url).host || url
+  } catch {
+    return url
+  }
 }
 
 // --------------------------------------------------------- pane actions ----
@@ -386,6 +403,17 @@ function PaneActions({ leaf }: { leaf: LeafNode }) {
           hint="⌘T"
           onClick={() => { setAnchor(null); void newTab('shell', leaf.id) }}
         />
+        <MenuItem
+          icon={<Globe size={13} />}
+          label={t('tabs.browser')}
+          onClick={() => {
+            setAnchor(null)
+            const s = useWorkspace.getState()
+            if (s.activeProjectId) {
+              s.openBrowserTab({ projectId: s.activeProjectId, paneId: leaf.id })
+            }
+          }}
+        />
         <MenuSeparator />
         <MenuItem
           icon={<FolderOpen size={13} />}
@@ -422,6 +450,15 @@ function EmptyPane({ paneId }: { paneId: string }) {
         </button>
         <button className="btn btn--sm" onClick={() => void newTab('shell', paneId)}>
           <Terminal size={13} /> {t('tabs.shell')}
+        </button>
+        <button
+          className="btn btn--sm"
+          onClick={() => {
+            const s = useWorkspace.getState()
+            if (s.activeProjectId) s.openBrowserTab({ projectId: s.activeProjectId, paneId })
+          }}
+        >
+          <Globe size={13} /> {t('tabs.browser')}
         </button>
       </div>
       {isSplit && (

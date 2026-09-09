@@ -1,7 +1,7 @@
 /** Shared domain types. Mirrors the serde structs in src-tauri. */
 
 export type HarnessKind = 'claude' | 'codex' | 'shell'
-export type TabKind = HarnessKind | 'diff' | 'file'
+export type TabKind = HarnessKind | 'diff' | 'file' | 'browser'
 export type DiffSide = 'worktree' | 'index' | 'head'
 export type PanelView = 'changes' | 'files' | 'git'
 export type ThemeMode = 'system' | 'dark' | 'light'
@@ -66,7 +66,13 @@ export interface FileTab extends TabBase {
   path: string
 }
 
-export type Tab = TerminalTab | DiffTab | FileTab
+export interface BrowserTab extends TabBase {
+  kind: 'browser'
+  /** Last committed address, so the tab reopens where it was left. */
+  url: string
+}
+
+export type Tab = TerminalTab | DiffTab | FileTab | BrowserTab
 
 export const isTerminalTab = (t: Tab): t is TerminalTab =>
   t.kind === 'claude' || t.kind === 'codex' || t.kind === 'shell'

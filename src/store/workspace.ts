@@ -1,5 +1,7 @@
 import { create } from 'zustand'
-import { ptyKill, scrollbackForget, scrollbackPrune, stateLoad, stateSave } from '../lib/ipc'
+import {
+  browserClose, ptyKill, scrollbackForget, scrollbackPrune, stateLoad, stateSave,
+} from '../lib/ipc'
 import { uid } from '../lib/id'
 import { useUi } from './ui'
 import {
@@ -56,6 +58,8 @@ interface WorkspaceStore extends WorkspaceState {
   openFileTab: (opts: {
     projectId: string; root: string; path: string; paneId?: string
   }) => Tab
+  openBrowserTab: (opts: { projectId: string; url?: string; paneId?: string }) => Tab
+  setTabUrl: (tabId: string, url: string) => void
   closeTab: (tabId: string) => void
   closeOtherTabs: (paneId: string, keepTabId: string) => void
   renameTab: (tabId: string, title: string) => void
@@ -120,6 +124,7 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
       const tabs = { ...s.tabs }
       for (const t of doomed) {
         if (isTerminalTab(tabs[t])) void ptyKill(t).catch(() => {})
+        if (tabs[t]?.kind === 'browser') void browserClose(t).catch(() => {})
         delete tabs[t]
         void scrollbackForget(t).catch(() => {})
       }
@@ -269,6 +274,40 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
     return tab
   },
 
+  openBrowserTab: ({ projectId, url, paneId }) => {
+    const tab: Tab = {
+      id: uid('tab'),
+      projectId,
+      kind: 'browser',
+      title: '',
+      url: url ?? 'https://duckduckgo.com',
+    }
+    set((s) => {
+      const ws = s.workspaces[projectId] ?? emptyWorkspace()
+      const landing = paneId && findLeaf(ws.layout, paneId) ? paneId : ws.activePaneId
+      return {
+        tabs: { ...s.tabs, [tab.id]: tab },
+        ...withWorkspace(s, projectId, (w) => ({
+          ...w,
+          activePaneId: landing,
+          layout: updateLeaf(w.layout, landing, (l) => ({
+            ...l,
+            tabIds: [...l.tabIds, tab.id],
+            activeTabId: tab.id,
+          })),
+        })),
+      }
+    })
+    return tab
+  },
+
+  setTabUrl: (tabId, url) =>
+    set((s) => {
+      const tab = s.tabs[tabId]
+      if (!tab || tab.kind !== 'browser' || tab.url === url) return {}
+      return { tabs: { ...s.tabs, [tabId]: { ...tab, url } } }
+    }),
+
   closeTab: (tabId) =>
     set((s) => {
       const tab = s.tabs[tabId]
@@ -278,6 +317,7 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
       // Every close path funnels through here, so this is the one place that
       // has to end the process and drop its saved output.
       if (isTerminalTab(tab)) void ptyKill(tabId).catch(() => {})
+      if (tab.kind === 'browser') void browserClose(tabId).catch(() => {})
       void scrollbackForget(tabId).catch(() => {})
       useUi.getState().clearTabBusy(tabId)
 

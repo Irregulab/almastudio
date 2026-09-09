@@ -33,7 +33,8 @@
     "window": "Finestra",
     "help": "Aiuto",
     "docs": "Documentazione AlmaStudio",
-    "revealState": "Mostra dati applicazione…"
+    "revealState": "Mostra dati applicazione…",
+    "newBrowser": "Nuova scheda Browser"
   },
   "sidebar": {
     "projects": "Progetti",
@@ -97,7 +98,16 @@
     "noTabsHint": "Apri una scheda Claude Code, Codex o terminale per iniziare.",
     "openIn": "Apri in",
     "working": "In esecuzione…",
-    "waiting": "In attesa di input"
+    "waiting": "In attesa di input",
+    "browser": "Browser"
+  },
+  "browser": {
+    "back": "Indietro",
+    "forward": "Avanti",
+    "reload": "Ricarica",
+    "home": "Apri il server di sviluppo",
+    "placeholder": "Indirizzo o ricerca",
+    "openExternal": "Apri nel browser di sistema"
   },
   "find": {
     "placeholder": "Cerca nel terminale",

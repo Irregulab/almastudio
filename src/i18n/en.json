@@ -33,7 +33,8 @@
     "window": "Window",
     "help": "Help",
     "docs": "AlmaStudio Documentation",
-    "revealState": "Reveal Application Data…"
+    "revealState": "Reveal Application Data…",
+    "newBrowser": "New Browser Tab"
   },
   "sidebar": {
     "projects": "Projects",
@@ -97,7 +98,16 @@
     "noTabsHint": "Open a Claude Code, Codex or terminal tab to get started.",
     "openIn": "Open in",
     "working": "Working…",
-    "waiting": "Waiting for input"
+    "waiting": "Waiting for input",
+    "browser": "Browser"
+  },
+  "browser": {
+    "back": "Back",
+    "forward": "Forward",
+    "reload": "Reload",
+    "home": "Open the dev server",
+    "placeholder": "Address or search",
+    "openExternal": "Open in system browser"
   },
   "find": {
     "placeholder": "Find in terminal",

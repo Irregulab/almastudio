@@ -16,7 +16,9 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+# `unstable` gates the multi-webview API, which is how a browser tab gets a
+# real webview rather than an iframe that most sites refuse to load.
+tauri = { version = "2", features = ["unstable"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-opener = "2"
 tauri-plugin-os = "2"
@@ -38,6 +40,9 @@ notify = "8"
 ignore = "0.4"
 
 base64 = "0.22"
+# Already in the tree via tauri; named explicitly because browser tabs parse
+# and normalise user-typed addresses.
+url = "2"
 parking_lot = "0.12"
 anyhow = "1"
 

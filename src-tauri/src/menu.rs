@@ -24,6 +24,7 @@ fn fallback(key: &str) -> &'static str {
         "menu.newClaude" => "New Claude Code Tab",
         "menu.newCodex" => "New Codex Tab",
         "menu.newTerminal" => "New Terminal Tab",
+        "menu.newBrowser" => "New Browser Tab",
         "menu.closeTab" => "Close Tab",
         "menu.edit" => "Edit",
         "menu.undo" => "Undo",
@@ -92,6 +93,9 @@ pub fn build<R: Runtime>(app: &AppHandle<R>, labels: HashMap<String, String>) ->
         .build(app)?;
     let new_terminal = MenuItemBuilder::with_id("new-tab-terminal", l.get("menu.newTerminal"))
         .accelerator("CmdOrCtrl+T")
+        .build(app)?;
+    let new_browser = MenuItemBuilder::with_id("new-tab-browser", l.get("menu.newBrowser"))
+        .accelerator("CmdOrCtrl+Shift+B")
         .build(app)?;
     let close_tab = MenuItemBuilder::with_id("close-tab", l.get("menu.closeTab"))
         .accelerator("CmdOrCtrl+W")
@@ -181,6 +185,7 @@ pub fn build<R: Runtime>(app: &AppHandle<R>, labels: HashMap<String, String>) ->
         .item(&new_claude)
         .item(&new_codex)
         .item(&new_terminal)
+        .item(&new_browser)
         .separator()
         .item(&close_tab);
     #[cfg(not(target_os = "macos"))]

@@ -4,6 +4,17 @@ import {
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import { useT } from '../i18n'
+import { useUi } from '../store/ui'
+
+/** Registers an open overlay so native child webviews can get out of the way. */
+function useOverlayRegistration(active: boolean) {
+  useEffect(() => {
+    if (!active) return
+    const { pushOverlay, popOverlay } = useUi.getState()
+    pushOverlay()
+    return popOverlay
+  }, [active])
+}
 
 // ---------------------------------------------------------------- popover --
 
@@ -19,6 +30,7 @@ interface PopoverProps {
 export function Popover({ anchor, open, onClose, align = 'start', children }: PopoverProps) {
   const ref = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState({ top: 0, left: 0 })
+  useOverlayRegistration(open)
 
   useLayoutEffect(() => {
     if (!open || !anchor) return
@@ -114,6 +126,7 @@ export function Modal({
   wide?: boolean
 }) {
   const t = useT()
+  useOverlayRegistration(true)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()

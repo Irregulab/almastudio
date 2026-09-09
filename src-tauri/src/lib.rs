@@ -1,3 +1,4 @@
+mod browser;
 mod fsx;
 mod git;
 mod menu;
@@ -117,6 +118,13 @@ pub fn run() {
             fsx::write_text_file,
             fsx::read_file_base64,
             watcher::watch_start,
+            browser::browser_open,
+            browser::browser_set_bounds,
+            browser::browser_set_visible,
+            browser::browser_navigate,
+            browser::browser_command,
+            browser::browser_state,
+            browser::browser_close,
             watcher::watch_stop,
         ])
         .setup(|app| {
@@ -167,6 +175,7 @@ pub fn run() {
                     store::flush_scrollback(app, &mgr);
                     mgr.kill_all();
                 }
+                browser::close_all(app);
                 if let Some(w) = app.try_state::<WatchManager>() {
                     w.stop_all();
                 }

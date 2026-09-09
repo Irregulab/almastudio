@@ -12,11 +12,19 @@ interface UiState {
   busyTabs: Record<string, boolean>
   /** Tabs with unsaved edits, so the tab strip can mark them. */
   dirtyTabs: Record<string, boolean>
+  /**
+   * How many modals or menus are currently open. A browser tab is a native
+   * child webview that floats above the HTML layer, so it has to be hidden
+   * while anything is supposed to appear on top of it.
+   */
+  overlays: number
   setSettingsOpen: (v: boolean) => void
   setNewProjectOpen: (v: boolean) => void
   setTabBusy: (id: string, busy: boolean) => void
   clearTabBusy: (id: string) => void
   setTabDirty: (id: string, dirty: boolean) => void
+  pushOverlay: () => void
+  popOverlay: () => void
 }
 
 export const useUi = create<UiState>((set) => ({
@@ -24,6 +32,7 @@ export const useUi = create<UiState>((set) => ({
   newProjectOpen: false,
   busyTabs: {},
   dirtyTabs: {},
+  overlays: 0,
   setSettingsOpen: (v) => set({ settingsOpen: v }),
   setNewProjectOpen: (v) => set({ newProjectOpen: v }),
   setTabBusy: (id, busy) =>
@@ -35,6 +44,8 @@ export const useUi = create<UiState>((set) => ({
       delete next[id]
       return { busyTabs: next }
     }),
+  pushOverlay: () => set((s) => ({ overlays: s.overlays + 1 })),
+  popOverlay: () => set((s) => ({ overlays: Math.max(0, s.overlays - 1) })),
   setTabDirty: (id, dirty) =>
     set((s) => {
       if (!!s.dirtyTabs[id] === dirty) return s

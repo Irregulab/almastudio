@@ -164,3 +164,37 @@ export interface ActivityPayload {
 /** Busy/idle transitions for every session, on one shared channel. */
 export const onPtyActivity = (cb: (p: ActivityPayload) => void): Promise<UnlistenFn> =>
   listen<ActivityPayload>('pty://activity', (e) => cb(e.payload))
+
+// -------------------------------------------------------------- browser ----
+
+export interface Bounds {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+export const browserOpen = (id: string, url: string, bounds: Bounds) =>
+  invoke<string>('browser_open', { id, url, bounds })
+export const browserSetBounds = (id: string, bounds: Bounds) =>
+  invoke<void>('browser_set_bounds', { id, bounds })
+export const browserSetVisible = (id: string, visible: boolean) =>
+  invoke<void>('browser_set_visible', { id, visible })
+export const browserNavigate = (id: string, url: string) =>
+  invoke<string>('browser_navigate', { id, url })
+export const browserCommand = (id: string, action: 'back' | 'forward' | 'reload' | 'stop') =>
+  invoke<void>('browser_command', { id, action })
+export const browserState = (id: string) =>
+  invoke<{ url: string; exists: boolean }>('browser_state', { id })
+export const browserClose = (id: string) => invoke<void>('browser_close', { id })
+
+export interface NavigatedPayload {
+  id: string
+  url: string
+}
+
+/** Fired for every navigation a browser view makes, including link clicks. */
+export const onBrowserNavigated = (
+  cb: (p: NavigatedPayload) => void,
+): Promise<UnlistenFn> =>
+  listen<NavigatedPayload>('browser://navigated', (e) => cb(e.payload))
