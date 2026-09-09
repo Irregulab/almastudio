@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { ArrowDown, ArrowUp, X } from 'lucide-react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { SearchAddon } from '@xterm/addon-search'
@@ -9,7 +10,7 @@ import { openUrl } from '@tauri-apps/plugin-opener'
 import '@xterm/xterm/css/xterm.css'
 
 import {
-  onPtyData, onPtyExit, ptyKill, ptyResize, ptySpawn, ptyStatus, ptyWrite, scrollbackLoad,
+  onPtyData, onPtyExit, ptyResize, ptySpawn, ptyStatus, ptyWrite, scrollbackLoad,
 } from '../lib/ipc'
 import { buildSpawnOptions, harnessCommandLabel } from '../lib/harness'
 import { resolveScheme } from '../lib/schemes'
@@ -42,6 +43,9 @@ export function TerminalView({ tab, visible, focused }: Props) {
   const project = useWorkspace((s) => s.projects.find((p) => p.id === tab.projectId))
   const setTabStatus = useWorkspace((s) => s.setTabStatus)
   const [needsStart, setNeedsStart] = useState(false)
+  const [findOpen, setFindOpen] = useState(false)
+  const [findTerm, setFindTerm] = useState('')
+  const [findHits, setFindHits] = useState<{ index: number; count: number } | null>(null)
 
   const commandLabel = harnessCommandLabel(tab.kind, settings)
 
@@ -124,6 +128,9 @@ export function TerminalView({ tab, visible, focused }: Props) {
     termRef.current = term
     fitRef.current = fit
     searchRef.current = search
+    const searchResults = search.onDidChangeResults((r) =>
+      setFindHits(r ? { index: r.resultIndex + 1, count: r.resultCount } : null),
+    )
     fit.fit()
 
     let disposed = false
@@ -179,11 +186,9 @@ export function TerminalView({ tab, visible, focused }: Props) {
         return
       }
       // Nothing is running: either start it now or wait for the user.
-      if (settings.startup.autoStartTabs || tab.status === 'idle') {
-        if (settings.startup.autoStartTabs) {
-          await spawn(tab.resumeOnRestore)
-          return
-        }
+      if (settings.startup.autoStartTabs) {
+        await spawn(tab.resumeOnRestore)
+        return
       }
       setNeedsStart(true)
     })()
@@ -212,6 +217,7 @@ export function TerminalView({ tab, visible, focused }: Props) {
       ro.disconnect()
       onData.dispose()
       onResize.dispose()
+      searchResults.dispose()
       for (const un of unlisteners) un()
       term.dispose()
       termRef.current = null
@@ -271,6 +277,45 @@ export function TerminalView({ tab, visible, focused }: Props) {
     return () => cancelAnimationFrame(id)
   }, [visible, focused])
 
+  // --------------------------------------------------------------- find ---
+  useEffect(() => {
+    if (!focused) return
+    const open = () => setFindOpen(true)
+    window.addEventListener('almastudio:find', open)
+    return () => window.removeEventListener('almastudio:find', open)
+  }, [focused])
+
+  const runSearch = useCallback(
+    (term: string, back = false) => {
+      const search = searchRef.current
+      if (!search) return
+      if (!term) {
+        search.clearDecorations()
+        setFindHits(null)
+        return
+      }
+      const options = {
+        decorations: {
+          matchOverviewRuler: '#f5f543',
+          activeMatchColorOverviewRuler: '#f5f543',
+          matchBackground: '#623315',
+          activeMatchBackground: '#9e6a03',
+        },
+      }
+      if (back) search.findPrevious(term, options)
+      else search.findNext(term, options)
+    },
+    [],
+  )
+
+  const closeFind = useCallback(() => {
+    setFindOpen(false)
+    setFindTerm('')
+    setFindHits(null)
+    searchRef.current?.clearDecorations()
+    termRef.current?.focus()
+  }, [])
+
   // ------------------------------------------------ selection / clipboard --
   useEffect(() => {
     const term = termRef.current
@@ -303,6 +348,47 @@ export function TerminalView({ tab, visible, focused }: Props) {
   return (
     <div className="term" onContextMenu={onContextMenu}>
       <div ref={hostRef} className="term__host" />
+      {findOpen && (
+        <div className="findbar">
+          <input
+            className="findbar__input"
+            autoFocus
+            value={findTerm}
+            placeholder={t('find.placeholder')}
+            onChange={(e) => {
+              setFindTerm(e.target.value)
+              runSearch(e.target.value)
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') runSearch(findTerm, e.shiftKey)
+              if (e.key === 'Escape') closeFind()
+            }}
+          />
+          <span className="findbar__count subtle">
+            {findTerm
+              ? findHits && findHits.count > 0
+                ? t('find.results', { i: findHits.index, n: findHits.count })
+                : t('find.noResults')
+              : ''}
+          </span>
+          <button
+            className="icon-btn icon-btn--tiny" aria-label={t('find.previous')}
+            onClick={() => runSearch(findTerm, true)}
+          >
+            <ArrowUp size={13} />
+          </button>
+          <button
+            className="icon-btn icon-btn--tiny" aria-label={t('find.next')}
+            onClick={() => runSearch(findTerm)}
+          >
+            <ArrowDown size={13} />
+          </button>
+          <button className="icon-btn icon-btn--tiny" aria-label={t('find.close')} onClick={closeFind}>
+            <X size={13} />
+          </button>
+        </div>
+      )}
+
       {needsStart && (
         <div className="term__start">
           <button
@@ -319,6 +405,3 @@ export function TerminalView({ tab, visible, focused }: Props) {
     </div>
   )
 }
-
-/** Kills the backing process. Called when a tab is closed, not when hidden. */
-export const disposeTabProcess = (id: string) => void ptyKill(id).catch(() => {})

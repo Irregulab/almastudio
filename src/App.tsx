@@ -48,6 +48,8 @@ export default function App() {
   useEffect(() => {
     void (async () => {
       const [loaded] = await Promise.all([loadSettings(), loadWorkspace()])
+      // Projects always come back; tabs only if the user wants them to.
+      if (!loaded.startup.restoreTabs) useWorkspace.getState().discardRestoredTabs()
       const sys = await osLocale().catch(() => null)
       setLocale(resolveLocale(loaded.language, sys))
       setPlatform(osPlatform())

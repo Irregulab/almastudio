@@ -6,8 +6,10 @@ import type { HarnessKind, Settings } from '../lib/types'
 
 const STATE_KEY = 'settings'
 
+export const SETTINGS_VERSION = 2
+
 export const DEFAULT_SETTINGS: Settings = {
-  version: 1,
+  version: SETTINGS_VERSION,
   theme: 'system',
   uiTheme: DEFAULT_UI_THEME,
   accent: '',
@@ -99,13 +101,39 @@ export const useSettings = create<SettingsStore>((set, get) => ({
   hydrate: (s) => set({ settings: s, loaded: true }),
 }))
 
+/**
+ * Brings an older settings file forward. Runs before the merge, on the raw
+ * parsed object, so it can look at values the current shape no longer has.
+ */
+function migrate(raw: Record<string, unknown>): Record<string, unknown> {
+  const from = typeof raw.version === 'number' ? raw.version : 1
+
+  if (from < 2) {
+    // `accent` used to be a required colour that defaulted to the Almaware
+    // green. It is now an override, where empty means "use the theme's own
+    // accent" — so a stored value equal to that old default was never a
+    // deliberate choice and should not survive as one.
+    if (raw.accent === '#7cb518') raw.accent = ''
+  }
+
+  raw.version = SETTINGS_VERSION
+  return raw
+}
+
 export async function loadSettings(): Promise<Settings> {
   try {
     const raw = await stateLoad(STATE_KEY)
-    const merged = raw
-      ? deepMerge(DEFAULT_SETTINGS, JSON.parse(raw) as unknown)
-      : DEFAULT_SETTINGS
+    if (!raw) {
+      useSettings.getState().hydrate(DEFAULT_SETTINGS)
+      return DEFAULT_SETTINGS
+    }
+    const parsed = JSON.parse(raw) as Record<string, unknown>
+    const wasOlder = parsed.version !== SETTINGS_VERSION
+    const merged = deepMerge(DEFAULT_SETTINGS, migrate(parsed))
     useSettings.getState().hydrate(merged)
+    // Persist straight away when a migration actually changed something, so
+    // the file on disk stops being an older shape than the app expects.
+    if (wasOlder) void stateSave(STATE_KEY, JSON.stringify(merged)).catch(() => {})
     return merged
   } catch {
     // A corrupt or unreadable settings file must never block startup.

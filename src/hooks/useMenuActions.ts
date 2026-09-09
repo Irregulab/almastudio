@@ -102,6 +102,10 @@ export function useMenuActions() {
             if (pane) s.splitPane(pane.id, 'col')
             break
           }
+          case 'find':
+            // The focused terminal picks this up; see TerminalView.
+            window.dispatchEvent(new CustomEvent('almastudio:find'))
+            break
           case 'next-tab': cycleTab(1); break
           case 'prev-tab': cycleTab(-1); break
           case 'toggle-sidebar': s.toggleSidebar(); break

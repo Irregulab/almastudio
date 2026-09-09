@@ -116,11 +116,9 @@ export const listDir = (
 export const readTextFile = (path: string) => invoke<FileContent>('read_text_file', { path })
 export const findFiles = (root: string, query: string, limit?: number) =>
   invoke<DirEntryInfo[]>('find_files', { root, query, limit })
-export const pathExists = (path: string) => invoke<boolean>('path_exists', { path })
 export const dirName = (path: string) => invoke<string>('dir_name', { path })
 export const writeProjectInstructions = (root: string, contents: string) =>
   invoke<string>('write_project_instructions', { root, contents })
-export const homeDir = () => invoke<string>('home_dir')
 
 // -------------------------------------------------------------- watcher ----
 

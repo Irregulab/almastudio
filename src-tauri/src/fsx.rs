@@ -197,11 +197,6 @@ pub fn find_files(
 }
 
 #[tauri::command]
-pub fn path_exists(path: String) -> bool {
-    Path::new(&path).exists()
-}
-
-#[tauri::command]
 pub fn dir_name(path: String) -> String {
     Path::new(&path)
         .file_name()
@@ -218,11 +213,4 @@ pub fn write_project_instructions(root: String, contents: String) -> Result<Stri
     let path = dir.join("instructions.md");
     fs::write(&path, contents).map_err(|e| e.to_string())?;
     Ok(path.to_string_lossy().to_string())
-}
-
-#[tauri::command]
-pub fn home_dir() -> String {
-    std::env::var("HOME")
-        .or_else(|_| std::env::var("USERPROFILE"))
-        .unwrap_or_default()
 }

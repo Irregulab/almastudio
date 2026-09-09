@@ -93,6 +93,14 @@
     "noTabsHint": "Open a Claude Code, Codex or terminal tab to get started.",
     "openIn": "Open in"
   },
+  "find": {
+    "placeholder": "Find in terminal",
+    "next": "Next match",
+    "previous": "Previous match",
+    "close": "Close find",
+    "results": "{i} of {n}",
+    "noResults": "No results"
+  },
   "panel": {
     "changes": "Changes",
     "files": "Files",

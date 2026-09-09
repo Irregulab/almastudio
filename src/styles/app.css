@@ -672,3 +672,29 @@
   --sp-4: 9px;
   --sp-5: 12px;
 }
+
+/* Terminal find bar, floated over the top-right of the pane. */
+.findbar {
+  position: absolute;
+  top: 6px;
+  right: 14px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 4px 3px 8px;
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-2);
+}
+.findbar__input {
+  width: 190px;
+  height: 22px;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--fg);
+  font-size: 12px;
+}
+.findbar__count { font-size: 11px; min-width: 56px; text-align: right; padding-right: 4px; }

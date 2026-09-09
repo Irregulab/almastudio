@@ -469,20 +469,6 @@ pub fn pty_write(mgr: tauri::State<'_, PtyManager>, id: String, data: String) ->
     mgr.write(&id, data.as_bytes()).map_err(|e| e.to_string())
 }
 
-/// Used for pasting binary-ish payloads and for key sequences the frontend
-/// already encoded; `data` is base64.
-#[tauri::command]
-pub fn pty_write_bytes(
-    mgr: tauri::State<'_, PtyManager>,
-    id: String,
-    b64: String,
-) -> Result<(), String> {
-    let bytes = base64::engine::general_purpose::STANDARD
-        .decode(b64.as_bytes())
-        .map_err(|e| e.to_string())?;
-    mgr.write(&id, &bytes).map_err(|e| e.to_string())
-}
-
 #[tauri::command]
 pub fn pty_resize(
     mgr: tauri::State<'_, PtyManager>,

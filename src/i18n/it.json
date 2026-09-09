@@ -93,6 +93,14 @@
     "noTabsHint": "Apri una scheda Claude Code, Codex o terminale per iniziare.",
     "openIn": "Apri in"
   },
+  "find": {
+    "placeholder": "Cerca nel terminale",
+    "next": "Risultato successivo",
+    "previous": "Risultato precedente",
+    "close": "Chiudi ricerca",
+    "results": "{i} di {n}",
+    "noResults": "Nessun risultato"
+  },
   "panel": {
     "changes": "Modifiche",
     "files": "File",

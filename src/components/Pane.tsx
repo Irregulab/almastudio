@@ -9,7 +9,7 @@ import { useWorkspace } from '../store/workspace'
 import { useSettings } from '../store/settings'
 import { useT } from '../i18n'
 import { defaultTabTitle } from '../lib/harness'
-import { disposeTabProcess, TerminalView } from './TerminalView'
+import { TerminalView } from './TerminalView'
 import { DiffView } from './DiffView'
 import { FileView } from './FileView'
 import { MenuItem, MenuSeparator, Popover } from './ui'
@@ -104,10 +104,7 @@ function TabBar({ leaf, tabs }: { leaf: LeafNode; tabs: Tab[] }) {
             active={tab.id === leaf.activeTabId}
             dropBefore={dropIndex === i}
             onSelect={() => setActiveTab(leaf.id, tab.id)}
-            onClose={() => {
-              if (isTerminalTab(tab)) disposeTabProcess(tab.id)
-              closeTab(tab.id)
-            }}
+            onClose={() => closeTab(tab.id)}
             onDragOverChip={(before) => setDropIndex(before ? i : i + 1)}
             onDropChip={(e, before) => onDrop(e, before ? i : i + 1)}
             paneId={leaf.id}

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { scrollbackForget, scrollbackPrune, stateLoad, stateSave } from '../lib/ipc'
+import { ptyKill, scrollbackForget, scrollbackPrune, stateLoad, stateSave } from '../lib/ipc'
 import { uid } from '../lib/id'
 import {
   allTabIds, findLeaf, findLeafOfTab, makeLeaf, moveTab as moveTabIn,
@@ -73,6 +73,8 @@ interface WorkspaceStore extends WorkspaceState {
   setPanel: (projectId: string, patch: Partial<ProjectWorkspace['panel']>) => void
   toggleSidebar: () => void
   setSidebarWidth: (w: number) => void
+  /** Drops restored tabs when the user has turned tab restore off. */
+  discardRestoredTabs: () => void
 }
 
 /** Applies a change to one project's workspace, creating it on first use. */
@@ -115,6 +117,7 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
       const doomed = ws ? allTabIds(ws.layout) : []
       const tabs = { ...s.tabs }
       for (const t of doomed) {
+        if (isTerminalTab(tabs[t])) void ptyKill(t).catch(() => {})
         delete tabs[t]
         void scrollbackForget(t).catch(() => {})
       }
@@ -269,6 +272,9 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
       if (!tab) return {}
       const tabs = { ...s.tabs }
       delete tabs[tabId]
+      // Every close path funnels through here, so this is the one place that
+      // has to end the process and drop its saved output.
+      if (isTerminalTab(tab)) void ptyKill(tabId).catch(() => {})
       void scrollbackForget(tabId).catch(() => {})
 
       const ws = s.workspaces[tab.projectId]
@@ -414,6 +420,17 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
 
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
   setSidebarWidth: (w) => set({ sidebarWidth: Math.max(180, Math.min(420, w)) }),
+
+  discardRestoredTabs: () =>
+    set((s) => {
+      const workspaces: Record<string, ProjectWorkspace> = {}
+      for (const [id, ws] of Object.entries(s.workspaces)) {
+        const leaf = makeLeaf()
+        workspaces[id] = { ...ws, layout: leaf, activePaneId: leaf.id }
+      }
+      void scrollbackPrune([]).catch(() => {})
+      return { tabs: {}, workspaces }
+    }),
 }))
 
 function firstPaneId(node: LayoutNode): string {

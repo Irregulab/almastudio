@@ -6,9 +6,7 @@
 use std::cell::{Cell, RefCell};
 use std::path::{Path, PathBuf};
 
-use git2::{
-    Delta, DiffOptions, Repository, ResetType, Status, StatusOptions, StatusShow,
-};
+use git2::{Delta, DiffOptions, Repository, Status, StatusOptions, StatusShow};
 use serde::{Deserialize, Serialize};
 
 /// Diffs larger than this are truncated; nobody reads a 40k-line diff and it
@@ -556,16 +554,4 @@ pub fn git_checkout(root: String, name: String) -> Result<(), String> {
         Some(refname) => repo.set_head(&refname).map_err(|e| e.to_string()),
         None => repo.set_head_detached(object.id()).map_err(|e| e.to_string()),
     }
-}
-
-/// Restores a path to its committed state, used by the diff view's revert action.
-#[tauri::command]
-pub fn git_reset_hard_path(root: String, path: String) -> Result<(), String> {
-    let repo = open(&root)?;
-    let head = repo
-        .head()
-        .and_then(|h| h.peel(git2::ObjectType::Commit))
-        .map_err(|e| e.to_string())?;
-    repo.reset(&head, ResetType::Mixed, None).map_err(|e| e.to_string())?;
-    git_discard(root, vec![path])
 }
