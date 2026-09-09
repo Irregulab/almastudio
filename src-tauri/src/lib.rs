@@ -44,6 +44,14 @@ fn ready(window: tauri::Window) {
     let _ = window.set_focus();
 }
 
+/// Surfaces uncaught frontend errors on stderr, where `tauri dev` shows them.
+/// The webview's own console is otherwise invisible unless devtools are open,
+/// which makes a boot-time exception look like a blank window.
+#[tauri::command]
+fn log_frontend(level: String, message: String) {
+    eprintln!("almastudio[web/{level}] {message}");
+}
+
 /// Default shell for the platform, shown in Settings as the placeholder.
 #[tauri::command]
 fn default_shell() -> String {
@@ -75,6 +83,7 @@ pub fn run() {
             app_info,
             ready,
             default_shell,
+            log_frontend,
             menu::apply_menu,
             pty::pty_spawn,
             pty::pty_write,

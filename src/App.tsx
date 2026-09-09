@@ -103,7 +103,11 @@ export default function App() {
   const macOverlay = platform === 'macos'
 
   return (
-    <div className={`app${macOverlay ? ' app--overlay' : ''}`}>
+    <div
+      className={`app${macOverlay ? ' app--overlay' : ''}${
+        sidebarOpen ? '' : ' app--nosidebar'
+      }`}
+    >
       {sidebarOpen && (
         <>
           <div ref={sidebarRef} className="app__sidebar" style={{ width: sidebarWidth }}>

@@ -13,7 +13,9 @@
 .app--overlay .sidebar__head,
 .app--overlay .topbar { padding-top: 6px; }
 .app--overlay .sidebar__head { padding-left: 78px; }
-.app--overlay .app:not(:has(.app__sidebar)) .topbar { padding-left: 78px; }
+/* With the sidebar collapsed the traffic lights sit over the top bar instead,
+   so the reserved space moves there. */
+.app--overlay.app--nosidebar .topbar { padding-left: 78px; }
 
 .app__sidebar { flex: 0 0 auto; min-width: 180px; max-width: 420px; overflow: hidden; }
 
@@ -258,20 +260,31 @@
 
 /* ------------------------------------------------------------ terminal --- */
 
-.term { position: relative; flex: 1 1 auto; min-width: 0; background: var(--term-bg); }
+.term {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  background: var(--term-bg);
+}
+/* xterm puts internal layers as high as z-index 11 and `.term__host` creates
+   no stacking context, so anything floated over the terminal has to be in a
+   sibling box or carry a z-index above those layers — otherwise it is painted
+   under them and never receives clicks. */
+.term__body { position: relative; flex: 1 1 auto; min-height: 0; }
 .term__host { position: absolute; inset: 6px 2px 2px 8px; }
 .term__host .xterm { height: 100%; }
 .term__host .xterm-viewport { background: transparent !important; }
+
+/* In normal flow below the terminal, never on top of it. */
 .term__start {
-  position: absolute;
-  inset: auto 0 0 0;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: var(--sp-4);
   padding: var(--sp-4) var(--sp-5);
-  background: color-mix(in srgb, var(--bg-raised) 92%, transparent);
+  background: var(--bg-panel);
   border-top: 1px solid var(--border);
-  backdrop-filter: blur(6px);
 }
 .term__start-hint { margin: 0; font-size: 11.5px; color: var(--fg-subtle); line-height: 1.5; }
 
@@ -678,7 +691,8 @@
   position: absolute;
   top: 6px;
   right: 14px;
-  z-index: 6;
+  /* Above xterm's own layers, which reach z-index 11. */
+  z-index: 20;
   display: flex;
   align-items: center;
   gap: 2px;

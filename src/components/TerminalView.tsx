@@ -43,11 +43,16 @@ export function TerminalView({ tab, visible, focused }: Props) {
   const project = useWorkspace((s) => s.projects.find((p) => p.id === tab.projectId))
   const setTabStatus = useWorkspace((s) => s.setTabStatus)
   const [needsStart, setNeedsStart] = useState(false)
+  // The custom key handler is attached once, so it reads current values
+  // through refs rather than closing over the first render's.
+  const needsStartRef = useRef(false)
+  const spawnRef = useRef<(resume: boolean) => void>(() => {})
   const [findOpen, setFindOpen] = useState(false)
   const [findTerm, setFindTerm] = useState('')
   const [findHits, setFindHits] = useState<{ index: number; count: number } | null>(null)
 
   const commandLabel = harnessCommandLabel(tab.kind, settings)
+  needsStartRef.current = needsStart
 
   // -------------------------------------------------------------- spawn ---
   const spawn = useCallback(
@@ -83,6 +88,7 @@ export function TerminalView({ tab, visible, focused }: Props) {
     },
     [project, settings, setTabStatus, tab],
   )
+  spawnRef.current = spawn
 
   // ------------------------------------------------------- create / attach --
   useEffect(() => {
@@ -192,6 +198,17 @@ export function TerminalView({ tab, visible, focused }: Props) {
       }
       setNeedsStart(true)
     })()
+
+    // The hint says "press Enter to start"; make that true. Nothing is
+    // listening on the other end until a process exists, so the keystroke is
+    // free to reuse.
+    term.attachCustomKeyEventHandler((e) => {
+      if (e.type === 'keydown' && e.key === 'Enter' && needsStartRef.current) {
+        spawnRef.current(tab.resumeOnRestore && tab.kind !== 'shell')
+        return false
+      }
+      return true
+    })
 
     const onData = term.onData((data) => {
       void ptyWrite(tab.id, data).catch(() => {})
@@ -359,47 +376,52 @@ export function TerminalView({ tab, visible, focused }: Props) {
 
   return (
     <div className="term" onContextMenu={onContextMenu}>
-      <div ref={hostRef} className="term__host" />
-      {findOpen && (
-        <div className="findbar">
-          <input
-            className="findbar__input"
-            autoFocus
-            value={findTerm}
-            placeholder={t('find.placeholder')}
-            onChange={(e) => {
-              setFindTerm(e.target.value)
-              runSearch(e.target.value)
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') runSearch(findTerm, e.shiftKey)
-              if (e.key === 'Escape') closeFind()
-            }}
-          />
-          <span className="findbar__count subtle">
-            {findTerm
-              ? findHits && findHits.count > 0
-                ? t('find.results', { i: findHits.index, n: findHits.count })
-                : t('find.noResults')
-              : ''}
-          </span>
-          <button
-            className="icon-btn icon-btn--tiny" aria-label={t('find.previous')}
-            onClick={() => runSearch(findTerm, true)}
-          >
-            <ArrowUp size={13} />
-          </button>
-          <button
-            className="icon-btn icon-btn--tiny" aria-label={t('find.next')}
-            onClick={() => runSearch(findTerm)}
-          >
-            <ArrowDown size={13} />
-          </button>
-          <button className="icon-btn icon-btn--tiny" aria-label={t('find.close')} onClick={closeFind}>
-            <X size={13} />
-          </button>
-        </div>
-      )}
+      <div className="term__body">
+        <div ref={hostRef} className="term__host" />
+        {findOpen && (
+          <div className="findbar">
+            <input
+              className="findbar__input"
+              autoFocus
+              value={findTerm}
+              placeholder={t('find.placeholder')}
+              onChange={(e) => {
+                setFindTerm(e.target.value)
+                runSearch(e.target.value)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') runSearch(findTerm, e.shiftKey)
+                if (e.key === 'Escape') closeFind()
+              }}
+            />
+            <span className="findbar__count subtle">
+              {findTerm
+                ? findHits && findHits.count > 0
+                  ? t('find.results', { i: findHits.index, n: findHits.count })
+                  : t('find.noResults')
+                : ''}
+            </span>
+            <button
+              className="icon-btn icon-btn--tiny" aria-label={t('find.previous')}
+              onClick={() => runSearch(findTerm, true)}
+            >
+              <ArrowUp size={13} />
+            </button>
+            <button
+              className="icon-btn icon-btn--tiny" aria-label={t('find.next')}
+              onClick={() => runSearch(findTerm)}
+            >
+              <ArrowDown size={13} />
+            </button>
+            <button
+              className="icon-btn icon-btn--tiny" aria-label={t('find.close')}
+              onClick={closeFind}
+            >
+              <X size={13} />
+            </button>
+          </div>
+        )}
+      </div>
 
       {needsStart && (
         <div className="term__start">

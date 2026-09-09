@@ -3,7 +3,8 @@ import { ptyKill, scrollbackForget, scrollbackPrune, stateLoad, stateSave } from
 import { uid } from '../lib/id'
 import {
   allTabIds, findLeaf, findLeafOfTab, makeLeaf, moveTab as moveTabIn,
-  removeTab as removeTabFrom, resizeSplit as resizeSplitIn, splitLeaf, updateLeaf,
+  removeLeaf as removeLeafFrom, removeTab as removeTabFrom,
+  resizeSplit as resizeSplitIn, splitLeaf, updateLeaf,
 } from '../lib/layout'
 import type {
   DiffSide, HarnessKind, LayoutNode, Project, ProjectWorkspace,
@@ -391,7 +392,27 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
     const ws = s.workspaces[projectId]
     const pane = ws ? findLeaf(ws.layout, paneId) : null
     if (!pane) return
+
+    // Closing every tab collapses the pane as a side effect — but an empty
+    // pane has no tabs to close, so it has to be removed directly.
     for (const id of [...pane.tabIds]) get().closeTab(id)
+
+    const after = get().workspaces[projectId]
+    if (!after || !findLeaf(after.layout, paneId)) return
+    const layout = removeLeafFrom(after.layout, paneId)
+    if (!layout) return
+    set({
+      workspaces: {
+        ...get().workspaces,
+        [projectId]: {
+          ...after,
+          layout,
+          activePaneId: findLeaf(layout, after.activePaneId)
+            ? after.activePaneId
+            : firstPaneId(layout),
+        },
+      },
+    })
   },
 
   moveTab: (tabId, targetPaneId, index) =>

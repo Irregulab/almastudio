@@ -1,8 +1,8 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import {
-  Bot, Columns2, FileDiff, FileText, FolderOpen, Plus, RotateCw, Rows2,
-  Sparkles, Square, SquareTerminal, Terminal, X,
+  Bot, Columns2, FileDiff, FileText, FolderOpen, PanelsTopLeft, Plus, RotateCw,
+  Rows2, Sparkles, Square, SquareTerminal, Terminal, X,
 } from 'lucide-react'
 
 import { ptyKill } from '../lib/ipc'
@@ -14,6 +14,7 @@ import { TerminalView } from './TerminalView'
 import { DiffView } from './DiffView'
 import { FileView } from './FileView'
 import { MenuItem, MenuSeparator, Popover } from './ui'
+import { allLeaves } from '../lib/layout'
 import type { HarnessKind, LeafNode, Tab, TerminalTab } from '../lib/types'
 import { isTerminalTab } from '../lib/types'
 
@@ -279,6 +280,12 @@ function PaneActions({ leaf }: { leaf: LeafNode }) {
   const t = useT()
   const [anchor, setAnchor] = useState<HTMLElement | null>(null)
   const splitPane = useWorkspace((s) => s.splitPane)
+  const closePane = useWorkspace((s) => s.closePane)
+  // A pane can only be dissolved while another one exists to absorb the space.
+  const isSplit = useWorkspace((s) => {
+    const ws = s.activeProjectId ? s.workspaces[s.activeProjectId] : undefined
+    return ws ? allLeaves(ws.layout).length > 1 : false
+  })
   const newTab = useNewTab()
 
   return (
@@ -304,6 +311,16 @@ function PaneActions({ leaf }: { leaf: LeafNode }) {
       >
         <Rows2 size={14} />
       </button>
+      {isSplit && (
+        <button
+          className="icon-btn"
+          aria-label={t('menu.closePane')}
+          title={t('menu.closePane')}
+          onClick={() => closePane(leaf.id)}
+        >
+          <PanelsTopLeft size={14} />
+        </button>
+      )}
 
       <Popover anchor={anchor} open={!!anchor} onClose={() => setAnchor(null)} align="end">
         <MenuItem
@@ -339,6 +356,11 @@ function PaneActions({ leaf }: { leaf: LeafNode }) {
 function EmptyPane({ paneId }: { paneId: string }) {
   const t = useT()
   const newTab = useNewTab()
+  const closePane = useWorkspace((s) => s.closePane)
+  const isSplit = useWorkspace((s) => {
+    const ws = s.activeProjectId ? s.workspaces[s.activeProjectId] : undefined
+    return ws ? allLeaves(ws.layout).length > 1 : false
+  })
   return (
     <div className="empty">
       <SquareTerminal size={26} />
@@ -357,6 +379,11 @@ function EmptyPane({ paneId }: { paneId: string }) {
           <Terminal size={13} /> {t('tabs.shell')}
         </button>
       </div>
+      {isSplit && (
+        <button className="btn btn--ghost btn--sm" onClick={() => closePane(paneId)}>
+          <X size={13} /> {t('menu.closePane')}
+        </button>
+      )}
     </div>
   )
 }
