@@ -117,6 +117,10 @@ pub fn run() {
                 std::thread::sleep(std::time::Duration::from_secs(4));
                 if let Some(w) = handle.get_webview_window("main") {
                     if !w.is_visible().unwrap_or(true) {
+                        eprintln!(
+                            "almastudio: frontend never called `ready`; \
+                             revealing the window from the backstop"
+                        );
                         let _ = w.show();
                         let _ = w.set_focus();
                     }
