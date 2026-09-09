@@ -32,9 +32,11 @@ of blocked threads — no Electron, no per-tab browser process.
   terminal output are written to disk continuously, so an app restart or a
   machine reboot brings the workspace back. Agents can be relaunched with their
   resume flags (`claude --continue`).
-- **Themes and i18n** — dark, light or follow the system, using VS Code's
-  Dark+ / Light+ palettes by default; English and Italian. Everything
-  configurable lives in Settings, reachable from the app menu (⌘,).
+- **Themes and i18n** — dark, light or follow the system. Seven themes ship in
+  the box — VS Code, One, Dracula, Nord, Solarized, Catppuccin and Almaware —
+  each with a dark and a light variant and a matching terminal palette.
+  English and Italian. Everything configurable lives in Settings, reachable
+  from the app menu (⌘,).
 - **Updates** — signed over-the-air updates served from almaware.net.
 
 ## Requirements
@@ -137,8 +139,16 @@ mise, asdf and Homebrew all work. On Windows the command goes through
 a light variant plus the terminal palette that pairs with it, listed in
 `src/lib/uiThemes.ts`; the app writes the selected one onto `:root` at boot.
 Adding a theme means adding an entry to that array — no stylesheet changes. The
-CSS carries a matching fallback for the first paint. VS Code and Almaware ship
-in the box.
+CSS carries a matching fallback for the first paint.
+
+Each variant is written as a compact palette and expanded by `tokens()`, which
+derives the diff washes and shadows. Spelling out all forty-odd properties per
+variant would be repetitive, easy to get subtly wrong, and would let derived
+values drift between themes. `uiThemes.test.ts` asserts that every theme
+defines every token in both variants, that the colours parse, that each points
+at terminal schemes that exist, and that a theme's dark variant is actually
+darker than its light one — which catches the copy-paste that leaves both on
+the same palette.
 
 **Project instructions** reach the agent three ways at once: written to
 `.almastudio/instructions.md` in the project, exported as

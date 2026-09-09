@@ -154,7 +154,12 @@
     "followActiveTab": "Follow active tab",
     "emptyFolder": "Empty folder",
     "filterFiles": "Filter files",
-    "openFile": "Open file"
+    "openFile": "Open file",
+    "pinLabel": "Panel folder",
+    "pinnedHint": "Pinned to the project folder — click to follow the active tab instead",
+    "followingHint": "Following the active tab's folder — click to pin to the project folder",
+    "pinnedShort": "Project",
+    "followingShort": "Active tab"
   },
   "fs": {
     "newFile": "New file",

@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "AlmaStudio — a multi-project desktop workspace for AI coding agents",
+  "description": "AlmaStudio \u2014 a multi-project desktop workspace for AI coding agents",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
@@ -63,6 +63,7 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
     "@vitejs/plugin-react": "^6.1.1",
+    "jsdom": "^30.0.1",
     "typescript": "^7.0.2",
     "vite": "^8.2.2",
     "vitest": "^5.0.0"

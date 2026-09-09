@@ -154,7 +154,12 @@
     "followActiveTab": "Segui la scheda attiva",
     "emptyFolder": "Cartella vuota",
     "filterFiles": "Filtra i file",
-    "openFile": "Apri file"
+    "openFile": "Apri file",
+    "pinLabel": "Cartella del pannello",
+    "pinnedHint": "Bloccato sulla cartella del progetto — clicca per seguire la scheda attiva",
+    "followingHint": "Segue la cartella della scheda attiva — clicca per bloccarlo sulla cartella del progetto",
+    "pinnedShort": "Progetto",
+    "followingShort": "Scheda attiva"
   },
   "fs": {
     "newFile": "Nuovo file",

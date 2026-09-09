@@ -9,6 +9,7 @@ import { DEFAULT_SETTINGS, useSettings } from '../store/settings'
 import { AVAILABLE_LOCALES, LOCALE_NAMES, useT } from '../i18n'
 import { SCHEME_NAMES } from '../lib/schemes'
 import { UI_THEMES } from '../lib/uiThemes'
+import { useTheme } from '../hooks/useTheme'
 import { ConfirmDialog, Field, Modal, NumberInput, Segmented, Toggle } from './ui'
 import { UpdateSection } from './Updater'
 import type { AppInfo, HarnessKind, Language, PanelView, ThemeMode } from '../lib/types'
@@ -108,14 +109,7 @@ function AppearanceSection() {
       </Field>
 
       <Field label={t('settings.uiTheme')} hint={t('settings.uiThemeHint')}>
-        <select
-          className="select" value={s.uiTheme}
-          onChange={(e) => set({ uiTheme: e.target.value })}
-        >
-          {UI_THEMES.map((th) => (
-            <option key={th.id} value={th.id}>{th.name}</option>
-          ))}
-        </select>
+        <ThemeGrid value={s.uiTheme} onChange={(id) => set({ uiTheme: id })} />
       </Field>
 
       <Field label={t('settings.accent')}>
@@ -177,6 +171,45 @@ function AppearanceSection() {
         />
       </Field>
     </>
+  )
+}
+
+/**
+ * Themes are shown as swatches rather than as a dropdown: the name of a theme
+ * tells you far less about it than four of its colours do.
+ */
+function ThemeGrid({
+  value, onChange,
+}: { value: string; onChange: (id: string) => void }) {
+  const isDark = useTheme()
+  return (
+    <div className="themegrid">
+      {UI_THEMES.map((theme) => {
+        const v = isDark ? theme.dark : theme.light
+        const active = theme.id === value
+        return (
+          <button
+            key={theme.id}
+            type="button"
+            className={`themecard${active ? ' themecard--on' : ''}`}
+            aria-pressed={active}
+            onClick={() => onChange(theme.id)}
+          >
+            <span
+              className="themecard__preview"
+              style={{ background: v.bg, borderColor: v['border-strong'] }}
+            >
+              <span className="themecard__bar" style={{ background: v['bg-panel'] }} />
+              <span className="themecard__chip" style={{ background: v.accent }} />
+              <span className="themecard__chip" style={{ background: v['syn-string'] }} />
+              <span className="themecard__chip" style={{ background: v['syn-keyword'] }} />
+              <span className="themecard__chip" style={{ background: v['syn-function'] }} />
+            </span>
+            <span className="themecard__name truncate">{theme.name}</span>
+          </button>
+        )
+      })}
+    </div>
   )
 }
 

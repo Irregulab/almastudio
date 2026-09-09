@@ -331,16 +331,33 @@
   text-align: center;
 }
 .panel__scope {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
   padding: 5px var(--sp-4);
   font-size: 10.5px;
   color: var(--fg-subtle);
   border-bottom: 1px solid var(--border);
+}
+.panel__scope-mode {
+  flex: 0 0 auto;
+  padding: 0 5px;
+  border-radius: 8px;
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.panel__scope-path {
+  flex: 1 1 auto;
+  min-width: 0;
   /* RTL so a long path is clipped at its start, where the uninteresting part
      is; the inner <bdi> keeps the path itself rendering left-to-right. */
   direction: rtl;
   text-align: left;
 }
-.panel__scope bdi { unicode-bidi: isolate; }
+.panel__scope-path bdi { unicode-bidi: isolate; }
 .panel__body { flex: 1 1 auto; overflow: auto; }
 
 .group { border-bottom: 1px solid var(--border); }
@@ -953,3 +970,37 @@
 /* The native child webview is laid over this box; it must never be covered
    by app chrome, which is why overlays hide it instead. */
 .browser__slot { flex: 1 1 auto; min-height: 0; position: relative; background: var(--bg-inset); }
+
+/* --------------------------------------------------------- theme picker --- */
+
+.themegrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  gap: var(--sp-3);
+}
+.themecard {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 5px;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  text-align: left;
+  transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+.themecard:hover { background: var(--bg-hover); }
+.themecard--on { border-color: var(--accent); background: var(--bg-active); }
+.themecard__preview {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 42px;
+  padding: 6px;
+  border-radius: var(--radius-sm);
+  border: 1px solid;
+  overflow: hidden;
+}
+.themecard__bar { position: absolute; inset: 0 0 auto 0; height: 11px; }
+.themecard__chip { width: 12px; height: 12px; border-radius: 3px; flex: 0 0 auto; }
+.themecard__name { font-size: 11.5px; padding-left: 2px; }

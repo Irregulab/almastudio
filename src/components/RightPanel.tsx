@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { revealItemInDir } from '@tauri-apps/plugin-opener'
 import {
   ChevronDown, ChevronRight, Eye, EyeOff, FileDiff, FilePlus2, FolderPlus,
-  GitBranch, GitCommitHorizontal, History, ListTree, Minus, Pencil, Pin, PinOff,
+  GitBranch, GitCommitHorizontal, History, ListTree, Minus, Pencil, Pin,
   Plus, RefreshCw, Trash2, Undo2, X,
 } from 'lucide-react'
 
@@ -89,21 +89,37 @@ export function RightPanel({
         <PanelTab active={view === 'git'} onClick={() => onViewChange('git')}
           icon={<GitBranch size={13} />} label={t('panel.git')} />
         <span className="spacer" />
-        <button className="icon-btn" onClick={() => setTick((n) => n + 1)}
-          aria-label={t('panel.refresh')}>
+        <button
+          className="icon-btn" onClick={() => setTick((n) => n + 1)}
+          aria-label={t('panel.refresh')} title={t('panel.refresh')}
+        >
           <RefreshCw size={13} className={refreshing ? 'spin' : undefined} />
         </button>
-        <button className="icon-btn" onClick={onTogglePin} aria-pressed={pinned}
-          aria-label={pinned ? t('panel.followActiveTab') : t('panel.pinToProject')}>
-          {pinned ? <Pin size={13} /> : <PinOff size={13} />}
+        {/* One icon with a pressed state, rather than swapping between a pin
+            and a crossed-out pin — which reads as ambiguous about whether it
+            describes the current state or the action. */}
+        <button
+          className="icon-btn" onClick={onTogglePin} aria-pressed={pinned}
+          aria-label={t('panel.pinLabel')}
+          title={pinned ? t('panel.pinnedHint') : t('panel.followingHint')}
+        >
+          <Pin size={13} />
         </button>
-        <button className="icon-btn" onClick={onClose} aria-label={t('panel.close')}>
+        <button
+          className="icon-btn" onClick={onClose}
+          aria-label={t('panel.close')} title={t('panel.close')}
+        >
           <X size={14} />
         </button>
       </div>
 
-      <div className="panel__scope truncate mono" title={root}>
-        <bdi>{root}</bdi>
+      <div className="panel__scope" title={root}>
+        <span className="panel__scope-mode">
+          {pinned ? t('panel.pinnedShort') : t('panel.followingShort')}
+        </span>
+        <span className="panel__scope-path truncate mono">
+          <bdi>{root}</bdi>
+        </span>
       </div>
 
       <div className="panel__body">
