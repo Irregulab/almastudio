@@ -172,6 +172,65 @@ export function ConfirmDialog({
   )
 }
 
+/** Single-field prompt, used for naming and renaming files and folders. */
+export function PromptDialog({
+  title, label, initial, confirmLabel, selectBase, onConfirm, onCancel,
+}: {
+  title: string
+  label: string
+  initial?: string
+  confirmLabel?: string
+  /** Preselect the name without its extension, as a rename dialog should. */
+  selectBase?: boolean
+  onConfirm: (value: string) => void
+  onCancel: () => void
+}) {
+  const t = useT()
+  const [value, setValue] = useState(initial ?? '')
+  const ref = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    el.focus()
+    const dot = (initial ?? '').lastIndexOf('.')
+    if (selectBase && dot > 0) el.setSelectionRange(0, dot)
+    else el.select()
+  }, [initial, selectBase])
+
+  const submit = () => {
+    const v = value.trim()
+    if (v) onConfirm(v)
+  }
+
+  return (
+    <Modal
+      title={title}
+      onClose={onCancel}
+      footer={
+        <>
+          <button className="btn" onClick={onCancel}>{t('common.cancel')}</button>
+          <button className="btn btn--primary" disabled={!value.trim()} onClick={submit}>
+            {confirmLabel ?? t('common.confirm')}
+          </button>
+        </>
+      }
+    >
+      <Field label={label}>
+        <input
+          ref={ref}
+          className="input mono"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') submit()
+          }}
+        />
+      </Field>
+    </Modal>
+  )
+}
+
 // --------------------------------------------------------------- controls --
 
 export function Field({

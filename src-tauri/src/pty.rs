@@ -16,16 +16,16 @@
 
 use std::collections::{HashMap, VecDeque};
 use std::io::{Read, Write};
-use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use base64::Engine as _;
 use parking_lot::{Condvar, Mutex};
 use portable_pty::{native_pty_system, Child, CommandBuilder, MasterPty, PtySize};
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 /// How much recent output is retained per session for restore-after-restart.
 const SCROLLBACK_CAP: usize = 256 * 1024;
@@ -33,6 +33,13 @@ const SCROLLBACK_CAP: usize = 256 * 1024;
 const COALESCE_MS: u64 = 8;
 /// Hard cap on a single IPC batch, so one huge burst cannot stall the webview.
 const MAX_BATCH: usize = 256 * 1024;
+
+/// A session is "busy" while it has produced output this recently. Agents
+/// animate a spinner while they think and go quiet at a prompt, so silence is
+/// a good proxy for "waiting for you".
+const BUSY_WINDOW_MS: u64 = 700;
+/// How often the activity monitor re-checks. One thread for the whole app.
+const ACTIVITY_TICK_MS: u64 = 250;
 
 // ---------------------------------------------------------------------------
 // Wire types
@@ -59,6 +66,15 @@ pub struct SpawnOptions {
     pub shell: Option<String>,
     pub cols: u16,
     pub rows: u16,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActivityPayload {
+    pub id: String,
+    /// True while the process is producing output, false when it has gone
+    /// quiet — which for an agent means it is waiting on the user.
+    pub busy: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -142,6 +158,10 @@ pub struct Session {
     pub ring: Arc<Mutex<Ring>>,
     alive: Arc<AtomicBool>,
     exit_code: Arc<AtomicI32>,
+    /// Unix millis of the last byte read from the pty.
+    last_output: Arc<AtomicU64>,
+    /// Last state broadcast to the frontend, so only transitions are emitted.
+    busy: Arc<AtomicBool>,
 }
 
 impl Session {
@@ -197,6 +217,8 @@ impl PtyManager {
         let writer = pair.master.take_writer()?;
 
         let ring = Arc::new(Mutex::new(Ring::default()));
+        let last_output = Arc::new(AtomicU64::new(now_ms()));
+        let busy = Arc::new(AtomicBool::new(false));
         let alive = Arc::new(AtomicBool::new(true));
         let exit_code = Arc::new(AtomicI32::new(0));
         let child = Arc::new(Mutex::new(child));
@@ -206,7 +228,7 @@ impl PtyManager {
             Condvar::new(),
         ));
 
-        spawn_reader(reader, outbox.clone(), ring.clone());
+        spawn_reader(reader, outbox.clone(), ring.clone(), last_output.clone());
         spawn_emitter(app.clone(), opts.id.clone(), outbox.clone());
         spawn_reaper(
             app.clone(),
@@ -219,7 +241,16 @@ impl PtyManager {
 
         self.sessions.lock().insert(
             opts.id,
-            Session { master: pair.master, writer, child, ring, alive, exit_code },
+            Session {
+                master: pair.master,
+                writer,
+                child,
+                ring,
+                alive,
+                exit_code,
+                last_output,
+                busy,
+            },
         );
         Ok(())
     }
@@ -269,7 +300,12 @@ impl PtyManager {
 
 type Shared = Arc<(Mutex<Outbox>, Condvar)>;
 
-fn spawn_reader(mut reader: Box<dyn Read + Send>, shared: Shared, ring: Arc<Mutex<Ring>>) {
+fn spawn_reader(
+    mut reader: Box<dyn Read + Send>,
+    shared: Shared,
+    ring: Arc<Mutex<Ring>>,
+    last_output: Arc<AtomicU64>,
+) {
     thread::spawn(move || {
         let mut chunk = [0u8; 16 * 1024];
         loop {
@@ -277,6 +313,7 @@ fn spawn_reader(mut reader: Box<dyn Read + Send>, shared: Shared, ring: Arc<Mute
                 Ok(0) => break,
                 Ok(n) => {
                     let bytes = &chunk[..n];
+                    last_output.store(now_ms(), Ordering::Relaxed);
                     ring.lock().push(bytes);
                     let (lock, cv) = &*shared;
                     let mut ob = lock.lock();
@@ -368,6 +405,49 @@ fn spawn_reaper(
         cv.notify_all();
 
         let _ = app.emit(&format!("pty://exit/{id}"), ExitPayload { id: id.clone(), code });
+    });
+}
+
+fn now_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
+}
+
+/// Watches every session's last-output time and emits busy/idle transitions.
+///
+/// One thread for the whole application rather than a timer per session, and
+/// it emits only on change — a terminal that has been quiet for an hour costs
+/// four comparisons a second and no IPC at all.
+pub fn spawn_activity_monitor(app: AppHandle) {
+    thread::spawn(move || loop {
+        let Some(mgr) = app.try_state::<PtyManager>() else { break };
+        let mut any = false;
+        {
+            let sessions = mgr.sessions.lock();
+            any = any || !sessions.is_empty();
+            let now = now_ms();
+            for (id, s) in sessions.iter() {
+                if !s.is_alive() {
+                    if s.busy.swap(false, Ordering::Relaxed) {
+                        let _ = app.emit(
+                            "pty://activity",
+                            ActivityPayload { id: id.clone(), busy: false },
+                        );
+                    }
+                    continue;
+                }
+                let quiet_for = now.saturating_sub(s.last_output.load(Ordering::Relaxed));
+                let busy = quiet_for < BUSY_WINDOW_MS;
+                if s.busy.swap(busy, Ordering::Relaxed) != busy {
+                    let _ = app
+                        .emit("pty://activity", ActivityPayload { id: id.clone(), busy });
+                }
+            }
+        }
+        // Back right off when nothing is running.
+        thread::sleep(Duration::from_millis(if any { ACTIVITY_TICK_MS } else { 2000 }));
     });
 }
 

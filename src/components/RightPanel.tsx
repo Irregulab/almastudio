@@ -1,19 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { revealItemInDir } from '@tauri-apps/plugin-opener'
 import {
-  ChevronDown, ChevronRight, Eye, EyeOff, File as FileIcon, FileDiff, Folder,
-  GitBranch, GitCommitHorizontal, History, ListTree, Minus, Pin, PinOff, Plus,
-  RefreshCw, Undo2, X,
+  ChevronDown, ChevronRight, Eye, EyeOff, FileDiff, FilePlus2, FolderPlus,
+  GitBranch, GitCommitHorizontal, History, ListTree, Minus, Pencil, Pin, PinOff,
+  Plus, RefreshCw, Trash2, Undo2, X,
 } from 'lucide-react'
 
 import {
-  findFiles, gitBranches, gitCheckout, gitCommit, gitDiscard, gitLog, gitStage,
-  gitStatus, gitUnstage, listDir, onFsChange, watchStart, watchStop,
+  createDir, createFile, findFiles, gitBranches, gitCheckout, gitCommit,
+  gitDiscard, gitLog, gitStage, gitStatus, gitUnstage, listDir, onFsChange,
+  renamePath, trashPath, watchStart, watchStop,
 } from '../lib/ipc'
 import { useSettings } from '../store/settings'
 import { useWorkspace } from '../store/workspace'
 import { useT } from '../i18n'
-import { ConfirmDialog } from './ui'
+import { ConfirmDialog, MenuItem, MenuSeparator, Popover, PromptDialog } from './ui'
+import { DirIcon, FileIcon } from './FileIcon'
 import type {
   BranchInfo, ChangedFile, CommitInfo, DirEntryInfo, PanelView, RepoStatus,
 } from '../lib/types'
@@ -108,7 +110,12 @@ export function RightPanel({
         {view === 'changes' && (
           <ChangesView projectId={projectId} status={status} onChanged={() => setTick((n) => n + 1)} />
         )}
-        {view === 'files' && <FilesView projectId={projectId} root={root} />}
+        {view === 'files' && (
+          <FilesView
+            projectId={projectId} root={root} revision={tick}
+            onChanged={() => setTick((n) => n + 1)}
+          />
+        )}
         {view === 'git' && (
           <GitView root={root} status={status} onChanged={() => setTick((n) => n + 1)} />
         )}
@@ -274,6 +281,7 @@ function FileGroup({
               <span className={`filerow__code filerow__code--${codeClass(f)}`}>
                 {f.code.trim() || '?'}
               </span>
+              <FileIcon name={basename(f.path)} size={12} />
               <span className="filerow__name truncate">{basename(f.path)}</span>
               <span className="filerow__dir truncate subtle">{dirname(f.path)}</span>
               <span className="filerow__actions">
@@ -312,13 +320,29 @@ const codeClass = (f: ChangedFile) =>
 
 // ----------------------------------------------------------------- files ---
 
-function FilesView({ projectId, root }: { projectId: string; root: string }) {
+interface FsTarget {
+  path: string
+  name: string
+  isDir: boolean
+}
+
+type FsDialog =
+  | { kind: 'new-file' | 'new-folder'; dir: string }
+  | { kind: 'rename'; target: FsTarget }
+  | { kind: 'delete'; target: FsTarget }
+
+function FilesView({
+  projectId, root, revision, onChanged,
+}: { projectId: string; root: string; revision: number; onChanged: () => void }) {
   const t = useT()
   const settings = useSettings((s) => s.settings)
   const patch = useSettings((s) => s.patch)
   const openFileTab = useWorkspace((s) => s.openFileTab)
   const [filter, setFilter] = useState('')
   const [results, setResults] = useState<DirEntryInfo[] | null>(null)
+  const [menu, setMenu] = useState<{ anchor: HTMLElement; target: FsTarget } | null>(null)
+  const [dialog, setDialog] = useState<FsDialog | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   // A non-empty filter switches the tree out for a flat ranked search.
   useEffect(() => {
@@ -333,6 +357,24 @@ function FilesView({ projectId, root }: { projectId: string; root: string }) {
     return () => window.clearTimeout(id)
   }, [filter, root])
 
+  const run = useCallback(
+    async (op: Promise<unknown>) => {
+      try {
+        await op
+        setError(null)
+      } catch (e) {
+        setError(t('fs.failed', { error: String(e) }))
+      } finally {
+        // The watcher usually catches this, but acting immediately keeps the
+        // tree honest when watching is switched off.
+        onChanged()
+      }
+    },
+    [onChanged, t],
+  )
+
+  const join = (dir: string, name: string) => `${dir.replace(/\/+$/, '')}/${name}`
+
   return (
     <div className="files">
       <div className="files__bar">
@@ -343,6 +385,18 @@ function FilesView({ projectId, root }: { projectId: string; root: string }) {
           onChange={(e) => setFilter(e.target.value)}
         />
         <button
+          className="icon-btn" title={t('fs.newFile')}
+          onClick={() => setDialog({ kind: 'new-file', dir: root })}
+        >
+          <FilePlus2 size={13} />
+        </button>
+        <button
+          className="icon-btn" title={t('fs.newFolder')}
+          onClick={() => setDialog({ kind: 'new-folder', dir: root })}
+        >
+          <FolderPlus size={13} />
+        </button>
+        <button
           className="icon-btn" aria-pressed={settings.panel.showHidden}
           title={t('panel.showHidden')}
           onClick={() => patch('panel', { showHidden: !settings.panel.showHidden })}
@@ -350,6 +404,9 @@ function FilesView({ projectId, root }: { projectId: string; root: string }) {
           {settings.panel.showHidden ? <Eye size={13} /> : <EyeOff size={13} />}
         </button>
       </div>
+
+      {error && <div className="files__error">{error}</div>}
+
       <div className="files__tree">
         {results ? (
           results.length === 0 ? (
@@ -360,8 +417,15 @@ function FilesView({ projectId, root }: { projectId: string; root: string }) {
                 <li
                   key={e.path} className="filerow"
                   onClick={() => openFileTab({ projectId, root, path: e.rel })}
+                  onContextMenu={(ev) => {
+                    ev.preventDefault()
+                    setMenu({
+                      anchor: ev.currentTarget as HTMLElement,
+                      target: { path: e.path, name: e.name, isDir: false },
+                    })
+                  }}
                 >
-                  <FileIcon size={12} className="subtle" />
+                  <FileIcon name={e.name} size={12} />
                   <span className="filerow__name truncate">{e.name}</span>
                   <span className="filerow__dir truncate subtle">{dirname(e.rel)}</span>
                 </li>
@@ -371,19 +435,121 @@ function FilesView({ projectId, root }: { projectId: string; root: string }) {
         ) : (
           <TreeNode
             projectId={projectId} root={root} dir={root} depth={0}
-            defaultOpen
+            revision={revision} defaultOpen
+            onContext={(target, anchor) => setMenu({ anchor, target })}
           />
         )}
       </div>
+
+      <Popover anchor={menu?.anchor ?? null} open={!!menu} onClose={() => setMenu(null)}>
+        {menu?.target.isDir && (
+          <>
+            <MenuItem
+              icon={<FilePlus2 size={13} />} label={t('fs.newFile')}
+              onClick={() => {
+                const dir = menu.target.path
+                setMenu(null)
+                setDialog({ kind: 'new-file', dir })
+              }}
+            />
+            <MenuItem
+              icon={<FolderPlus size={13} />} label={t('fs.newFolder')}
+              onClick={() => {
+                const dir = menu.target.path
+                setMenu(null)
+                setDialog({ kind: 'new-folder', dir })
+              }}
+            />
+            <MenuSeparator />
+          </>
+        )}
+        <MenuItem
+          icon={<Pencil size={13} />} label={t('fs.rename')}
+          onClick={() => {
+            const target = menu!.target
+            setMenu(null)
+            setDialog({ kind: 'rename', target })
+          }}
+        />
+        <MenuItem
+          label={t('fs.reveal')}
+          onClick={() => {
+            const path = menu!.target.path
+            setMenu(null)
+            void revealItemInDir(path).catch(() => {})
+          }}
+        />
+        <MenuSeparator />
+        <MenuItem
+          icon={<Trash2 size={13} />} label={t('fs.delete')} danger
+          onClick={() => {
+            const target = menu!.target
+            setMenu(null)
+            setDialog({ kind: 'delete', target })
+          }}
+        />
+      </Popover>
+
+      {dialog?.kind === 'new-file' && (
+        <PromptDialog
+          title={t('fs.newFileIn', { folder: basename(dialog.dir) || dialog.dir })}
+          label={t('fs.name')} confirmLabel={t('fs.create')}
+          onCancel={() => setDialog(null)}
+          onConfirm={(name) => {
+            setDialog(null)
+            void run(createFile(join(dialog.dir, name)))
+          }}
+        />
+      )}
+      {dialog?.kind === 'new-folder' && (
+        <PromptDialog
+          title={t('fs.newFolderIn', { folder: basename(dialog.dir) || dialog.dir })}
+          label={t('fs.name')} confirmLabel={t('fs.create')}
+          onCancel={() => setDialog(null)}
+          onConfirm={(name) => {
+            setDialog(null)
+            void run(createDir(join(dialog.dir, name)))
+          }}
+        />
+      )}
+      {dialog?.kind === 'rename' && (
+        <PromptDialog
+          title={t('fs.renameTitle')} label={t('fs.name')}
+          initial={dialog.target.name} confirmLabel={t('common.save')} selectBase
+          onCancel={() => setDialog(null)}
+          onConfirm={(name) => {
+            const parent = dialog.target.path.slice(
+              0,
+              Math.max(0, dialog.target.path.lastIndexOf('/')),
+            )
+            setDialog(null)
+            void run(renamePath(dialog.target.path, join(parent, name)))
+          }}
+        />
+      )}
+      {dialog?.kind === 'delete' && (
+        <ConfirmDialog
+          title={t('fs.delete')}
+          message={t('fs.deleteConfirm', { name: dialog.target.name })}
+          confirmLabel={t('fs.delete')} danger
+          onCancel={() => setDialog(null)}
+          onConfirm={() => {
+            const path = dialog.target.path
+            setDialog(null)
+            void run(trashPath(path))
+          }}
+        />
+      )}
     </div>
   )
 }
 
 function TreeNode({
-  projectId, root, dir, depth, name, defaultOpen,
+  projectId, root, dir, depth, name, defaultOpen, revision, onContext,
 }: {
   projectId: string; root: string; dir: string; depth: number
-  name?: string; defaultOpen?: boolean
+  name?: string; defaultOpen?: boolean; revision: number
+  onContext: (target: FsTarget, anchor: HTMLElement) => void
 }) {
   const settings = useSettings((s) => s.settings)
   const openFileTab = useWorkspace((s) => s.openFileTab)
@@ -393,13 +559,17 @@ function TreeNode({
 
   useEffect(() => {
     if (!open) return
-    const key = `${dir}|${settings.panel.showHidden}|${settings.panel.respectGitignore}`
+    // `revision` is part of the key so a create/rename/delete anywhere
+    // invalidates every expanded directory rather than leaving stale rows.
+    const key = `${dir}|${settings.panel.showHidden}|${settings.panel.respectGitignore}|${revision}`
     if (loadedFor.current === key) return
     loadedFor.current = key
     void listDir(root, dir, settings.panel.showHidden, settings.panel.respectGitignore)
       .then(setEntries)
       .catch(() => setEntries([]))
-  }, [open, dir, root, settings.panel.showHidden, settings.panel.respectGitignore])
+  }, [open, dir, root, revision, settings.panel.showHidden, settings.panel.respectGitignore])
+
+  const childDepth = name === undefined ? depth : depth + 1
 
   return (
     <>
@@ -407,9 +577,13 @@ function TreeNode({
         <button
           className="treerow" style={{ paddingLeft: 6 + depth * 12 }}
           onClick={() => setOpen((o) => !o)}
+          onContextMenu={(ev) => {
+            ev.preventDefault()
+            onContext({ path: dir, name, isDir: true }, ev.currentTarget)
+          }}
         >
           {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-          <Folder size={12} className="subtle" />
+          <DirIcon open={open} size={12} />
           <span className="truncate">{name}</span>
         </button>
       )}
@@ -418,19 +592,19 @@ function TreeNode({
           e.isDir ? (
             <TreeNode
               key={e.path} projectId={projectId} root={root} dir={e.path}
-              depth={name === undefined ? depth : depth + 1} name={e.name}
+              depth={childDepth} name={e.name} revision={revision} onContext={onContext}
             />
           ) : (
             <button
               key={e.path} className="treerow"
-              style={{ paddingLeft: 6 + (name === undefined ? depth : depth + 1) * 12 + 14 }}
+              style={{ paddingLeft: 6 + childDepth * 12 + 14 }}
               onClick={() => openFileTab({ projectId, root, path: e.rel })}
               onContextMenu={(ev) => {
                 ev.preventDefault()
-                void revealItemInDir(e.path).catch(() => {})
+                onContext({ path: e.path, name: e.name, isDir: false }, ev.currentTarget)
               }}
             >
-              <FileIcon size={12} className="subtle" />
+              <FileIcon name={e.name} size={12} />
               <span className="truncate">{e.name}</span>
             </button>
           ),

@@ -140,3 +140,27 @@ export const onFsChange = (id: string, cb: (p: ChangePayload) => void): Promise<
 
 export const onMenuAction = (cb: (id: string) => void): Promise<UnlistenFn> =>
   listen<string>('menu://action', (e) => cb(e.payload))
+
+// ------------------------------------------------------ fs mutation ---------
+
+export const createDir = (path: string) => invoke<string>('create_dir', { path })
+export const createFile = (path: string) => invoke<string>('create_file', { path })
+export const renamePath = (from: string, to: string) =>
+  invoke<string>('rename_path', { from, to })
+/** Moves to the OS trash rather than deleting outright. */
+export const trashPath = (path: string) => invoke<void>('trash_path', { path })
+export const writeTextFile = (path: string, contents: string) =>
+  invoke<void>('write_text_file', { path, contents })
+export const readFileBase64 = (path: string, maxBytes?: number) =>
+  invoke<string>('read_file_base64', { path, maxBytes })
+
+// --------------------------------------------------------- pty activity ----
+
+export interface ActivityPayload {
+  id: string
+  busy: boolean
+}
+
+/** Busy/idle transitions for every session, on one shared channel. */
+export const onPtyActivity = (cb: (p: ActivityPayload) => void): Promise<UnlistenFn> =>
+  listen<ActivityPayload>('pty://activity', (e) => cb(e.payload))

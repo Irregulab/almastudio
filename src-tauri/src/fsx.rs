@@ -223,3 +223,111 @@ pub fn write_project_instructions(root: String, contents: String) -> Result<Stri
     fs::write(&path, contents).map_err(|e| e.to_string())?;
     Ok(path.to_string_lossy().to_string())
 }
+
+// ---------------------------------------------------------------- mutation --
+
+/// Guards every write against a path that is not a normal, absolute location.
+/// The frontend builds these paths from user input, so they are checked here
+/// rather than trusted.
+fn checked(path: &str) -> Result<PathBuf, String> {
+    let p = PathBuf::from(path);
+    if !p.is_absolute() {
+        return Err("path must be absolute".into());
+    }
+    if p.components().any(|c| matches!(c, std::path::Component::ParentDir)) {
+        return Err("path must not contain ..".into());
+    }
+    Ok(p)
+}
+
+#[tauri::command]
+pub fn create_dir(path: String) -> Result<String, String> {
+    let p = checked(&path)?;
+    if p.exists() {
+        return Err(format!("{} already exists", p.display()));
+    }
+    fs::create_dir_all(&p).map_err(|e| e.to_string())?;
+    Ok(p.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub fn create_file(path: String) -> Result<String, String> {
+    let p = checked(&path)?;
+    if p.exists() {
+        return Err(format!("{} already exists", p.display()));
+    }
+    if let Some(parent) = p.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    fs::write(&p, b"").map_err(|e| e.to_string())?;
+    Ok(p.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub fn rename_path(from: String, to: String) -> Result<String, String> {
+    let src = checked(&from)?;
+    let dst = checked(&to)?;
+    if !src.exists() {
+        return Err(format!("{} does not exist", src.display()));
+    }
+    // Refuse to clobber. On case-insensitive filesystems a pure case change
+    // maps to the same path, which is a legitimate rename and must be allowed.
+    if dst.exists() && src.to_string_lossy().to_lowercase() != dst.to_string_lossy().to_lowercase()
+    {
+        return Err(format!("{} already exists", dst.display()));
+    }
+    fs::rename(&src, &dst).map_err(|e| e.to_string())?;
+    Ok(dst.to_string_lossy().to_string())
+}
+
+/// Moves to the OS trash. Recovering a mistake should not need a backup.
+#[tauri::command]
+pub fn trash_path(path: String) -> Result<(), String> {
+    let p = checked(&path)?;
+    if !p.exists() {
+        return Err(format!("{} does not exist", p.display()));
+    }
+    trash::delete(&p).map_err(|e| format!("could not move to trash: {e}"))
+}
+
+#[tauri::command]
+pub fn write_text_file(path: String, contents: String) -> Result<(), String> {
+    let p = checked(&path)?;
+    if let Some(parent) = p.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    // Same write-then-rename dance the app uses for its own state: an editor
+    // that truncates a file and then fails mid-write destroys the original.
+    let tmp = p.with_extension(format!(
+        "{}.almastudio-tmp",
+        p.extension().map(|e| e.to_string_lossy().to_string()).unwrap_or_default()
+    ));
+    {
+        use std::io::Write as _;
+        let mut f = fs::File::create(&tmp).map_err(|e| e.to_string())?;
+        f.write_all(contents.as_bytes()).map_err(|e| e.to_string())?;
+        f.sync_all().map_err(|e| e.to_string())?;
+    }
+    // Preserve the original's permissions, which File::create would not.
+    if let Ok(meta) = fs::metadata(&p) {
+        let _ = fs::set_permissions(&tmp, meta.permissions());
+    }
+    fs::rename(&tmp, &p).map_err(|e| {
+        let _ = fs::remove_file(&tmp);
+        e.to_string()
+    })
+}
+
+/// Reads a small binary file as base64, used for project icons chosen from disk.
+#[tauri::command]
+pub fn read_file_base64(path: String, max_bytes: Option<u64>) -> Result<String, String> {
+    use base64::Engine as _;
+    let p = checked(&path)?;
+    let limit = max_bytes.unwrap_or(8 * 1024 * 1024);
+    let meta = fs::metadata(&p).map_err(|e| e.to_string())?;
+    if meta.len() > limit {
+        return Err(format!("file is larger than {limit} bytes"));
+    }
+    let bytes = fs::read(&p).map_err(|e| e.to_string())?;
+    Ok(base64::engine::general_purpose::STANDARD.encode(bytes))
+}

@@ -110,6 +110,12 @@ pub fn run() {
             fsx::find_files,
             fsx::dir_name,
             fsx::write_project_instructions,
+            fsx::create_dir,
+            fsx::create_file,
+            fsx::rename_path,
+            fsx::trash_path,
+            fsx::write_text_file,
+            fsx::read_file_base64,
             watcher::watch_start,
             watcher::watch_stop,
         ])
@@ -117,6 +123,7 @@ pub fn run() {
             let handle = app.handle().clone();
             menu::build(&handle, HashMap::new())?;
             store::spawn_scrollback_flusher(handle.clone());
+            pty::spawn_activity_monitor(handle.clone());
 
             // The window starts hidden so the user never sees an unstyled
             // flash, and the frontend calls `ready` once it has painted. If it

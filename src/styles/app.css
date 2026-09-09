@@ -854,3 +854,11 @@
   border-radius: var(--radius-sm);
   background: var(--bg-inset);
 }
+
+.files__error {
+  padding: 6px var(--sp-4);
+  font-size: 11.5px;
+  color: var(--red);
+  background: color-mix(in srgb, var(--red) 12%, transparent);
+  border-bottom: 1px solid var(--border);
+}

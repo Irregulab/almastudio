@@ -139,6 +139,20 @@
     "filterFiles": "Filtra i file",
     "openFile": "Apri file"
   },
+  "fs": {
+    "newFile": "Nuovo file",
+    "newFolder": "Nuova cartella",
+    "rename": "Rinomina…",
+    "delete": "Sposta nel Cestino",
+    "deleteConfirm": "Spostare “{name}” nel Cestino?",
+    "name": "Nome",
+    "create": "Crea",
+    "renameTitle": "Rinomina",
+    "reveal": "Mostra nel gestore file",
+    "failed": "Operazione non riuscita: {error}",
+    "newFileIn": "Nuovo file in {folder}",
+    "newFolderIn": "Nuova cartella in {folder}"
+  },
   "diff": {
     "unified": "Unificata",
     "split": "Affiancata",

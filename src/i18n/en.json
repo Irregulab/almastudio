@@ -139,6 +139,20 @@
     "filterFiles": "Filter files",
     "openFile": "Open file"
   },
+  "fs": {
+    "newFile": "New file",
+    "newFolder": "New folder",
+    "rename": "Rename…",
+    "delete": "Move to Trash",
+    "deleteConfirm": "Move “{name}” to the Trash?",
+    "name": "Name",
+    "create": "Create",
+    "renameTitle": "Rename",
+    "reveal": "Reveal in file manager",
+    "failed": "Operation failed: {error}",
+    "newFileIn": "New file in {folder}",
+    "newFolderIn": "New folder in {folder}"
+  },
   "diff": {
     "unified": "Unified",
     "split": "Split",

@@ -41,6 +41,10 @@ base64 = "0.22"
 parking_lot = "0.12"
 anyhow = "1"
 
+# Deleting a file sends it to the OS trash rather than unlinking it. A tool
+# that can delete a user's source files should never do so irreversibly.
+trash = "5"
+
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-updater = "2"
 
