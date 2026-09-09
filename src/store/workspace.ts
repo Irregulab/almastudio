@@ -71,6 +71,10 @@ interface WorkspaceStore extends WorkspaceState {
   setActiveTab: (paneId: string, tabId: string) => void
   setActivePane: (paneId: string) => void
   splitPane: (paneId: string, dir: 'row' | 'col', tabId?: string) => void
+  /** Moves a tab into a new pane split off `targetPaneId`, from a drop. */
+  dropTabIntoSplit: (
+    tabId: string, targetPaneId: string, dir: 'row' | 'col', before: boolean,
+  ) => void
   closePane: (paneId: string) => void
   moveTab: (tabId: string, targetPaneId: string, index: number) => void
   resizeSplit: (splitId: string, sizes: number[]) => void
@@ -403,32 +407,58 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
       return withWorkspace(s, s.activeProjectId, (w) => ({ ...w, activePaneId: paneId }))
     }),
 
-  splitPane: (paneId, dir, tabId) =>
+  splitPane: (paneId, dir, tabId) => {
+    // With a tab, this is the same operation as a drop on that pane's edge.
+    if (tabId) {
+      get().dropTabIntoSplit(tabId, paneId, dir, false)
+      return
+    }
     set((s) => {
       const projectId = s.activeProjectId
       if (!projectId) return {}
       const ws = s.workspaces[projectId]
       if (!ws) return {}
-
-      // Splitting with a tab moves that tab into the new pane; splitting
-      // without one leaves an empty pane ready for the next tab.
-      const newLeaf = makeLeaf(tabId ? [tabId] : [])
-      let layout = splitLeaf(ws.layout, paneId, dir, newLeaf)
-      if (tabId) {
-        const source = findLeaf(layout, paneId)
-        if (source?.tabIds.includes(tabId)) {
-          const remaining = source.tabIds.filter((id) => id !== tabId)
-          layout = updateLeaf(layout, paneId, (l) => ({
-            ...l,
-            tabIds: remaining,
-            activeTabId: l.activeTabId === tabId ? (remaining[0] ?? null) : l.activeTabId,
-          }))
-        }
-      }
+      const newLeaf = makeLeaf([])
       return {
         workspaces: {
           ...s.workspaces,
-          [projectId]: { ...ws, layout, activePaneId: newLeaf.id },
+          [projectId]: {
+            ...ws,
+            layout: splitLeaf(ws.layout, paneId, dir, newLeaf),
+            activePaneId: newLeaf.id,
+          },
+        },
+      }
+    })
+  },
+
+  dropTabIntoSplit: (tabId, targetPaneId, dir, before) =>
+    set((s) => {
+      const tab = s.tabs[tabId]
+      if (!tab) return {}
+      const ws = s.workspaces[tab.projectId]
+      if (!ws) return {}
+      const source = findLeafOfTab(ws.layout, tabId)
+      if (!source) return {}
+      // Splitting a pane off from itself when it holds only that tab would
+      // produce the same layout it already has.
+      if (source.id === targetPaneId && source.tabIds.length === 1) return {}
+
+      const detached = removeTabFrom(ws.layout, tabId)
+      const withoutTab = detached.root
+      if (!withoutTab) return {}
+      // Emptying the source may have collapsed the target along with it.
+      if (!findLeaf(withoutTab, targetPaneId)) return {}
+
+      const newLeaf = makeLeaf([tabId])
+      return {
+        workspaces: {
+          ...s.workspaces,
+          [tab.projectId]: {
+            ...ws,
+            layout: splitLeaf(withoutTab, targetPaneId, dir, newLeaf, before),
+            activePaneId: newLeaf.id,
+          },
         },
       }
     }),

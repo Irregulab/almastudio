@@ -100,7 +100,8 @@
     "openIn": "Open in",
     "working": "Working…",
     "waiting": "Waiting for input",
-    "browser": "Browser"
+    "browser": "Browser",
+    "moveToPane": "Move to pane {n}"
   },
   "browser": {
     "back": "Back",

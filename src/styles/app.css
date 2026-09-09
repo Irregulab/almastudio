@@ -1019,3 +1019,24 @@
 .themecard__bar { position: absolute; inset: 0 0 auto 0; height: 11px; }
 .themecard__chip { width: 12px; height: 12px; border-radius: 3px; flex: 0 0 auto; }
 .themecard__name { font-size: 11.5px; padding-left: 2px; }
+
+/* Drop target preview while dragging a tab over a pane. `pointer-events: none`
+   is essential — the overlay must not steal the dragover events that keep it
+   updated. */
+.dropzone {
+  position: absolute;
+  pointer-events: none;
+  z-index: 30;
+  background: color-mix(in srgb, var(--project-accent) 22%, transparent);
+  border: 1px solid var(--project-accent);
+  border-radius: var(--radius-sm);
+  transition: inset var(--dur-fast) var(--ease);
+}
+.dropzone--center { inset: 4px; }
+.dropzone--left { inset: 4px 50% 4px 4px; }
+.dropzone--right { inset: 4px 4px 4px 50%; }
+.dropzone--top { inset: 4px 4px 50% 4px; }
+.dropzone--bottom { inset: 50% 4px 4px 4px; }
+
+/* Dragging a tab must not leave the terminal grabbing the pointer. */
+.pane__body [draggable='true'] { -webkit-user-drag: element; }

@@ -79,14 +79,17 @@ export function normalize(node: LayoutNode): LayoutNode {
 }
 
 /**
- * Splits `leafId`, placing `newLeaf` after it. The result is normalized, so
- * splitting right inside an existing row extends that row rather than nesting.
+ * Splits `leafId`, placing `newLeaf` after it — or before it when `before` is
+ * set, which is what a drop on the left or top edge of a pane means. The
+ * result is normalized, so splitting right inside an existing row extends that
+ * row rather than nesting.
  */
 export function splitLeaf(
   root: LayoutNode,
   leafId: string,
   dir: 'row' | 'col',
   newLeaf: LeafNode,
+  before = false,
 ): LayoutNode {
   const replace = (node: LayoutNode): LayoutNode => {
     if (isLeaf(node)) {
@@ -96,7 +99,7 @@ export function splitLeaf(
         id: uid('split'),
         dir,
         sizes: [0.5, 0.5],
-        children: [node, newLeaf],
+        children: before ? [newLeaf, node] : [node, newLeaf],
       }
       return split
     }

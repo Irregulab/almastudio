@@ -100,7 +100,8 @@
     "openIn": "Apri in",
     "working": "In esecuzione…",
     "waiting": "In attesa di input",
-    "browser": "Browser"
+    "browser": "Browser",
+    "moveToPane": "Sposta nel riquadro {n}"
   },
   "browser": {
     "back": "Indietro",

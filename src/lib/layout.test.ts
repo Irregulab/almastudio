@@ -48,6 +48,27 @@ describe('splitLeaf', () => {
   })
 })
 
+describe('splitLeaf before', () => {
+  it('places the new pane first when asked', () => {
+    const a = leafWith('t1')
+    const b = leafWith('t2')
+    const root = splitLeaf(a, a.id, 'row', b, true) as SplitNode
+    expect(root.children.map((c) => c.id)).toEqual([b.id, a.id])
+  })
+
+  it('still extends a same-direction row rather than nesting', () => {
+    const a = leafWith('a')
+    const b = leafWith('b')
+    const c = leafWith('c')
+    let root = splitLeaf(a, a.id, 'row', b)
+    root = splitLeaf(root, a.id, 'row', c, true)
+    const split = root as SplitNode
+    expect(split.type).toBe('split')
+    expect(split.children.map((ch) => ch.id)).toEqual([c.id, a.id, b.id])
+    expect(split.sizes.reduce((x, y) => x + y, 0)).toBeCloseTo(1)
+  })
+})
+
 describe('normalize', () => {
   it('collapses a split with a single child', () => {
     const leaf = leafWith('t1')

@@ -1,8 +1,9 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import {
-  Bot, Columns2, FileDiff, FileText, FolderOpen, Globe, Loader2, PanelsTopLeft,
-  Plus, RotateCw, Rows2, Sparkles, Square, SquareTerminal, Terminal, X,
+  Bot, Columns2, FileDiff, FileText, FolderOpen, Globe, Loader2, MoveRight,
+  PanelsTopLeft, Plus, RotateCw, Rows2, Sparkles, Square, SquareTerminal,
+  Terminal, X,
 } from 'lucide-react'
 
 import { ptyKill } from '../lib/ipc'
@@ -35,18 +36,61 @@ export function tabIcon(kind: Tab['kind'], size = 13) {
   }
 }
 
+type DropZone = 'center' | 'left' | 'right' | 'top' | 'bottom'
+
+/** Which drop a pointer position over a pane means. */
+function zoneAt(e: React.DragEvent, rect: DOMRect): DropZone {
+  const EDGE = 0.22
+  const left = (e.clientX - rect.left) / rect.width
+  const top = (e.clientY - rect.top) / rect.height
+  const distances: Array<[DropZone, number]> = [
+    ['left', left],
+    ['right', 1 - left],
+    ['top', top],
+    ['bottom', 1 - top],
+  ]
+  const [zone, nearest] = distances.reduce((a, b) => (b[1] < a[1] ? b : a))
+  return nearest > EDGE ? 'center' : zone
+}
+
 export function Pane({ leaf }: { leaf: LeafNode }) {
   const tabsById = useWorkspace((s) => s.tabs)
   const activePaneId = useWorkspace(
     (s) => (s.activeProjectId ? s.workspaces[s.activeProjectId]?.activePaneId : null),
   )
   const setActivePane = useWorkspace((s) => s.setActivePane)
+  const moveTab = useWorkspace((s) => s.moveTab)
+  const dropTabIntoSplit = useWorkspace((s) => s.dropTabIntoSplit)
   const isActive = activePaneId === leaf.id
+  const [zone, setZone] = useState<DropZone | null>(null)
 
   const tabs = useMemo(
     () => leaf.tabIds.map((id) => tabsById[id]).filter(Boolean),
     [leaf.tabIds, tabsById],
   )
+
+  const onDragOver = (e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes(MIME)) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    const next = zoneAt(e, e.currentTarget.getBoundingClientRect())
+    // dragover fires continuously; only re-render when the target changes.
+    if (next !== zone) setZone(next)
+  }
+
+  const onDrop = (e: React.DragEvent) => {
+    const tabId = e.dataTransfer.getData(MIME)
+    const target = zone
+    setZone(null)
+    if (!tabId || !target) return
+    e.preventDefault()
+    if (target === 'center') {
+      moveTab(tabId, leaf.id, leaf.tabIds.length)
+      return
+    }
+    const dir = target === 'left' || target === 'right' ? 'row' : 'col'
+    dropTabIntoSplit(tabId, leaf.id, dir, target === 'left' || target === 'top')
+  }
 
   return (
     <div
@@ -54,7 +98,15 @@ export function Pane({ leaf }: { leaf: LeafNode }) {
       onMouseDownCapture={() => !isActive && setActivePane(leaf.id)}
     >
       <TabBar leaf={leaf} tabs={tabs} />
-      <div className="pane__body">
+      <div
+        className="pane__body"
+        onDragOver={onDragOver}
+        onDragLeave={(e) => {
+          // Leaving for a child element is not leaving the pane.
+          if (!e.currentTarget.contains(e.relatedTarget as Node)) setZone(null)
+        }}
+        onDrop={onDrop}
+      >
         {tabs.map((tab) => (
           <div key={tab.id} className="pane__content" hidden={tab.id !== leaf.activeTabId}>
             <TabContent
@@ -65,6 +117,7 @@ export function Pane({ leaf }: { leaf: LeafNode }) {
           </div>
         ))}
         {tabs.length === 0 && <EmptyPane paneId={leaf.id} />}
+        {zone && <div className={`dropzone dropzone--${zone}`} aria-hidden />}
       </div>
     </div>
   )
@@ -165,7 +218,19 @@ function TabChip({
   const renameTab = useWorkspace((s) => s.renameTab)
   const setTabCwd = useWorkspace((s) => s.setTabCwd)
   const splitPane = useWorkspace((s) => s.splitPane)
+  const moveTab = useWorkspace((s) => s.moveTab)
   const closeOtherTabs = useWorkspace((s) => s.closeOtherTabs)
+  const tabsById = useWorkspace((s) => s.tabs)
+  // Select the layout — a stable reference — and derive from it. Returning a
+  // fresh array straight out of the selector gives zustand a new reference on
+  // every render, which re-renders forever.
+  const layout = useWorkspace((s) =>
+    s.activeProjectId ? s.workspaces[s.activeProjectId]?.layout : undefined,
+  )
+  const otherPanes = useMemo(
+    () => (layout ? allLeaves(layout).filter((l) => l.id !== paneId) : []),
+    [layout, paneId],
+  )
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null)
   const [renaming, setRenaming] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -273,6 +338,23 @@ function TabChip({
           </>
         )}
         <MenuSeparator />
+        {otherPanes.length > 0 && (
+          <>
+            {otherPanes.map((pane, i) => (
+              <MenuItem
+                key={pane.id}
+                icon={<MoveRight size={13} />}
+                label={t('tabs.moveToPane', { n: i + 1 })}
+                hint={paneSummary(pane, tabsById)}
+                onClick={() => {
+                  setMenuAnchor(null)
+                  moveTab(tab.id, pane.id, pane.tabIds.length)
+                }}
+              />
+            ))}
+            <MenuSeparator />
+          </>
+        )}
         <MenuItem
           icon={<Columns2 size={13} />}
           label={t('tabs.splitRight')}
@@ -321,6 +403,16 @@ function autoTitle(tab: Tab, projectRoot: string | undefined): string {
   if (isTerminalTab(tab)) return defaultTabTitle(tab.cwd, projectRoot, KIND_LABEL[tab.kind])
   if (tab.kind === 'browser') return hostOf(tab.url)
   return tab.path.split('/').pop() ?? tab.path
+}
+
+/** What a pane currently holds, so "move to pane 2" is not a guess. */
+function paneSummary(pane: LeafNode, tabs: Record<string, Tab>): string {
+  const names = pane.tabIds
+    .map((id) => tabs[id])
+    .filter(Boolean)
+    .map((t) => t.title || autoTitle(t, undefined))
+  if (names.length === 0) return '—'
+  return names.length <= 2 ? names.join(', ') : `${names[0]} +${names.length - 1}`
 }
 
 function tabTooltip(tab: Tab): string {
