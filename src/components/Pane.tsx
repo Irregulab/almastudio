@@ -1,10 +1,11 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import {
-  Bot, Columns2, FileDiff, FileText, FolderOpen, Plus, Rows2, Sparkles,
-  SquareTerminal, Terminal, X,
+  Bot, Columns2, FileDiff, FileText, FolderOpen, Plus, RotateCw, Rows2,
+  Sparkles, Square, SquareTerminal, Terminal, X,
 } from 'lucide-react'
 
+import { ptyKill } from '../lib/ipc'
 import { useWorkspace } from '../store/workspace'
 import { useSettings } from '../store/settings'
 import { useT } from '../i18n'
@@ -213,11 +214,31 @@ function TabChip({
       <Popover anchor={menuAnchor} open={!!menuAnchor} onClose={() => setMenuAnchor(null)}>
         <MenuItem label={t('tabs.rename')} onClick={() => { setMenuAnchor(null); setRenaming(true) }} />
         {isTerminalTab(tab) && (
-          <MenuItem
-            icon={<FolderOpen size={13} />}
-            label={t('tabs.changeFolder')}
-            onClick={() => { setMenuAnchor(null); void changeFolder() }}
-          />
+          <>
+            <MenuItem
+              icon={<FolderOpen size={13} />}
+              label={t('tabs.changeFolder')}
+              onClick={() => { setMenuAnchor(null); void changeFolder() }}
+            />
+            <MenuSeparator />
+            <MenuItem
+              icon={<RotateCw size={13} />}
+              label={t('tabs.restart')}
+              onClick={() => {
+                setMenuAnchor(null)
+                // The TerminalView owns the session; ask it to respawn.
+                window.dispatchEvent(
+                  new CustomEvent('almastudio:tab-restart', { detail: tab.id }),
+                )
+              }}
+            />
+            <MenuItem
+              icon={<Square size={13} />}
+              label={t('tabs.stop')}
+              disabled={tab.status !== 'running' && tab.status !== 'starting'}
+              onClick={() => { setMenuAnchor(null); void ptyKill(tab.id).catch(() => {}) }}
+            />
+          </>
         )}
         <MenuSeparator />
         <MenuItem

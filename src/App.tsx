@@ -95,7 +95,8 @@ export default function App() {
     return project.root
   }, [project, tabs, ws])
 
-  const startSidebarDrag = useSidebarResize(setSidebarWidth)
+  const sidebarRef = useRef<HTMLDivElement>(null)
+  const startSidebarDrag = useSidebarResize(sidebarRef, setSidebarWidth)
 
   if (!booted) return <div className="boot" />
 
@@ -105,7 +106,7 @@ export default function App() {
     <div className={`app${macOverlay ? ' app--overlay' : ''}`}>
       {sidebarOpen && (
         <>
-          <div className="app__sidebar" style={{ width: sidebarWidth }}>
+          <div ref={sidebarRef} className="app__sidebar" style={{ width: sidebarWidth }}>
             <Sidebar onOpenSettings={() => setSettingsOpen(true)} />
           </div>
           <div className="app__resizer" onPointerDown={startSidebarDrag} role="separator" />
@@ -222,18 +223,28 @@ function PanelHost({
   )
 }
 
-function useSidebarResize(setWidth: (w: number) => void) {
+const SIDEBAR_MIN = 180
+const SIDEBAR_MAX = 420
+
+function useSidebarResize(
+  ref: React.RefObject<HTMLDivElement | null>,
+  setWidth: (w: number) => void,
+) {
   return useCallback(
     (e: React.PointerEvent) => {
       e.preventDefault()
-      const move = (ev: PointerEvent) => setWidth(ev.clientX)
-      const up = () => {
+      const clamp = (x: number) => Math.max(SIDEBAR_MIN, Math.min(SIDEBAR_MAX, x))
+      const move = (ev: PointerEvent) => {
+        if (ref.current) ref.current.style.width = `${clamp(ev.clientX)}px`
+      }
+      const up = (ev: PointerEvent) => {
         window.removeEventListener('pointermove', move)
         window.removeEventListener('pointerup', up)
+        setWidth(clamp(ev.clientX))
       }
       window.addEventListener('pointermove', move)
       window.addEventListener('pointerup', up)
     },
-    [setWidth],
+    [ref, setWidth],
   )
 }

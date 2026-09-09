@@ -277,6 +277,18 @@ export function TerminalView({ tab, visible, focused }: Props) {
     return () => cancelAnimationFrame(id)
   }, [visible, focused])
 
+  // Restart requested from the tab's context menu.
+  useEffect(() => {
+    const onRestart = (e: Event) => {
+      if ((e as CustomEvent<string>).detail !== tab.id) return
+      // A deliberate restart resumes the agent's previous session where the
+      // harness supports it, which is what "restart this tab" should mean.
+      void spawn(tab.kind !== 'shell')
+    }
+    window.addEventListener('almastudio:tab-restart', onRestart)
+    return () => window.removeEventListener('almastudio:tab-restart', onRestart)
+  }, [spawn, tab.id, tab.kind])
+
   // --------------------------------------------------------------- find ---
   useEffect(() => {
     if (!focused) return
