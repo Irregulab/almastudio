@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { locale as osLocale, platform as osPlatform } from '@tauri-apps/plugin-os'
 import { PanelLeft, PanelRight } from 'lucide-react'
 
-import { applyMenu, signalReady } from './lib/ipc'
+import { applyMenu, onPtyActivity, signalReady } from './lib/ipc'
 import { findLeaf } from './lib/layout'
 import { isTerminalTab } from './lib/types'
 import { loadSettings, startSettingsPersistence, useSettings } from './store/settings'
@@ -11,7 +11,7 @@ import { useUi } from './store/ui'
 import { menuLabels, resolveLocale, useI18n, useT } from './i18n'
 import { useApplyTheme } from './hooks/useTheme'
 import { useMenuActions } from './hooks/useMenuActions'
-import { Sidebar } from './components/Sidebar'
+import { ProjectIcon, Sidebar } from './components/Sidebar'
 import { TileNode } from './components/Tiles'
 import { RightPanel } from './components/RightPanel'
 import { SettingsPanel } from './components/SettingsPanel'
@@ -61,6 +61,16 @@ export default function App() {
       void signalReady().catch(() => {})
     })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // One subscription for every session: the backend emits only transitions,
+  // so this stays quiet while nothing is happening.
+  useEffect(() => {
+    let unlisten: (() => void) | undefined
+    void onPtyActivity(({ id, busy }) => useUi.getState().setTabBusy(id, busy)).then(
+      (un) => (unlisten = un),
+    )
+    return () => unlisten?.()
   }, [])
 
   // Keep the language reactive to the setting and to the OS preference.
@@ -128,7 +138,7 @@ export default function App() {
           <div className="topbar__title truncate" data-tauri-drag-region>
             {project ? (
               <>
-                <span className="topbar__icon">{project.icon}</span>
+                <ProjectIcon project={project} size={18} />
                 <span className="truncate">{project.name}</span>
                 <span className="topbar__path truncate subtle">{project.root}</span>
               </>

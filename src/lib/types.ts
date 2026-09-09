@@ -10,8 +10,10 @@ export type Language = 'system' | 'en' | 'it'
 export interface Project {
   id: string
   name: string
-  /** Emoji shown in the sidebar. */
+  /** Emoji shown in the sidebar when no image is set. */
   icon: string
+  /** Optional image icon as a small PNG data URL; takes precedence over `icon`. */
+  iconImage?: string
   /** Accent dot colour, hex. */
   color: string
   /** Main folder. Only the default cwd for new tabs — tabs may live anywhere. */

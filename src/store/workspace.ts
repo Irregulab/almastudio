@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { ptyKill, scrollbackForget, scrollbackPrune, stateLoad, stateSave } from '../lib/ipc'
 import { uid } from '../lib/id'
+import { useUi } from './ui'
 import {
   allTabIds, findLeaf, findLeafOfTab, makeLeaf, moveTab as moveTabIn,
   removeLeaf as removeLeafFrom, removeTab as removeTabFrom,
@@ -278,6 +279,7 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
       // has to end the process and drop its saved output.
       if (isTerminalTab(tab)) void ptyKill(tabId).catch(() => {})
       void scrollbackForget(tabId).catch(() => {})
+      useUi.getState().clearTabBusy(tabId)
 
       const ws = s.workspaces[tab.projectId]
       if (!ws) return { tabs }
@@ -328,6 +330,11 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
       const tab = s.tabs[tabId]
       if (!tab || !isTerminalTab(tab)) return {}
       if (tab.status === status && tab.exitCode === exitCode) return {}
+      // A session that is no longer running cannot be busy; the activity
+      // monitor would otherwise leave the last transition standing.
+      if (status !== 'running' && status !== 'starting') {
+        useUi.getState().clearTabBusy(tabId)
+      }
       return { tabs: { ...s.tabs, [tabId]: { ...tab, status, exitCode } } }
     }),
 

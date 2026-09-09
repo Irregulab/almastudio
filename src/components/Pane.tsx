@@ -1,11 +1,12 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import {
-  Bot, Columns2, FileDiff, FileText, FolderOpen, PanelsTopLeft, Plus, RotateCw,
-  Rows2, Sparkles, Square, SquareTerminal, Terminal, X,
+  Bot, Columns2, FileDiff, FileText, FolderOpen, Loader2, PanelsTopLeft, Plus,
+  RotateCw, Rows2, Sparkles, Square, SquareTerminal, Terminal, X,
 } from 'lucide-react'
 
 import { ptyKill } from '../lib/ipc'
+import { useUi } from '../store/ui'
 import { useWorkspace } from '../store/workspace'
 import { useSettings } from '../store/settings'
 import { useT } from '../i18n'
@@ -15,7 +16,9 @@ import { DiffView } from './DiffView'
 import { FileView } from './FileView'
 import { MenuItem, MenuSeparator, Popover } from './ui'
 import { allLeaves } from '../lib/layout'
-import type { HarnessKind, LeafNode, Tab, TerminalTab } from '../lib/types'
+import type {
+  HarnessKind, LeafNode, Tab, TerminalStatus, TerminalTab,
+} from '../lib/types'
 import { isTerminalTab } from '../lib/types'
 
 const MIME = 'application/x-almastudio-tab'
@@ -142,6 +145,7 @@ function TabChip({
 
   const label = tab.title || autoTitle(tab, project?.root)
   const status = isTerminalTab(tab) ? tab.status : undefined
+  const busy = useUi((s) => !!s.busyTabs[tab.id])
 
   const changeFolder = useCallback(async () => {
     if (!isTerminalTab(tab)) return
@@ -197,9 +201,7 @@ function TabChip({
         ) : (
           <span className="tab__label truncate">{label}</span>
         )}
-        {status && status !== 'running' && (
-          <span className={`tab__dot tab__dot--${status}`} aria-hidden />
-        )}
+        {status && <TabStatus status={status} busy={busy} />}
         <button
           className="tab__close"
           aria-label={t('tabs.close')}
@@ -267,6 +269,23 @@ const KIND_LABEL: Record<HarnessKind, string> = {
   claude: 'Claude Code',
   codex: 'Codex',
   shell: 'Terminal',
+}
+
+/**
+ * What the harness is doing, at a glance: spinning while it produces output,
+ * a solid accent dot when it has gone quiet and is waiting on you, and a
+ * muted or red dot when it is not running at all.
+ */
+function TabStatus({ status, busy }: { status: TerminalStatus; busy: boolean }) {
+  const t = useT()
+  if (status === 'running' || status === 'starting') {
+    return busy ? (
+      <Loader2 size={11} className="tab__spinner" aria-label={t('tabs.working')} />
+    ) : (
+      <span className="tab__dot tab__dot--waiting" title={t('tabs.waiting')} aria-hidden />
+    )
+  }
+  return <span className={`tab__dot tab__dot--${status}`} aria-hidden />
 }
 
 function autoTitle(tab: Tab, projectRoot: string | undefined): string {

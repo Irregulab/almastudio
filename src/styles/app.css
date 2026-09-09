@@ -862,3 +862,32 @@
   background: color-mix(in srgb, var(--red) 12%, transparent);
   border-bottom: 1px solid var(--border);
 }
+
+/* Harness activity: spinning while producing output, solid when waiting. */
+.tab__spinner {
+  flex: 0 0 auto;
+  color: var(--accent-strong);
+  animation: spin 900ms linear infinite;
+}
+.tab__dot--waiting {
+  background: var(--accent-strong);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.tab__dot--running { background: var(--accent-strong); }
+.tab__dot--starting { background: var(--yellow); }
+
+.project__icon--image {
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+}
+.project__spinner { flex: 0 0 auto; color: var(--accent-strong); animation: spin 900ms linear infinite; }
+.project__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  background: var(--accent-strong);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+}

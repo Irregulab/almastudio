@@ -67,7 +67,11 @@
     "save": "Save",
     "cancel": "Cancel",
     "folderRequired": "Choose a folder first.",
-    "nameRequired": "Give the project a name."
+    "nameRequired": "Give the project a name.",
+    "iconHint": "Pick an emoji, or use an image from disk.",
+    "chooseImage": "Choose image…",
+    "changeImage": "Change…",
+    "removeImage": "Remove"
   },
   "tabs": {
     "new": "New tab",
@@ -91,7 +95,9 @@
     "startHint": "Press Enter or click Start to launch {command} in {folder}.",
     "noTabs": "No tabs open",
     "noTabsHint": "Open a Claude Code, Codex or terminal tab to get started.",
-    "openIn": "Open in"
+    "openIn": "Open in",
+    "working": "Working…",
+    "waiting": "Waiting for input"
   },
   "find": {
     "placeholder": "Find in terminal",

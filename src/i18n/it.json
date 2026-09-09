@@ -67,7 +67,11 @@
     "save": "Salva",
     "cancel": "Annulla",
     "folderRequired": "Scegli prima una cartella.",
-    "nameRequired": "Assegna un nome al progetto."
+    "nameRequired": "Assegna un nome al progetto.",
+    "iconHint": "Scegli un'emoji oppure usa un'immagine dal disco.",
+    "chooseImage": "Scegli immagine…",
+    "changeImage": "Cambia…",
+    "removeImage": "Rimuovi"
   },
   "tabs": {
     "new": "Nuova scheda",
@@ -91,7 +95,9 @@
     "startHint": "Premi Invio o clicca Avvia per lanciare {command} in {folder}.",
     "noTabs": "Nessuna scheda aperta",
     "noTabsHint": "Apri una scheda Claude Code, Codex o terminale per iniziare.",
-    "openIn": "Apri in"
+    "openIn": "Apri in",
+    "working": "In esecuzione…",
+    "waiting": "In attesa di input"
   },
   "find": {
     "placeholder": "Cerca nel terminale",
