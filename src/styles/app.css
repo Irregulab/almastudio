@@ -170,7 +170,9 @@
   border: 1px solid transparent;
   transition: border-color var(--dur) var(--ease);
 }
-.pane--active::after { border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+.pane--active::after {
+  border-color: color-mix(in srgb, var(--project-accent) 45%, transparent);
+}
 
 .pane__body { flex: 1 1 auto; position: relative; min-height: 0; }
 .pane__content { position: absolute; inset: 0; display: flex; }
@@ -217,14 +219,14 @@
   position: absolute;
   inset: 0 0 auto 0;
   height: 2px;
-  background: var(--accent);
+  background: var(--project-accent);
 }
 .tab--drop::after {
   content: '';
   position: absolute;
   inset: 0 auto 0 -1px;
   width: 2px;
-  background: var(--accent);
+  background: var(--project-accent);
 }
 .tab__icon { display: flex; flex: 0 0 auto; opacity: 0.85; }
 .tab__icon--claude { color: var(--accent-strong); }
@@ -866,14 +868,14 @@
 /* Harness activity: spinning while producing output, solid when waiting. */
 .tab__spinner {
   flex: 0 0 auto;
-  color: var(--accent-strong);
+  color: var(--project-accent);
   animation: spin 900ms linear infinite;
 }
 .tab__dot--waiting {
-  background: var(--accent-strong);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+  background: var(--project-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--project-accent) 26%, transparent);
 }
-.tab__dot--running { background: var(--accent-strong); }
+.tab__dot--running { background: var(--project-accent); }
 .tab__dot--starting { background: var(--yellow); }
 
 .project__icon--image {
@@ -882,14 +884,27 @@
   background: var(--bg-inset);
   border: 1px solid var(--border);
 }
-.project__spinner { flex: 0 0 auto; color: var(--accent-strong); animation: spin 900ms linear infinite; }
+.project__spinner { flex: 0 0 auto; animation: spin 900ms linear infinite; }
 .project__dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
   flex: 0 0 auto;
-  background: var(--accent-strong);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+  background: currentColor;
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 26%, transparent);
+}
+/* The selected project wears its colour as a stripe, so the choice is
+   visible even when the icon is an image rather than a tinted emoji. */
+.project--active { position: relative; }
+.project--active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 5px;
+  bottom: 5px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--project-row-accent, var(--accent));
 }
 
 /* --------------------------------------------------------------- editor --- */

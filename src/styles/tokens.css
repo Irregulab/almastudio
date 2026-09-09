@@ -13,6 +13,9 @@
      Settings; only the derived one lives here. */
   --accent-soft: color-mix(in srgb, var(--accent) 18%, transparent);
   --border-focus: var(--accent);
+  /* Overridden per project at runtime; falls back to the theme accent so the
+     chrome still looks right before a project is opened. */
+  --project-accent: var(--accent);
 
   --radius-sm: 3px;
   --radius: 4px;

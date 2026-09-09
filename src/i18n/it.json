@@ -72,7 +72,8 @@
     "iconHint": "Scegli un'emoji oppure usa un'immagine dal disco.",
     "chooseImage": "Scegli immagine…",
     "changeImage": "Cambia…",
-    "removeImage": "Rimuovi"
+    "removeImage": "Rimuovi",
+    "colorHint": "Usato per la scheda attiva, il bordo del riquadro attivo e gli indicatori di attività degli assistenti di questo progetto."
   },
   "tabs": {
     "new": "Nuova scheda",

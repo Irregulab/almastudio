@@ -72,7 +72,8 @@
     "iconHint": "Pick an emoji, or use an image from disk.",
     "chooseImage": "Choose image…",
     "changeImage": "Change…",
-    "removeImage": "Remove"
+    "removeImage": "Remove",
+    "colorHint": "Used for this project’s tab highlight, active pane border and harness activity indicators."
   },
   "tabs": {
     "new": "New tab",

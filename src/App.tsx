@@ -9,6 +9,7 @@ import { loadSettings, startSettingsPersistence, useSettings } from './store/set
 import { loadWorkspace, startWorkspacePersistence, useWorkspace } from './store/workspace'
 import { useUi } from './store/ui'
 import { menuLabels, resolveLocale, useI18n, useT } from './i18n'
+import { readableAccent } from './lib/color'
 import { useApplyTheme } from './hooks/useTheme'
 import { useMenuActions } from './hooks/useMenuActions'
 import { ProjectIcon, Sidebar } from './components/Sidebar'
@@ -21,7 +22,7 @@ import './styles/app.css'
 
 export default function App() {
   const t = useT()
-  useApplyTheme()
+  const isDark = useApplyTheme()
   useMenuActions()
 
   const [booted, setBooted] = useState(false)
@@ -106,6 +107,18 @@ export default function App() {
   }, [project, tabs, ws])
 
   const sidebarRef = useRef<HTMLDivElement>(null)
+  // The active project's colour drives the tab and activity chrome. It is a
+  // separate token from --accent so choosing a project colour restyles that
+  // project's workspace without repainting every button in Settings.
+  useEffect(() => {
+    const root = document.documentElement
+    if (project?.color) {
+      root.style.setProperty('--project-accent', readableAccent(project.color, isDark))
+    } else {
+      root.style.removeProperty('--project-accent')
+    }
+  }, [project?.color, isDark])
+
   const startSidebarDrag = useSidebarResize(sidebarRef, setSidebarWidth)
 
   if (!booted) return <div className="boot" />

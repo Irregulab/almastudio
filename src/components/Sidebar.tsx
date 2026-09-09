@@ -4,10 +4,12 @@ import { revealItemInDir } from '@tauri-apps/plugin-opener'
 import { FolderOpen, ImageUp, Loader2, Pencil, Plus, Search, Settings2, Trash2, X } from 'lucide-react'
 
 import { dirName, writeProjectInstructions } from '../lib/ipc'
+import { readableAccent } from '../lib/color'
 import { pickProjectIcon } from '../lib/image'
 import { useWorkspace } from '../store/workspace'
 import { useSettings } from '../store/settings'
 import { useUi } from '../store/ui'
+import { useTheme } from '../hooks/useTheme'
 import { useT } from '../i18n'
 import { ConfirmDialog, Field, MenuItem, MenuSeparator, Modal, Popover } from './ui'
 import { isTerminalTab, type HarnessKind, type Project } from '../lib/types'
@@ -23,6 +25,7 @@ const COLORS = [
 
 export function Sidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
   const t = useT()
+  const isDark = useTheme()
   const projects = useWorkspace((s) => s.projects)
   const activeProjectId = useWorkspace((s) => s.activeProjectId)
   const setActiveProject = useWorkspace((s) => s.setActiveProject)
@@ -76,6 +79,9 @@ export function Sidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
           <button
             key={p.id}
             className={`project${p.id === activeProjectId ? ' project--active' : ''}`}
+            style={
+              { '--project-row-accent': readableAccent(p.color, isDark) } as React.CSSProperties
+            }
             onClick={() => setActiveProject(p.id)}
             onContextMenu={(e) => {
               e.preventDefault()
@@ -88,7 +94,7 @@ export function Sidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
               <span className="project__name truncate">{p.name}</span>
               <span className="project__path truncate subtle">{p.root}</span>
             </span>
-            <ProjectActivity projectId={p.id} />
+            <ProjectActivity projectId={p.id} color={readableAccent(p.color, isDark)} />
           </button>
         ))}
       </div>
@@ -172,7 +178,7 @@ export function ProjectIcon({ project, size = 24 }: { project: Project; size?: n
  * currently working. Status comes from the store rather than from a mounted
  * terminal, so a project you are not looking at still reports accurately.
  */
-function ProjectActivity({ projectId }: { projectId: string }) {
+function ProjectActivity({ projectId, color }: { projectId: string; color: string }) {
   const t = useT()
   const tabs = useWorkspace((s) => s.tabs)
   const busyTabs = useUi((s) => s.busyTabs)
@@ -192,9 +198,9 @@ function ProjectActivity({ projectId }: { projectId: string }) {
 
   if (!loaded) return null
   return busy ? (
-    <Loader2 size={12} className="project__spinner" aria-label={t('tabs.working')} />
+    <Loader2 size={12} className="project__spinner" style={{ color }} aria-label={t('tabs.working')} />
   ) : (
-    <span className="project__dot" title={t('tabs.waiting')} aria-hidden />
+    <span className="project__dot" style={{ color }} title={t('tabs.waiting')} aria-hidden />
   )
 }
 
@@ -317,7 +323,7 @@ function ProjectDialog({ project, onClose }: { project: Project | null; onClose:
         )}
       </Field>
 
-      <Field label={t('project.color')}>
+      <Field label={t('project.color')} hint={t('project.colorHint')}>
         <div className="row">
           {COLORS.map((c) => (
             <button
@@ -325,6 +331,10 @@ function ProjectDialog({ project, onClose }: { project: Project | null; onClose:
               style={{ background: c }} onClick={() => setColor(c)} aria-label={c}
             />
           ))}
+          <input
+            className="swatch swatch--input" type="color" value={color}
+            onChange={(e) => setColor(e.target.value)} aria-label={t('project.color')}
+          />
         </div>
       </Field>
 
