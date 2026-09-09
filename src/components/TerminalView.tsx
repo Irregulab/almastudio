@@ -191,8 +191,11 @@ export function TerminalView({ tab, visible, focused }: Props) {
         setTabStatus(tab.id, 'running')
         return
       }
-      // Nothing is running: either start it now or wait for the user.
-      if (settings.startup.autoStartTabs) {
+      // Nothing is running. Opening a tab is already the instruction to start
+      // it, so a fresh tab never asks; only a tab restored from a previous run
+      // defers to the setting, since relaunching agents on every app start is
+      // a decision the user should get to make.
+      if (!tab.restored || settings.startup.autoStartTabs) {
         await spawn(tab.resumeOnRestore)
         return
       }

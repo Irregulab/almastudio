@@ -6,7 +6,7 @@ import type { HarnessKind, Settings } from '../lib/types'
 
 const STATE_KEY = 'settings'
 
-export const SETTINGS_VERSION = 2
+export const SETTINGS_VERSION = 3
 
 export const DEFAULT_SETTINGS: Settings = {
   version: SETTINGS_VERSION,
@@ -62,7 +62,7 @@ export const DEFAULT_SETTINGS: Settings = {
     diffView: 'unified',
     contextLines: 3,
   },
-  startup: { restoreTabs: true, restoreScrollback: true, autoStartTabs: false },
+  startup: { restoreTabs: true, restoreScrollback: true, autoStartTabs: true },
   updates: { autoCheck: true, intervalHours: 6 },
 }
 
@@ -114,6 +114,14 @@ function migrate(raw: Record<string, unknown>): Record<string, unknown> {
     // accent" — so a stored value equal to that old default was never a
     // deliberate choice and should not survive as one.
     if (raw.accent === '#7cb518') raw.accent = ''
+  }
+
+  if (from < 3) {
+    // Auto-start shipped defaulting to off, which meant every tab waited
+    // behind a Start button. The default is now on; carry existing files over
+    // rather than leaving them on a default nobody chose.
+    const startup = raw.startup as Record<string, unknown> | undefined
+    if (startup && startup.autoStartTabs === false) startup.autoStartTabs = true
   }
 
   raw.version = SETTINGS_VERSION

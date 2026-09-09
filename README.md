@@ -13,8 +13,9 @@ of blocked threads — no Electron, no per-tab browser process.
   the AI harness. The main folder is only the *default* for new tabs; any tab
   can be opened in any folder on the machine.
 - **Tabs** — each tab runs Claude Code, Codex or a plain shell in a real PTY,
-  or shows a diff or a file. Split panes horizontally and vertically, drag tabs
-  between them.
+  or shows a diff or a file. Opening a tab starts it immediately; only tabs
+  restored from a previous run consult the auto-start setting. Split panes
+  horizontally and vertically, drag tabs between them.
 - **Right panel** — three views: changed files, the full file tree, and git
   (branch, staging, commit, history, branch switching). Clicking a changed file
   opens its diff as a tab in the main area.
@@ -76,6 +77,11 @@ into ~80 IPC messages per second instead of thousands.
 When a tab re-attaches to a session that is still running, it subscribes first,
 then takes a snapshot of the server-side ring buffer, and uses the offsets to
 discard exactly the batches the snapshot already covered.
+
+**Only the active project is mounted.** Switching projects disposes the
+terminals of the one you left but never kills its processes; coming back
+re-attaches and replays the server-side ring buffer. So ten open projects cost
+roughly what one does in the webview, while their agents keep working.
 
 **Crash-safe state.** Settings and the workspace are written on a 300–400 ms
 debounce, never only at exit — a power cut gives you no shutdown hook. Each

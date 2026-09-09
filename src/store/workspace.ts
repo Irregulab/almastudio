@@ -164,6 +164,7 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
       title: title ?? '',
       status: 'idle',
       resumeOnRestore: false,
+      restored: false,
     }
     set((s) => {
       const ws = s.workspaces[projectId] ?? emptyWorkspace()
@@ -469,11 +470,19 @@ export async function loadWorkspace(): Promise<void> {
     }
     const parsed = JSON.parse(raw) as WorkspaceState
     // Processes never survive a restart, so every terminal tab comes back idle
-    // regardless of how it was recorded when the app went away.
+    // regardless of how it was recorded when the app went away. Only tabs that
+    // were actually alive are worth resuming: asking an agent to continue a
+    // conversation that never started just makes it error out.
     const tabs: Record<string, Tab> = {}
     for (const [id, tab] of Object.entries(parsed.tabs ?? {})) {
       tabs[id] = isTerminalTab(tab)
-        ? { ...tab, status: 'idle', exitCode: undefined, resumeOnRestore: true }
+        ? {
+            ...tab,
+            resumeOnRestore: tab.status === 'running' || tab.status === 'starting',
+            status: 'idle',
+            exitCode: undefined,
+            restored: true,
+          }
         : tab
     }
     useWorkspace.getState().hydrate({

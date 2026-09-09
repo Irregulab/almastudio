@@ -41,6 +41,12 @@ export interface TerminalTab extends TabBase {
   exitCode?: number
   /** Ask the harness to resume its previous session when restarting. */
   resumeOnRestore: boolean
+  /**
+   * True for tabs brought back from a previous run. Creating a tab is itself
+   * the instruction to start it, so only restored tabs consult the
+   * auto-start setting.
+   */
+  restored?: boolean
 }
 
 export interface DiffTab extends TabBase {
