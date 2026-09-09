@@ -19,6 +19,9 @@ of blocked threads — no Electron, no per-tab browser process.
 - **Right panel** — three views: changed files, the full file tree, and git
   (branch, staging, commit, history, branch switching). Clicking a changed file
   opens its diff as a tab in the main area.
+- **Code and Markdown** — syntax highlighting in both the file view and diffs,
+  themed from the same tokens as the rest of the app. Markdown files open as a
+  rendered preview with a toggle back to source.
 - **Survives restarts** — projects, tabs, folders, tile layout and recent
   terminal output are written to disk continuously, so an app restart or a
   machine reboot brings the workspace back. Agents can be relaunched with their
@@ -77,6 +80,22 @@ into ~80 IPC messages per second instead of thousands.
 When a tab re-attaches to a session that is still running, it subscribes first,
 then takes a snapshot of the server-side ring buffer, and uses the offsets to
 discard exactly the batches the snapshot already covered.
+
+**Highlighting is lazy and themed.** highlight.js core plus an explicit
+language list loads as its own chunk on first use, so a session that only ever
+shows terminals never pays for it. Colours come from `--syn-*` theme tokens
+rather than a bundled stylesheet, which is why highlighting follows the theme.
+In diffs the syntax tokens and the word-level diff segments are two partitions
+of the same line, merged by cutting a run at every boundary from either side —
+so a renamed identifier shows as both changed *and* an identifier. Hunks are
+highlighted as fragments, so one that begins inside a block comment can colour
+oddly until the next hunk.
+
+**Markdown previews are sanitised.** A README from a cloned repository is
+untrusted text, so parsed HTML goes through DOMPurify before it reaches the
+DOM, on top of the CSP that already blocks inline scripts. Remote images do not
+load: allowing them would let a preview phone home to a third party. Links open
+in the system browser rather than navigating the app's own webview.
 
 **Only the active project is mounted.** Switching projects disposes the
 terminals of the one you left but never kills its processes; coming back

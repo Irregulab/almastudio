@@ -154,6 +154,10 @@
     "revealFile": "Mostra il file",
     "openAsFile": "Apri il contenuto del file"
   },
+  "view": {
+    "preview": "Anteprima",
+    "source": "Sorgente"
+  },
   "settings": {
     "title": "Impostazioni",
     "appearance": "Aspetto",

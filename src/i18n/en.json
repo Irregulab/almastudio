@@ -154,6 +154,10 @@
     "revealFile": "Reveal file",
     "openAsFile": "Open file contents"
   },
+  "view": {
+    "preview": "Preview",
+    "source": "Source"
+  },
   "settings": {
     "title": "Settings",
     "appearance": "Appearance",

@@ -18,6 +18,10 @@ export const TOKENS = [
   'diff-del-bg', 'diff-del-gutter', 'diff-del-word',
   'term-bg', 'term-fg',
   'shadow-1', 'shadow-2',
+  // Syntax colours, so a theme owns highlighting as well as chrome.
+  'syn-comment', 'syn-keyword', 'syn-control', 'syn-string', 'syn-number',
+  'syn-function', 'syn-type', 'syn-variable', 'syn-constant', 'syn-tag',
+  'syn-attr', 'syn-regexp', 'syn-operator', 'syn-meta',
 ] as const
 
 export type TokenName = (typeof TOKENS)[number]
@@ -74,6 +78,22 @@ const vscodeDark: ThemeTokens = {
 
   'shadow-1': '0 1px 2px rgba(0, 0, 0, 0.36)',
   'shadow-2': '0 8px 28px rgba(0, 0, 0, 0.56)',
+
+  // VS Code Dark+ syntax colours.
+  'syn-comment': '#6a9955',
+  'syn-keyword': '#569cd6',
+  'syn-control': '#c586c0',
+  'syn-string': '#ce9178',
+  'syn-number': '#b5cea8',
+  'syn-function': '#dcdcaa',
+  'syn-type': '#4ec9b0',
+  'syn-variable': '#9cdcfe',
+  'syn-constant': '#4fc1ff',
+  'syn-tag': '#569cd6',
+  'syn-attr': '#9cdcfe',
+  'syn-regexp': '#d16969',
+  'syn-operator': '#d4d4d4',
+  'syn-meta': '#c586c0',
 }
 
 const vscodeLight: ThemeTokens = {
@@ -115,6 +135,22 @@ const vscodeLight: ThemeTokens = {
 
   'shadow-1': '0 1px 2px rgba(0, 0, 0, 0.10)',
   'shadow-2': '0 8px 28px rgba(0, 0, 0, 0.16)',
+
+  // VS Code Light+ syntax colours.
+  'syn-comment': '#008000',
+  'syn-keyword': '#0000ff',
+  'syn-control': '#af00db',
+  'syn-string': '#a31515',
+  'syn-number': '#098658',
+  'syn-function': '#795e26',
+  'syn-type': '#267f99',
+  'syn-variable': '#001080',
+  'syn-constant': '#0070c1',
+  'syn-tag': '#800000',
+  'syn-attr': '#e50000',
+  'syn-regexp': '#811f3f',
+  'syn-operator': '#000000',
+  'syn-meta': '#af00db',
 }
 
 // -------------------------------------------------------------- Almaware ---
