@@ -210,6 +210,15 @@ pub fn dir_name(path: String) -> String {
 pub fn write_project_instructions(root: String, contents: String) -> Result<String, String> {
     let dir = PathBuf::from(&root).join(".almastudio");
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+
+    // Make the folder ignore itself rather than editing the project's own
+    // .gitignore. Dropping a file into someone's repo should not show up as a
+    // change they have to explain in review.
+    let ignore = dir.join(".gitignore");
+    if !ignore.exists() {
+        let _ = fs::write(&ignore, "# Written by AlmaStudio; not part of the project.\n*\n");
+    }
+
     let path = dir.join("instructions.md");
     fs::write(&path, contents).map_err(|e| e.to_string())?;
     Ok(path.to_string_lossy().to_string())

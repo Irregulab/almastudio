@@ -100,7 +100,20 @@ in the box.
 `.almastudio/instructions.md` in the project, exported as
 `ALMASTUDIO_INSTRUCTIONS`, and — for harnesses that support it — passed as a
 flag (`claude --append-system-prompt …`). The flag is editable per harness in
-Settings, so a new agent CLI can be wired up without a code change.
+Settings, so a new agent CLI can be wired up without a code change. The
+`.almastudio/` folder contains a `.gitignore` that ignores itself, so it never
+shows up in the project's git status.
+
+## Tests
+
+```bash
+npm test                                    # layout tree, word diff, settings merge
+cargo test --manifest-path src-tauri/Cargo.toml   # pty command building, ring buffer
+npm run check                               # typecheck + both suites
+```
+
+The Rust suite includes a real PTY spawn through a login shell, which is the
+thing most likely to break silently on a packaged build.
 
 ## Configuration
 
