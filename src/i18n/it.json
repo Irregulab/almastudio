@@ -178,6 +178,18 @@
     "preview": "Anteprima",
     "source": "Sorgente"
   },
+  "editor": {
+    "save": "Salva",
+    "saved": "Salvato",
+    "revert": "Ripristina",
+    "unsaved": "Modifiche non salvate",
+    "conflictTitle": "Il file è cambiato su disco",
+    "conflictBody": "Questo file è stato modificato fuori da AlmaStudio da quando lo hai aperto — molto probabilmente da un agente che lavora nello stesso progetto. Vuoi sovrascriverlo con la tua versione oppure scartare le tue modifiche e caricare quella su disco?",
+    "overwrite": "Sovrascrivi",
+    "discardTitle": "Modifiche non salvate",
+    "discardBody": "“{name}” ha modifiche non salvate. Chiudere comunque?",
+    "closeAnyway": "Chiudi senza salvare"
+  },
   "settings": {
     "title": "Impostazioni",
     "appearance": "Aspetto",

@@ -1,44 +1,103 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { openUrl, revealItemInDir } from '@tauri-apps/plugin-opener'
-import { Code2, ExternalLink, Eye, RefreshCw } from 'lucide-react'
+import { Code2, ExternalLink, Eye, RefreshCw, Save } from 'lucide-react'
 
-import { readTextFile } from '../lib/ipc'
-import { highlightLines, isMarkdown, languageOf, plainLines, type SynLine } from '../lib/syntax'
+import { readTextFile, writeTextFile } from '../lib/ipc'
+import { isMarkdown, languageOf } from '../lib/syntax'
+import { useUi } from '../store/ui'
 import { useT } from '../i18n'
-import { Segmented } from './ui'
+import { CodeEditor } from './CodeEditor'
+import { FileIcon } from './FileIcon'
+import { ConfirmDialog, Segmented } from './ui'
 import type { FileContent, FileTab } from '../lib/types'
 
 type Mode = 'preview' | 'source'
 
 export function FileView({ tab, visible }: { tab: FileTab; visible: boolean }) {
   const t = useT()
+  const setTabDirty = useUi((s) => s.setTabDirty)
   const [file, setFile] = useState<FileContent | null>(null)
+  const [content, setContent] = useState('')
+  /** What is on disk as far as we know; the basis for both dirty and conflict. */
+  const [original, setOriginal] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [conflict, setConflict] = useState<string | null>(null)
   const markdown = isMarkdown(tab.path)
   const [mode, setMode] = useState<Mode>(markdown ? 'preview' : 'source')
+
+  const dirty = content !== original
+  const editable = !!file && !file.binary && !file.truncated
 
   const absolute =
     tab.path.startsWith('/') || /^[A-Za-z]:/.test(tab.path)
       ? tab.path
       : `${tab.root.replace(/\/+$/, '')}/${tab.path}`
 
-  const load = useCallback(async () => {
-    setLoading(true)
+  const load = useCallback(
+    async (discardEdits = false) => {
+      setLoading(true)
+      try {
+        const f = await readTextFile(absolute)
+        setFile(f)
+        setError(null)
+        // Reloading must not silently throw away work in progress.
+        setOriginal(f.content)
+        setContent((prev) => (discardEdits || prev === '' ? f.content : prev))
+      } catch (e) {
+        setError(String(e))
+        setFile(null)
+      } finally {
+        setLoading(false)
+      }
+    },
+    [absolute],
+  )
+
+  useEffect(() => {
+    if (visible) void load(false)
+  }, [visible, load])
+
+  useEffect(() => {
+    setTabDirty(tab.id, dirty)
+  }, [dirty, setTabDirty, tab.id])
+
+  // Clear the marker when the tab goes away, so it cannot outlive the editor.
+  useEffect(() => () => setTabDirty(tab.id, false), [setTabDirty, tab.id])
+
+  const write = useCallback(async () => {
+    setSaving(true)
     try {
-      setFile(await readTextFile(absolute))
+      await writeTextFile(absolute, content)
+      setOriginal(content)
+      setNotice(t('editor.saved'))
+      window.setTimeout(() => setNotice(null), 1800)
       setError(null)
     } catch (e) {
       setError(String(e))
-      setFile(null)
     } finally {
-      setLoading(false)
+      setSaving(false)
+      setConflict(null)
     }
-  }, [absolute])
+  }, [absolute, content, t])
 
-  useEffect(() => {
-    if (visible) void load()
-  }, [visible, load])
+  const save = useCallback(async () => {
+    if (!dirty || saving) return
+    // Agents are editing these same files in the next tab along, so check what
+    // is actually on disk before overwriting it.
+    try {
+      const onDisk = await readTextFile(absolute)
+      if (!onDisk.binary && onDisk.content !== original) {
+        setConflict(onDisk.content)
+        return
+      }
+    } catch {
+      // Unreadable now: fall through and let the write report the real error.
+    }
+    await write()
+  }, [absolute, dirty, original, saving, write])
 
   const language = languageOf(tab.path)
   const showSource = !markdown || mode === 'source'
@@ -46,9 +105,14 @@ export function FileView({ tab, visible }: { tab: FileTab; visible: boolean }) {
   return (
     <div className="diff">
       <div className="diff__bar">
-        <span className="diff__path truncate mono" title={absolute}>{tab.path}</span>
+        <FileIcon name={tab.path.split('/').pop() ?? tab.path} size={13} />
+        <span className="diff__path truncate mono" title={absolute}>
+          {tab.path}
+          {dirty && <span className="diff__dirty" aria-label={t('editor.unsaved')}>●</span>}
+        </span>
         {language && <span className="chip">{language}</span>}
         {file && <span className="chip">{formatBytes(file.size)}</span>}
+        {notice && <span className="chip chip--ok">{notice}</span>}
         <span className="spacer" />
         {markdown && (
           <Segmented<Mode>
@@ -60,7 +124,21 @@ export function FileView({ tab, visible }: { tab: FileTab; visible: boolean }) {
             ]}
           />
         )}
-        <button className="icon-btn" onClick={() => void load()} aria-label={t('panel.refresh')}>
+        {editable && showSource && (
+          <button
+            className="btn btn--sm btn--primary"
+            disabled={!dirty || saving}
+            onClick={() => void save()}
+          >
+            <Save size={12} /> {t('editor.save')}
+          </button>
+        )}
+        {editable && showSource && dirty && (
+          <button className="btn btn--sm" onClick={() => setContent(original)}>
+            {t('editor.revert')}
+          </button>
+        )}
+        <button className="icon-btn" onClick={() => void load(!dirty)} aria-label={t('panel.refresh')}>
           <RefreshCw size={13} className={loading ? 'spin' : undefined} />
         </button>
         <button
@@ -76,58 +154,35 @@ export function FileView({ tab, visible }: { tab: FileTab; visible: boolean }) {
         {error && <div className="empty">{error}</div>}
         {file?.binary && <div className="empty">{t('diff.binary')}</div>}
         {file?.truncated && <div className="empty">{t('diff.truncated')}</div>}
-        {file && !file.binary && !file.truncated && (
-          showSource ? (
-            <CodeBlock code={file.content} language={language} />
+        {editable &&
+          (showSource ? (
+            <CodeEditor
+              value={content}
+              path={tab.path}
+              onChange={setContent}
+              onSave={() => void save()}
+            />
           ) : (
-            <MarkdownPreview source={file.content} />
-          )
-        )}
+            <MarkdownPreview source={content} />
+          ))}
       </div>
+
+      {conflict !== null && (
+        <ConfirmDialog
+          title={t('editor.conflictTitle')}
+          message={t('editor.conflictBody')}
+          confirmLabel={t('editor.overwrite')}
+          danger
+          onCancel={() => {
+            // Take what is on disk and drop our edits.
+            setOriginal(conflict)
+            setContent(conflict)
+            setConflict(null)
+          }}
+          onConfirm={() => void write()}
+        />
+      )}
     </div>
-  )
-}
-
-// ------------------------------------------------------------------ code ---
-
-/** Line-numbered source. Highlighting resolves asynchronously and swaps in. */
-function CodeBlock({ code, language }: { code: string; language: string | null }) {
-  const plain = useMemo(() => plainLines(code), [code])
-  const [lines, setLines] = useState<SynLine[]>(plain)
-
-  useEffect(() => {
-    let cancelled = false
-    setLines(plain)
-    void highlightLines(code, language).then((result) => {
-      // Line counts must agree, or the numbers would drift from the content.
-      if (!cancelled && result && result.length === plain.length) setLines(result)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [code, language, plain])
-
-  return (
-    <table className="hunk__table code">
-      <tbody>
-        {lines.map((tokens, i) => (
-          <tr key={i} className="dl dl--ctx">
-            <td className="dl__num">{i + 1}</td>
-            <td className="dl__text mono">
-              {tokens.length === 0
-                ? ' '
-                : tokens.map((tk, j) =>
-                    tk.cls ? (
-                      <span key={j} className={tk.cls}>{tk.text}</span>
-                    ) : (
-                      <span key={j}>{tk.text}</span>
-                    ),
-                  )}
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
   )
 }
 

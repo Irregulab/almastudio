@@ -178,6 +178,18 @@
     "preview": "Preview",
     "source": "Source"
   },
+  "editor": {
+    "save": "Save",
+    "saved": "Saved",
+    "revert": "Revert",
+    "unsaved": "Unsaved changes",
+    "conflictTitle": "File changed on disk",
+    "conflictBody": "This file was modified outside AlmaStudio since you opened it — most likely by an agent working in the same project. Overwrite it with your version, or discard your edits and load what is on disk?",
+    "overwrite": "Overwrite",
+    "discardTitle": "Unsaved changes",
+    "discardBody": "“{name}” has unsaved changes. Close it anyway?",
+    "closeAnyway": "Close without saving"
+  },
   "settings": {
     "title": "Settings",
     "appearance": "Appearance",

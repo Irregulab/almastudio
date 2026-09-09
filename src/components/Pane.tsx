@@ -14,7 +14,7 @@ import { defaultTabTitle } from '../lib/harness'
 import { TerminalView } from './TerminalView'
 import { DiffView } from './DiffView'
 import { FileView } from './FileView'
-import { MenuItem, MenuSeparator, Popover } from './ui'
+import { ConfirmDialog, MenuItem, MenuSeparator, Popover } from './ui'
 import { allLeaves } from '../lib/layout'
 import type {
   HarnessKind, LeafNode, Tab, TerminalStatus, TerminalTab,
@@ -81,10 +81,18 @@ function TabContent({
 // ------------------------------------------------------------------ tabs ---
 
 function TabBar({ leaf, tabs }: { leaf: LeafNode; tabs: Tab[] }) {
+  const t = useT()
   const setActiveTab = useWorkspace((s) => s.setActiveTab)
   const closeTab = useWorkspace((s) => s.closeTab)
   const moveTab = useWorkspace((s) => s.moveTab)
+  const dirtyTabs = useUi((s) => s.dirtyTabs)
   const [dropIndex, setDropIndex] = useState<number | null>(null)
+  const [confirmClose, setConfirmClose] = useState<Tab | null>(null)
+
+  const requestClose = (tab: Tab) => {
+    if (dirtyTabs[tab.id]) setConfirmClose(tab)
+    else closeTab(tab.id)
+  }
 
   const onDrop = (e: React.DragEvent, index: number) => {
     e.preventDefault()
@@ -109,7 +117,7 @@ function TabBar({ leaf, tabs }: { leaf: LeafNode; tabs: Tab[] }) {
             active={tab.id === leaf.activeTabId}
             dropBefore={dropIndex === i}
             onSelect={() => setActiveTab(leaf.id, tab.id)}
-            onClose={() => closeTab(tab.id)}
+            onClose={() => requestClose(tab)}
             onDragOverChip={(before) => setDropIndex(before ? i : i + 1)}
             onDropChip={(e, before) => onDrop(e, before ? i : i + 1)}
             paneId={leaf.id}
@@ -117,6 +125,22 @@ function TabBar({ leaf, tabs }: { leaf: LeafNode; tabs: Tab[] }) {
         ))}
       </div>
       <PaneActions leaf={leaf} />
+
+      {confirmClose && (
+        <ConfirmDialog
+          title={t('editor.discardTitle')}
+          message={t('editor.discardBody', {
+            name: confirmClose.title || (isTerminalTab(confirmClose) ? '' : confirmClose.path),
+          })}
+          confirmLabel={t('editor.closeAnyway')}
+          danger
+          onCancel={() => setConfirmClose(null)}
+          onConfirm={() => {
+            closeTab(confirmClose.id)
+            setConfirmClose(null)
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -146,6 +170,7 @@ function TabChip({
   const label = tab.title || autoTitle(tab, project?.root)
   const status = isTerminalTab(tab) ? tab.status : undefined
   const busy = useUi((s) => !!s.busyTabs[tab.id])
+  const dirty = useUi((s) => !!s.dirtyTabs[tab.id])
 
   const changeFolder = useCallback(async () => {
     if (!isTerminalTab(tab)) return
@@ -203,14 +228,15 @@ function TabChip({
         )}
         {status && <TabStatus status={status} busy={busy} />}
         <button
-          className="tab__close"
-          aria-label={t('tabs.close')}
+          className={`tab__close${dirty ? ' tab__close--dirty' : ''}`}
+          aria-label={dirty ? t('editor.unsaved') : t('tabs.close')}
+          title={dirty ? t('editor.unsaved') : t('tabs.close')}
           onClick={(e) => {
             e.stopPropagation()
             onClose()
           }}
         >
-          <X size={12} />
+          {dirty ? <span className="tab__dirty" aria-hidden /> : <X size={12} />}
         </button>
       </div>
 

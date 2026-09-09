@@ -469,7 +469,7 @@
 .diff__stat { display: flex; gap: 6px; font-size: 11px; font-weight: 600; flex: 0 0 auto; }
 .diff__stat-add { color: var(--green); }
 .diff__stat-del { color: var(--red); }
-.diff__body { flex: 1 1 auto; overflow: auto; }
+.diff__body { flex: 1 1 auto; overflow: auto; position: relative; }
 .diff__truncated {
   padding: var(--sp-4);
   color: var(--yellow);
@@ -891,3 +891,19 @@
   background: var(--accent-strong);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
 }
+
+/* --------------------------------------------------------------- editor --- */
+
+.editor { position: absolute; inset: 0; overflow: hidden; }
+.editor .cm-editor { height: 100%; }
+.editor .cm-editor.cm-focused { outline: none; }
+
+.diff__dirty { margin-left: 6px; color: var(--accent-strong); font-size: 10px; }
+.tab__dirty {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--fg-muted);
+}
+.tab__close--dirty:hover .tab__dirty { background: var(--fg); }
+.chip--ok { color: var(--green); border-color: color-mix(in srgb, var(--green) 40%, transparent); }
