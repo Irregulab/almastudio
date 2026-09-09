@@ -149,17 +149,12 @@
     "behind": "{n} behind",
     "showHidden": "Show hidden files",
     "respectGitignore": "Respect .gitignore",
-    "inspecting": "Inspecting",
-    "pinToProject": "Pin to project folder",
-    "followActiveTab": "Follow active tab",
     "emptyFolder": "Empty folder",
     "filterFiles": "Filter files",
     "openFile": "Open file",
-    "pinLabel": "Panel folder",
-    "pinnedHint": "Pinned to the project folder — click to follow the active tab instead",
-    "followingHint": "Following the active tab's folder — click to pin to the project folder",
-    "pinnedShort": "Project",
-    "followingShort": "Active tab"
+    "scope": "Folder",
+    "scopeProject": "Project folder",
+    "scopeTab": "Active tab folder"
   },
   "fs": {
     "newFile": "New file",

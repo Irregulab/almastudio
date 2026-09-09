@@ -101,7 +101,10 @@ export interface PanelState {
   open: boolean
   view: PanelView
   width: number
-  /** When set, the panel inspects this folder instead of the active tab's. */
+  /**
+   * Folder the panel is locked to. Null means it follows the active tab's
+   * folder instead. Persisted, hence the historical name.
+   */
   pinnedRoot: string | null
 }
 

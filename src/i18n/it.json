@@ -149,17 +149,12 @@
     "behind": "{n} indietro",
     "showHidden": "Mostra file nascosti",
     "respectGitignore": "Rispetta .gitignore",
-    "inspecting": "In esame",
-    "pinToProject": "Blocca sulla cartella del progetto",
-    "followActiveTab": "Segui la scheda attiva",
     "emptyFolder": "Cartella vuota",
     "filterFiles": "Filtra i file",
     "openFile": "Apri file",
-    "pinLabel": "Cartella del pannello",
-    "pinnedHint": "Bloccato sulla cartella del progetto — clicca per seguire la scheda attiva",
-    "followingHint": "Segue la cartella della scheda attiva — clicca per bloccarlo sulla cartella del progetto",
-    "pinnedShort": "Progetto",
-    "followingShort": "Scheda attiva"
+    "scope": "Cartella",
+    "scopeProject": "Cartella del progetto",
+    "scopeTab": "Cartella della scheda attiva"
   },
   "fs": {
     "newFile": "Nuovo file",

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { revealItemInDir } from '@tauri-apps/plugin-opener'
 import {
-  ChevronDown, ChevronRight, Eye, EyeOff, FileDiff, FilePlus2, FolderPlus,
-  GitBranch, GitCommitHorizontal, History, ListTree, Minus, Pencil, Pin,
+  Check, ChevronDown, ChevronRight, Eye, EyeOff, FileDiff, FilePlus2,
+  FolderPlus, GitBranch, GitCommitHorizontal, History, ListTree, Minus, Pencil,
   Plus, RefreshCw, Trash2, Undo2, X,
 } from 'lucide-react'
 
@@ -22,17 +22,23 @@ import type {
 
 interface Props {
   projectId: string
-  /** Folder the panel inspects: the pinned root, else the active tab's cwd. */
+  /** Folder the panel is actually inspecting right now. */
   root: string
+  /** The project's main folder. */
+  projectRoot: string
+  /** The active tab's folder, when it has one. */
+  tabRoot: string | null
   view: PanelView
   onViewChange: (v: PanelView) => void
   onClose: () => void
+  /** True when locked to the project folder rather than following the tab. */
   pinned: boolean
-  onTogglePin: () => void
+  onScopeChange: (scope: 'project' | 'tab') => void
 }
 
 export function RightPanel({
-  projectId, root, view, onViewChange, onClose, pinned, onTogglePin,
+  projectId, root, projectRoot, tabRoot, view, onViewChange, onClose, pinned,
+  onScopeChange,
 }: Props) {
   const t = useT()
   const settings = useSettings((s) => s.settings)
@@ -95,16 +101,6 @@ export function RightPanel({
         >
           <RefreshCw size={13} className={refreshing ? 'spin' : undefined} />
         </button>
-        {/* One icon with a pressed state, rather than swapping between a pin
-            and a crossed-out pin — which reads as ambiguous about whether it
-            describes the current state or the action. */}
-        <button
-          className="icon-btn" onClick={onTogglePin} aria-pressed={pinned}
-          aria-label={t('panel.pinLabel')}
-          title={pinned ? t('panel.pinnedHint') : t('panel.followingHint')}
-        >
-          <Pin size={13} />
-        </button>
         <button
           className="icon-btn" onClick={onClose}
           aria-label={t('panel.close')} title={t('panel.close')}
@@ -113,14 +109,13 @@ export function RightPanel({
         </button>
       </div>
 
-      <div className="panel__scope" title={root}>
-        <span className="panel__scope-mode">
-          {pinned ? t('panel.pinnedShort') : t('panel.followingShort')}
-        </span>
-        <span className="panel__scope-path truncate mono">
-          <bdi>{root}</bdi>
-        </span>
-      </div>
+      <ScopeChooser
+        root={root}
+        projectRoot={projectRoot}
+        tabRoot={tabRoot}
+        pinned={pinned}
+        onChoose={onScopeChange}
+      />
 
       <div className="panel__body">
         {view === 'changes' && (
@@ -138,6 +133,64 @@ export function RightPanel({
       </div>
     </aside>
   )
+}
+
+/**
+ * Which folder the panel looks at. Tabs can be opened anywhere, so this is a
+ * real choice rather than a preference — and it is shown as one, with both
+ * paths visible, instead of as an icon whose meaning has to be guessed.
+ */
+function ScopeChooser({
+  root, projectRoot, tabRoot, pinned, onChoose,
+}: {
+  root: string
+  projectRoot: string
+  tabRoot: string | null
+  pinned: boolean
+  onChoose: (scope: 'project' | 'tab') => void
+}) {
+  const t = useT()
+  const [anchor, setAnchor] = useState<HTMLElement | null>(null)
+  const following = !pinned
+
+  return (
+    <>
+      <button
+        className="panel__scope"
+        title={root}
+        onClick={(e) => setAnchor(e.currentTarget)}
+      >
+        <span className="panel__scope-mode">
+          {t('panel.scope')}: {following ? t('panel.scopeTab') : t('panel.scopeProject')}
+          <ChevronDown size={10} />
+        </span>
+        <span className="panel__scope-path truncate mono">
+          <bdi>{root}</bdi>
+        </span>
+      </button>
+
+      <Popover anchor={anchor} open={!!anchor} onClose={() => setAnchor(null)}>
+        <MenuItem
+          icon={!following ? <Check size={13} /> : undefined}
+          label={t('panel.scopeProject')}
+          hint={shorten(projectRoot)}
+          onClick={() => { setAnchor(null); onChoose('project') }}
+        />
+        <MenuItem
+          icon={following ? <Check size={13} /> : undefined}
+          label={t('panel.scopeTab')}
+          hint={tabRoot ? shorten(tabRoot) : t('common.none')}
+          onClick={() => { setAnchor(null); onChoose('tab') }}
+        />
+      </Popover>
+    </>
+  )
+}
+
+/** Tail of a path, enough to tell two folders apart in a menu. */
+function shorten(path: string, max = 34): string {
+  const clean = path.replace(/\/+$/, '')
+  return clean.length <= max ? clean : `…${clean.slice(clean.length - max + 1)}`
 }
 
 function PanelTab({

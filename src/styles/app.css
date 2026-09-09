@@ -334,12 +334,19 @@
   display: flex;
   align-items: center;
   gap: var(--sp-2);
+  width: 100%;
   padding: 5px var(--sp-4);
   font-size: 10.5px;
   color: var(--fg-subtle);
   border-bottom: 1px solid var(--border);
+  text-align: left;
+  transition: background var(--dur-fast) var(--ease);
 }
+.panel__scope:hover { background: var(--bg-hover); color: var(--fg-muted); }
 .panel__scope-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   flex: 0 0 auto;
   padding: 0 5px;
   border-radius: 8px;
@@ -577,7 +584,15 @@
   flex: 0 0 auto;
 }
 .menu-item__label { flex: 1 1 auto; }
-.menu-item__hint { font-size: 10.5px; color: var(--fg-subtle); flex: 0 0 auto; }
+.menu-item__hint {
+  font-size: 10.5px;
+  color: var(--fg-subtle);
+  flex: 0 1 auto;
+  max-width: 230px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .menu-sep { height: 1px; margin: 4px 2px; background: var(--border); }
 
 /* ------------------------------------------------------------- settings -- */

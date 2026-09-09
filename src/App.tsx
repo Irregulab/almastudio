@@ -94,17 +94,23 @@ export default function App() {
   )
   const ws = activeProjectId ? workspaces[activeProjectId] : undefined
 
-  // The panel inspects the pinned folder, else the active tab's folder, else
-  // the project root — tabs can live anywhere, so this follows the work.
+  // Tabs can be opened anywhere, so the panel has two candidate folders: the
+  // project's, and whatever the active tab is working in.
+  const tabRoot = useMemo(() => {
+    if (!ws) return null
+    const pane = findLeaf(ws.layout, ws.activePaneId)
+    const active = pane?.activeTabId ? tabs[pane.activeTabId] : undefined
+    if (!active) return null
+    if (isTerminalTab(active)) return active.cwd
+    if (active.kind === 'diff' || active.kind === 'file') return active.root
+    return null
+  }, [tabs, ws])
+
   const inspectRoot = useMemo(() => {
     if (!project || !ws) return ''
     if (ws.panel.pinnedRoot) return ws.panel.pinnedRoot
-    const pane = findLeaf(ws.layout, ws.activePaneId)
-    const active = pane?.activeTabId ? tabs[pane.activeTabId] : undefined
-    if (active && isTerminalTab(active)) return active.cwd
-    if (active && (active.kind === 'diff' || active.kind === 'file')) return active.root
-    return project.root
-  }, [project, tabs, ws])
+    return tabRoot ?? project.root
+  }, [project, tabRoot, ws])
 
   const sidebarRef = useRef<HTMLDivElement>(null)
   // The active project's colour drives the tab and activity chrome. It is a
@@ -144,6 +150,7 @@ export default function App() {
         <header className="topbar" data-tauri-drag-region>
           <button
             className="icon-btn" aria-label={t('menu.toggleSidebar')}
+            title={`${t('menu.toggleSidebar')} (⌘B)`}
             aria-pressed={sidebarOpen} onClick={toggleSidebar}
           >
             <PanelLeft size={15} />
@@ -161,6 +168,7 @@ export default function App() {
           </div>
           <button
             className="icon-btn" aria-label={t('menu.togglePanel')}
+            title={`${t('menu.togglePanel')} (⌘⌥B)`}
             aria-pressed={!!ws?.panel.open}
             disabled={!project}
             onClick={() => project && setPanel(project.id, { open: !ws?.panel.open })}
@@ -186,6 +194,7 @@ export default function App() {
               projectId={project.id}
               root={inspectRoot}
               projectRoot={project.root}
+              tabRoot={tabRoot}
             />
           )}
         </div>
@@ -199,8 +208,8 @@ export default function App() {
 
 /** Wraps RightPanel with its own resizer and store bindings. */
 function PanelHost({
-  projectId, root, projectRoot,
-}: { projectId: string; root: string; projectRoot: string }) {
+  projectId, root, projectRoot, tabRoot,
+}: { projectId: string; root: string; projectRoot: string; tabRoot: string | null }) {
   const ws = useWorkspace((s) => s.workspaces[projectId])
   const setPanel = useWorkspace((s) => s.setPanel)
   const panel = ws?.panel
@@ -237,12 +246,14 @@ function PanelHost({
         <RightPanel
           projectId={projectId}
           root={root}
+          projectRoot={projectRoot}
+          tabRoot={tabRoot}
           view={panel.view}
           pinned={!!panel.pinnedRoot}
           onViewChange={(view) => setPanel(projectId, { view })}
           onClose={() => setPanel(projectId, { open: false })}
-          onTogglePin={() =>
-            setPanel(projectId, { pinnedRoot: panel.pinnedRoot ? null : projectRoot })
+          onScopeChange={(scope) =>
+            setPanel(projectId, { pinnedRoot: scope === 'project' ? projectRoot : null })
           }
         />
       </div>
