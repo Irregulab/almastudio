@@ -1,0 +1,179 @@
+/* Design tokens.
+ *
+ * Every colour in the app resolves through these variables. The values below
+ * are the first-paint fallback; on boot the theme registry
+ * (src/lib/uiThemes.ts) writes the selected theme's tokens onto :root, which
+ * is how additional themes are added without touching any CSS.
+ *
+ * The default palette is VS Code Dark+ / Light+, so the app sits alongside an
+ * editor without clashing with it. */
+
+:root {
+  /* Accent tokens are supplied per theme below and can be overridden from
+     Settings; only the derived one lives here. */
+  --accent-soft: color-mix(in srgb, var(--accent) 18%, transparent);
+  --border-focus: var(--accent);
+
+  --radius-sm: 3px;
+  --radius: 4px;
+  --radius-lg: 6px;
+
+  --sp-1: 4px;
+  --sp-2: 6px;
+  --sp-3: 8px;
+  --sp-4: 12px;
+  --sp-5: 16px;
+  --sp-6: 24px;
+
+  --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI Variable Text', 'Segoe UI',
+    Inter, Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'SFMono-Regular', 'JetBrains Mono', 'Fira Code', Menlo, Consolas,
+    'DejaVu Sans Mono', monospace;
+  --font-ui-size: 13px;
+
+  --dur-fast: 90ms;
+  --dur: 150ms;
+  --ease: cubic-bezier(0.2, 0, 0.2, 1);
+
+  --titlebar-h: 38px;
+  --tabbar-h: 34px;
+  --statusbar-h: 24px;
+}
+
+/* ---------------------------------------------------------------- dark ----
+ * These are fallbacks for the very first paint; the real palette is written
+ * as custom properties by the theme registry in src/lib/uiThemes.ts. Keep the
+ * two in sync — they are both VS Code Dark+ / Light+. */
+:root,
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg: #1e1e1e;
+  --bg-raised: #252526;
+  --bg-panel: #252526;
+  --bg-inset: #3c3c3c;
+  --bg-hover: #2a2d2e;
+  --bg-active: #37373d;
+  --bg-selected: #04395e;
+
+  --fg: #cccccc;
+  --fg-muted: #9d9d9d;
+  --fg-subtle: #7f7f7f;
+  --fg-inverted: #ffffff;
+
+  --border: #2b2b2b;
+  --border-strong: #454545;
+
+  --accent: #0078d4;
+  --accent-strong: #3794ff;
+  --accent-fg: #ffffff;
+
+  --green: #73c991;
+  --red: #f14c4c;
+  --yellow: #e2c08d;
+  --blue: #3794ff;
+  --purple: #c586c0;
+
+  --diff-add-bg: rgba(155, 185, 85, 0.16);
+  --diff-add-gutter: rgba(155, 185, 85, 0.30);
+  --diff-add-word: rgba(155, 185, 85, 0.40);
+  --diff-del-bg: rgba(255, 0, 0, 0.16);
+  --diff-del-gutter: rgba(255, 0, 0, 0.28);
+  --diff-del-word: rgba(255, 0, 0, 0.36);
+
+  --term-bg: #1e1e1e;
+  --term-fg: #cccccc;
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.36);
+  --shadow-2: 0 8px 28px rgba(0, 0, 0, 0.56);
+}
+
+/* --------------------------------------------------------------- light --- */
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --bg: #ffffff;
+  --bg-raised: #ffffff;
+  --bg-panel: #f3f3f3;
+  --bg-inset: #ffffff;
+  --bg-hover: #e8e8e8;
+  --bg-active: #e4e6f1;
+  --bg-selected: #cfe4fa;
+
+  --fg: #3b3b3b;
+  --fg-muted: #616161;
+  --fg-subtle: #8b8b8b;
+  --fg-inverted: #ffffff;
+
+  --border: #e5e5e5;
+  --border-strong: #cecece;
+
+  --accent: #005fb8;
+  --accent-strong: #0258a8;
+  --accent-fg: #ffffff;
+
+  --green: #388a34;
+  --red: #ad0707;
+  --yellow: #895503;
+  --blue: #005fb8;
+  --purple: #af00db;
+
+  --diff-add-bg: rgba(155, 185, 85, 0.20);
+  --diff-add-gutter: rgba(103, 145, 40, 0.34);
+  --diff-add-word: rgba(103, 145, 40, 0.40);
+  --diff-del-bg: rgba(255, 0, 0, 0.12);
+  --diff-del-gutter: rgba(197, 30, 30, 0.28);
+  --diff-del-word: rgba(197, 30, 30, 0.32);
+
+  --term-bg: #ffffff;
+  --term-fg: #3b3b3b;
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.10);
+  --shadow-2: 0 8px 28px rgba(0, 0, 0, 0.16);
+}
+
+/* System preference, only until the theme registry takes over on boot. */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']):not([data-theme='light']) {
+    color-scheme: light;
+
+    --bg: #ffffff;
+    --bg-raised: #ffffff;
+    --bg-panel: #f3f3f3;
+    --bg-inset: #ffffff;
+    --bg-hover: #e8e8e8;
+    --bg-active: #e4e6f1;
+    --bg-selected: #cfe4fa;
+
+    --fg: #3b3b3b;
+    --fg-muted: #616161;
+    --fg-subtle: #8b8b8b;
+    --fg-inverted: #ffffff;
+
+    --border: #e5e5e5;
+    --border-strong: #cecece;
+
+    --accent: #005fb8;
+    --accent-strong: #0258a8;
+    --accent-fg: #ffffff;
+
+    --green: #388a34;
+    --red: #ad0707;
+    --yellow: #895503;
+    --blue: #005fb8;
+    --purple: #af00db;
+
+    --diff-add-bg: rgba(155, 185, 85, 0.20);
+    --diff-add-gutter: rgba(103, 145, 40, 0.34);
+    --diff-add-word: rgba(103, 145, 40, 0.40);
+    --diff-del-bg: rgba(255, 0, 0, 0.12);
+    --diff-del-gutter: rgba(197, 30, 30, 0.28);
+    --diff-del-word: rgba(197, 30, 30, 0.32);
+
+    --term-bg: #ffffff;
+    --term-fg: #3b3b3b;
+
+    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.10);
+    --shadow-2: 0 8px 28px rgba(0, 0, 0, 0.16);
+  }
+}

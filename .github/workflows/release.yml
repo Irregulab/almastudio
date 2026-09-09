@@ -1,0 +1,148 @@
+name: Release
+
+# Tag a version to cut a release:  git tag v0.2.0 && git push --tags
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (without the leading v)'
+        required: true
+
+env:
+  UPDATE_BASE_URL: https://almaware.net/almastudio/updates/stable
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-latest,  target: aarch64-apple-darwin,      label: darwin-aarch64 }
+          - { os: macos-latest,  target: x86_64-apple-darwin,       label: darwin-x86_64 }
+          - { os: ubuntu-22.04,  target: x86_64-unknown-linux-gnu,  label: linux-x86_64 }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc,   label: windows-x86_64 }
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux build dependencies
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf \
+            build-essential curl wget file libssl-dev libgtk-3-dev libxdo-dev
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          key: ${{ matrix.target }}
+
+      - run: npm ci
+
+      - name: Build and sign
+        env:
+          # Generated with `npm run tauri signer generate`. The public half
+          # lives in tauri.conf.json; without these the updater artifacts are
+          # unsigned and clients will refuse them.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # macOS code signing + notarisation. Optional: without them the app
+          # still builds, but users get Gatekeeper warnings on first launch.
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: npm run tauri build -- --target ${{ matrix.target }}
+
+      - name: Collect artifacts
+        shell: bash
+        run: |
+          mkdir -p out
+          base="src-tauri/target/${{ matrix.target }}/release/bundle"
+          # Updater bundles plus their detached signatures.
+          find "$base" -type f \( \
+            -name '*.app.tar.gz' -o -name '*.app.tar.gz.sig' -o \
+            -name '*.nsis.zip'   -o -name '*.nsis.zip.sig'   -o \
+            -name '*.AppImage.tar.gz' -o -name '*.AppImage.tar.gz.sig' \
+          \) -exec cp {} out/ \;
+          # Human-installable packages.
+          find "$base" -type f \( \
+            -name '*.dmg' -o -name '*-setup.exe' -o -name '*.msi' -o \
+            -name '*.AppImage' -o -name '*.deb' -o -name '*.rpm' \
+          \) -exec cp {} out/ \;
+          ls -la out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.label }}
+          path: out/
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+
+      - uses: actions/download-artifact@v4
+        with: { path: artifacts }
+
+      - name: Resolve version
+        id: v
+        run: |
+          V="${{ github.event.inputs.version }}"
+          [ -n "$V" ] || V="${GITHUB_REF_NAME#v}"
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "Publishing $V"
+
+      - name: Build latest.json
+        run: |
+          node scripts/make-latest-json.mjs \
+            artifacts "${{ steps.v.outputs.version }}" "$UPDATE_BASE_URL"
+
+      - name: Deploy to almaware.net
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy
+          chmod 600 ~/.ssh/deploy
+          ssh-keyscan -p "${DEPLOY_PORT:-22}" -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+          # Upload the new binaries before the manifest, so a client that polls
+          # mid-deploy never sees a latest.json pointing at a missing file.
+          rsync -av -e "ssh -i ~/.ssh/deploy -p ${DEPLOY_PORT:-22}" \
+            artifacts/_publish/files/ \
+            "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/files/"
+          rsync -av -e "ssh -i ~/.ssh/deploy -p ${DEPLOY_PORT:-22}" \
+            artifacts/_publish/latest.json \
+            "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/latest.json"
+
+      - name: Summary
+        run: |
+          echo "### AlmaStudio ${{ steps.v.outputs.version }} published" >> $GITHUB_STEP_SUMMARY
+          echo '```json' >> $GITHUB_STEP_SUMMARY
+          cat artifacts/_publish/latest.json >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
