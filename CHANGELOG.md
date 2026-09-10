@@ -26,6 +26,9 @@ release cannot be cut without one — see `docs/UPDATES.md`.
 
 - Dropping a file anywhere in the window no longer replaces the app with the
   file's contents.
+- With a Retina screen and a standard external monitor, the window could open
+  with the whole interface squeezed into its top-left corner until it was
+  resized.
 
 ## [1.0.2] - 2026-09-10
 

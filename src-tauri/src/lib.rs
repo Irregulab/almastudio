@@ -97,6 +97,26 @@ fn app_info(app: tauri::AppHandle) -> AppInfo {
 fn ready(window: tauri::Window) {
     let _ = window.show();
     let _ = window.set_focus();
+    // After showing: only then is the window on its real display, so the
+    // size is converted with that display's scale.
+    if let Ok(size) = window.inner_size() {
+        fit_main_webview(window.app_handle(), size);
+    }
+}
+
+/// Sizes the main webview to fill its window.
+///
+/// With the `unstable` feature (needed for browser tabs) the main webview is a
+/// child that Tauri resizes itself, only on `Resized`, converting the window's
+/// pixel size with the scale factor current at that moment. A hidden window
+/// restored onto a display with a different scale still reports the scale of
+/// the display it was created on, so the webview was sized for the wrong one —
+/// half the window on a 1x monitor next to a Retina screen — and nothing
+/// corrected it when the real scale took over, until the user resized.
+fn fit_main_webview<R: tauri::Runtime>(app: &tauri::AppHandle<R>, size: PhysicalSize<u32>) {
+    if let Some(webview) = app.get_webview("main") {
+        let _ = webview.set_size(size);
+    }
 }
 
 /// Surfaces uncaught frontend errors on stderr, where `tauri dev` shows them.
@@ -320,6 +340,9 @@ pub fn run() {
                         );
                         let _ = w.show();
                         let _ = w.set_focus();
+                        if let Ok(size) = w.inner_size() {
+                            fit_main_webview(&handle, size);
+                        }
                     }
                 }
             });
@@ -329,6 +352,14 @@ pub fn run() {
             menu::on_menu_event(app, event.id().as_ref());
         })
         .on_window_event(|window, event| {
+            // Tauri re-sizes the webview on `Resized` but not when the scale
+            // changes, e.g. when the window lands on or is dragged to a display
+            // with different scaling; see `fit_main_webview`.
+            if let WindowEvent::ScaleFactorChanged { new_inner_size, .. } = event {
+                if window.label() == "main" {
+                    fit_main_webview(window.app_handle(), *new_inner_size);
+                }
+            }
             if matches!(event, WindowEvent::Moved(_) | WindowEvent::Resized(_)) {
                 if let Some(dirty) = window.app_handle().try_state::<GeometryDirty>() {
                     *dirty.0.lock() = Some(Instant::now());
