@@ -20,7 +20,8 @@ of blocked threads — no Electron, no per-tab browser process.
 - **Right panel** — three views: changed files, the full file tree, and git
   (branch, staging, commit, history, branch switching). Clicking a changed file
   opens its diff as a tab in the main area. Point a project at a folder full of
-  repositories and the panel lists the ones underneath it instead of reporting
+  repositories and the panel shows them as an accordion — each with its branch,
+  its change count, and its own changes when expanded — instead of reporting
   that the folder itself is not one.
 - **Code and Markdown** — syntax highlighting in the editor and in diffs,
   themed from the same tokens as the rest of the app. Files are editable, with

@@ -158,8 +158,9 @@
     "scope": "Folder",
     "scopeProject": "Project folder",
     "scopeTab": "Active tab folder",
-    "reposFound": "Repositories found",
-    "reposHint": "This folder is not a git repository, but these are. Pick one to inspect it."
+    "reposHint": "This folder is not a git repository. The {n} found beneath it are listed below.",
+    "focusRepo": "Show only this repository",
+    "backToProject": "Back to the project folder"
   },
   "fs": {
     "newFile": "New file",

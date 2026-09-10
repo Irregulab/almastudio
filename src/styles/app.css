@@ -1069,3 +1069,21 @@
   color: var(--fg-subtle);
 }
 .chip--dirty { color: var(--yellow); border-color: color-mix(in srgb, var(--yellow) 40%, transparent); }
+
+/* Repository accordion, for a project folder that holds several repos. */
+.panel__scoperow {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-left: var(--sp-2);
+  border-bottom: 1px solid var(--border);
+}
+.panel__scoperow .panel__scope { border-bottom: none; }
+
+.repo__name { font-weight: 600; text-transform: none; letter-spacing: 0; font-size: 12px; }
+.repo .group__head { gap: var(--sp-2); }
+.repo__body { border-top: 1px solid var(--border); }
+.repo__loading { padding: var(--sp-3) var(--sp-4); font-size: 11.5px; }
+/* Groups nested inside a section should not draw their own outer rule. */
+.repo__body .group:last-child { border-bottom: none; }
+.repo__body .group__head { top: 0; }

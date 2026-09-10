@@ -158,8 +158,9 @@
     "scope": "Cartella",
     "scopeProject": "Cartella del progetto",
     "scopeTab": "Cartella della scheda attiva",
-    "reposFound": "Repository trovati",
-    "reposHint": "Questa cartella non è un repository git, ma queste lo sono. Scegline uno per esaminarlo."
+    "reposHint": "Questa cartella non è un repository git. Qui sotto i {n} trovati al suo interno.",
+    "focusRepo": "Mostra solo questo repository",
+    "backToProject": "Torna alla cartella del progetto"
   },
   "fs": {
     "newFile": "Nuovo file",

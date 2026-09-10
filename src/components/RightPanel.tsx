@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { revealItemInDir } from '@tauri-apps/plugin-opener'
 import {
-  Check, ChevronDown, ChevronRight, Eye, EyeOff, FileDiff, FilePlus2,
-  FolderPlus, GitBranch, GitCommitHorizontal, History, ListTree, Minus, Pencil,
-  Plus, RefreshCw, Trash2, Undo2, X,
+  ArrowLeft, Check, ChevronDown, ChevronRight, Eye, EyeOff, FileDiff, FilePlus2,
+  FolderPlus, GitBranch, GitCommitHorizontal, History, ListTree, Maximize2,
+  Minus, Pencil, Plus, RefreshCw, Trash2, Undo2, X,
 } from 'lucide-react'
 
 import {
@@ -122,7 +122,7 @@ export function RightPanel({
       <div className="panel__body">
         {view === 'changes' && (
           <ChangesView
-            projectId={projectId} status={status}
+            projectId={projectId} status={status} revision={tick}
             onChanged={() => setTick((n) => n + 1)} onPickRepo={onPickRoot}
           />
         )}
@@ -134,7 +134,7 @@ export function RightPanel({
         )}
         {view === 'git' && (
           <GitView
-            root={root} status={status}
+            root={root} status={status} revision={tick}
             onChanged={() => setTick((n) => n + 1)} onPickRepo={onPickRoot}
           />
         )}
@@ -145,14 +145,26 @@ export function RightPanel({
 
 /**
  * Shown instead of a bare "not a git repository": a folder full of projects is
- * a perfectly reasonable thing to point AlmaStudio at, and the repositories
- * underneath it are what the user actually meant.
+ * a reasonable thing to point AlmaStudio at, and the repositories underneath
+ * it are what the user actually meant.
+ *
+ * They are listed as an accordion rather than as a menu that swaps the panel
+ * over to one of them. Drilling in was a one-way door — nothing on screen said
+ * how to get back out — and with several repositories the useful view is all
+ * of them at once, not one at a time.
  */
-function RepoDiscovery({
-  root, onPick,
-}: { root: string; onPick: (path: string) => void }) {
+function RepoAccordion({
+  root, render, onFocus,
+}: {
+  root: string
+  /** Body for one repository, rendered only while its section is open. */
+  render: (repo: RepoEntry) => React.ReactNode
+  onFocus: (path: string) => void
+}) {
   const t = useT()
   const [repos, setRepos] = useState<RepoEntry[] | null>(null)
+  const [open, setOpen] = useState<Set<string>>(new Set())
+  const autoExpanded = useRef('')
 
   useEffect(() => {
     let cancelled = false
@@ -164,6 +176,23 @@ function RepoDiscovery({
       cancelled = true
     }
   }, [root])
+
+  // Open the repositories that have something to show, once per folder — the
+  // ones with changes are why the panel is being looked at.
+  useEffect(() => {
+    if (!repos || autoExpanded.current === root) return
+    autoExpanded.current = root
+    const dirty = repos.filter((r) => r.dirty > 0).map((r) => r.path)
+    setOpen(new Set(dirty.length ? dirty.slice(0, 4) : repos.slice(0, 1).map((r) => r.path)))
+  }, [repos, root])
+
+  const toggle = (path: string) =>
+    setOpen((prev) => {
+      const next = new Set(prev)
+      if (next.has(path)) next.delete(path)
+      else next.add(path)
+      return next
+    })
 
   if (repos === null) {
     return (
@@ -185,29 +214,51 @@ function RepoDiscovery({
   }
 
   return (
-    <section className="group">
-      <header className="group__head">
-        <span className="group__toggle">
-          <GitBranch size={12} /> {t('panel.reposFound')}
-          <span className="group__count">{repos.length}</span>
-        </span>
-      </header>
-      <p className="discovery__hint">{t('panel.reposHint')}</p>
-      <ul className="filelist">
-        {repos.map((repo) => (
-          <li key={repo.path} className="filerow" onClick={() => onPick(repo.path)}>
-            <GitBranch size={12} className="subtle" />
-            <span className="filerow__name truncate">{repo.name}</span>
-            {repo.branch && <span className="chip">{repo.branch}</span>}
-            {repo.dirty > 0 && (
-              <span className="chip chip--dirty">{repo.dirty}</span>
-            )}
-            <span className="filerow__dir truncate subtle">{dirname(repo.rel)}</span>
-          </li>
-        ))}
-      </ul>
-    </section>
+    <>
+      <p className="discovery__hint">
+        {t('panel.reposHint', { n: repos.length })}
+      </p>
+      {repos.map((repo) => {
+        const isOpen = open.has(repo.path)
+        return (
+          <section key={repo.path} className="group repo">
+            <header className="group__head">
+              <button className="group__toggle" onClick={() => toggle(repo.path)}>
+                {isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                <GitBranch size={12} />
+                <span className="repo__name truncate">{repo.name}</span>
+                {repo.branch && <span className="chip">{repo.branch}</span>}
+                {repo.dirty > 0 && <span className="chip chip--dirty">{repo.dirty}</span>}
+              </button>
+              <button
+                className="icon-btn icon-btn--tiny"
+                title={t('panel.focusRepo')}
+                onClick={() => onFocus(repo.path)}
+              >
+                <Maximize2 size={12} />
+              </button>
+            </header>
+            {isOpen && <div className="repo__body">{render(repo)}</div>}
+          </section>
+        )
+      })}
+    </>
   )
+}
+
+/** Fetches one repository's status for a section that is actually open. */
+function useRepoStatus(root: string, revision: number) {
+  const [status, setStatus] = useState<RepoStatus | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    void gitStatus(root)
+      .then((s) => !cancelled && setStatus(s))
+      .catch(() => !cancelled && setStatus(null))
+    return () => {
+      cancelled = true
+    }
+  }, [root, revision])
+  return status
 }
 
 /**
@@ -238,7 +289,20 @@ function ScopeChooser({
       : t('panel.scopeProject')
 
   return (
-    <>
+    <div className="panel__scoperow">
+      {/* Focusing one repository must not be a one-way door: while the panel
+          is locked to a folder that is neither the project nor the tab, there
+          is always a visible way back to the list it came from. */}
+      {custom && (
+        <button
+          className="icon-btn icon-btn--tiny"
+          title={t('panel.backToProject')}
+          aria-label={t('panel.backToProject')}
+          onClick={() => onChoose('project')}
+        >
+          <ArrowLeft size={13} />
+        </button>
+      )}
       <button
         className="panel__scope"
         title={root}
@@ -275,7 +339,7 @@ function ScopeChooser({
           />
         )}
       </Popover>
-    </>
+    </div>
   )
 }
 
@@ -304,13 +368,28 @@ function PanelTab({
 
 // --------------------------------------------------------------- changes ---
 
+/** One repository's changes inside an accordion section. */
+function RepoChanges({
+  projectId, root, revision, onChanged,
+}: { projectId: string; root: string; revision: number; onChanged: () => void }) {
+  const t = useT()
+  const status = useRepoStatus(root, revision)
+  if (!status) return <div className="repo__loading subtle">{t('common.loading')}</div>
+  if (status.files.length === 0) {
+    return <div className="repo__loading subtle">{t('panel.noChangesHint')}</div>
+  }
+  return <ChangesView projectId={projectId} status={status} onChanged={onChanged} />
+}
+
 function ChangesView({
-  projectId, status, onChanged, onPickRepo,
+  projectId, status, onChanged, onPickRepo, revision,
 }: {
   projectId: string
   status: RepoStatus | null
   onChanged: () => void
-  onPickRepo: (path: string) => void
+  /** Absent inside an accordion section, which is already scoped to a repo. */
+  onPickRepo?: (path: string) => void
+  revision?: number
 }) {
   const t = useT()
   const openDiffTab = useWorkspace((s) => s.openDiffTab)
@@ -326,7 +405,20 @@ function ChangesView({
   }, [status])
 
   if (!status) return <div className="empty">{t('common.loading')}</div>
-  if (!status.isRepo) return <RepoDiscovery root={status.root} onPick={onPickRepo} />
+  if (!status.isRepo) {
+    return (
+      <RepoAccordion
+        root={status.root}
+        onFocus={onPickRepo ?? (() => {})}
+        render={(repo) => (
+          <RepoChanges
+            projectId={projectId} root={repo.path}
+            revision={revision ?? 0} onChanged={onChanged}
+          />
+        )}
+      />
+    )
+  }
   if (status.files.length === 0) {
     return (
       <div className="empty">
@@ -776,13 +868,24 @@ function TreeNode({
 
 // ------------------------------------------------------------------- git ---
 
+/** One repository's git panel inside an accordion section. */
+function RepoGit({
+  root, revision, onChanged,
+}: { root: string; revision: number; onChanged: () => void }) {
+  const t = useT()
+  const status = useRepoStatus(root, revision)
+  if (!status) return <div className="repo__loading subtle">{t('common.loading')}</div>
+  return <GitView root={root} status={status} onChanged={onChanged} />
+}
+
 function GitView({
-  root, status, onChanged, onPickRepo,
+  root, status, onChanged, onPickRepo, revision,
 }: {
   root: string
   status: RepoStatus | null
   onChanged: () => void
-  onPickRepo: (path: string) => void
+  onPickRepo?: (path: string) => void
+  revision?: number
 }) {
   const t = useT()
   const [message, setMessage] = useState('')
@@ -798,7 +901,15 @@ function GitView({
   }, [root, status])
 
   if (!status?.isRepo) {
-    return <RepoDiscovery root={root} onPick={onPickRepo} />
+    return (
+      <RepoAccordion
+        root={root}
+        onFocus={onPickRepo ?? (() => {})}
+        render={(repo) => (
+          <RepoGit root={repo.path} revision={revision ?? 0} onChanged={onChanged} />
+        )}
+      />
+    )
   }
 
   const stagedCount = status.files.filter((f) => f.staged).length
