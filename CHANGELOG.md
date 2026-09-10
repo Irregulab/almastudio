@@ -9,6 +9,8 @@ release cannot be cut without one — see `docs/UPDATES.md`.
 
 ## [Unreleased]
 
+## [1.0.3] - 2026-09-10
+
 ### Added
 
 - OpenCode tabs, alongside Claude Code and Codex: from File → New OpenCode
@@ -71,7 +73,8 @@ First release.
 - English and Italian.
 - Over-the-air updates.
 
-[Unreleased]: https://github.com/Irregulab/almastudio/compare/v1.0.2...HEAD
+[Unreleased]: https://github.com/Irregulab/almastudio/compare/v1.0.3...HEAD
+[1.0.3]: https://github.com/Irregulab/almastudio/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/Irregulab/almastudio/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/Irregulab/almastudio/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/Irregulab/almastudio/releases/tag/v1.0.0
