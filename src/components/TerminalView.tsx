@@ -111,6 +111,12 @@ export function TerminalView({ tab, visible, focused }: Props) {
       // Off unless asked for: Option has to type what the keyboard layout
       // puts on it — on an Italian Mac ~ @ # [ ] { } are all Option keys.
       macOptionIsMeta: settings.terminal.optionIsMeta,
+      // Links a program marks itself (OSC 8), whose visible text need not be
+      // the URL. xterm's fallback is confirm() then window.open(), neither of
+      // which reaches the system browser from inside the webview.
+      linkHandler: {
+        activate: (_e, uri) => void openUrl(uri).catch(() => {}),
+      },
     })
     const fit = new FitAddon()
     const search = new SearchAddon()

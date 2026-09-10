@@ -14,6 +14,13 @@ release cannot be cut without one — see `docs/UPDATES.md`.
 - A project's icon can be one of the app's own icons instead of an emoji,
   drawn in the project's colour.
 
+### Fixed
+
+- Links clicked in a terminal open in the default browser. The app could
+  call "open URL" but had been given no URL it was allowed to open, so every
+  link — in terminals, Markdown previews and Help → Documentation — was
+  refused without a word. Links a program marks up itself (OSC 8) open too.
+
 ## [1.0.6] - 2026-09-10
 
 ### Added

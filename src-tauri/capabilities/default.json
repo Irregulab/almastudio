@@ -18,6 +18,7 @@
     "dialog:allow-message",
     "dialog:allow-confirm",
     "opener:allow-open-url",
+    "opener:allow-default-urls",
     "opener:allow-reveal-item-in-dir",
     "os:allow-locale",
     "os:allow-platform",
