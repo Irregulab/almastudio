@@ -53,21 +53,39 @@ jobs:
       - run: npm ci
 
       - name: Build and sign
+        shell: bash
         env:
           # Generated with `npm run tauri signer generate`. The public half
           # lives in tauri.conf.json; without these the updater artifacts are
           # unsigned and clients will refuse them.
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          # macOS code signing + notarisation. Optional: without them the app
-          # still builds, but users get Gatekeeper warnings on first launch.
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: npm run tauri build -- --target ${{ matrix.target }}
+          # Apple credentials are read from these staging names and only
+          # exported under the names Tauri looks for when they are non-empty.
+          # An unset secret interpolates to an empty string, and Tauri treats a
+          # defined-but-empty APPLE_CERTIFICATE as "sign this", then fails in
+          # `security import` with an unhelpful parameter error.
+          IN_APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          IN_APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          IN_APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          IN_APPLE_ID: ${{ secrets.APPLE_ID }}
+          IN_APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          IN_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -eu
+          if [ -n "${IN_APPLE_CERTIFICATE:-}" ]; then
+            echo "Apple certificate present: signing and notarising."
+            export APPLE_CERTIFICATE="$IN_APPLE_CERTIFICATE"
+            export APPLE_CERTIFICATE_PASSWORD="${IN_APPLE_CERTIFICATE_PASSWORD:-}"
+            [ -n "${IN_APPLE_SIGNING_IDENTITY:-}" ] && \
+              export APPLE_SIGNING_IDENTITY="$IN_APPLE_SIGNING_IDENTITY"
+            [ -n "${IN_APPLE_ID:-}" ] && export APPLE_ID="$IN_APPLE_ID"
+            [ -n "${IN_APPLE_PASSWORD:-}" ] && export APPLE_PASSWORD="$IN_APPLE_PASSWORD"
+            [ -n "${IN_APPLE_TEAM_ID:-}" ] && export APPLE_TEAM_ID="$IN_APPLE_TEAM_ID"
+          else
+            echo "No Apple certificate configured: building unsigned."
+          fi
+          npm run tauri build -- --target ${{ matrix.target }}
 
       - name: Collect artifacts
         shell: bash
