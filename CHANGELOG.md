@@ -9,6 +9,8 @@ release cannot be cut without one — see `docs/UPDATES.md`.
 
 ## [Unreleased]
 
+## [1.0.5] - 2026-09-10
+
 ### Fixed
 
 - Option key combinations type their character in terminals, whatever the
@@ -93,7 +95,8 @@ First release.
 - English and Italian.
 - Over-the-air updates.
 
-[Unreleased]: https://github.com/Irregulab/almastudio/compare/v1.0.4...HEAD
+[Unreleased]: https://github.com/Irregulab/almastudio/compare/v1.0.5...HEAD
+[1.0.5]: https://github.com/Irregulab/almastudio/compare/v1.0.4...v1.0.5
 [1.0.4]: https://github.com/Irregulab/almastudio/compare/v1.0.3...v1.0.4
 [1.0.3]: https://github.com/Irregulab/almastudio/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/Irregulab/almastudio/compare/v1.0.1...v1.0.2
