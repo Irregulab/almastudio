@@ -92,11 +92,12 @@ jobs:
         run: |
           mkdir -p out
           base="src-tauri/target/${{ matrix.target }}/release/bundle"
-          # Updater bundles plus their detached signatures.
+          # Updater bundles plus their detached signatures. Tauri 2 signs the
+          # NSIS installer and the AppImage themselves (the files are copied
+          # with the installers below); only macOS gets a separate archive.
           find "$base" -type f \( \
             -name '*.app.tar.gz' -o -name '*.app.tar.gz.sig' -o \
-            -name '*.nsis.zip'   -o -name '*.nsis.zip.sig'   -o \
-            -name '*.AppImage.tar.gz' -o -name '*.AppImage.tar.gz.sig' \
+            -name '*-setup.exe.sig' -o -name '*.AppImage.sig' \
           \) -exec cp {} out/ \;
           # Human-installable packages.
           find "$base" -type f \( \
@@ -156,12 +157,10 @@ jobs:
             -name '*.dmg' -o -name '*-setup.exe' -o -name '*.msi' -o \
             -name '*.AppImage' -o -name '*.deb' -o -name '*.rpm' \
           \) -exec cp {} release/ \;
-          # Signed updater bundles, when signing was configured.
-          find artifacts -type f \( \
-            -name '*.app.tar.gz' -o -name '*.app.tar.gz.sig' -o \
-            -name '*.nsis.zip' -o -name '*.nsis.zip.sig' -o \
-            -name '*.AppImage.tar.gz' -o -name '*.AppImage.tar.gz.sig' \
-          \) -exec cp {} release/ \; || true
+          # Signed updater bundles and signatures, under the unique names the
+          # manifest step gave them: both macOS slices are built as
+          # AlmaStudio.app.tar.gz. Absent when signing was not configured.
+          [ -d artifacts/_publish/files ] && cp artifacts/_publish/files/* release/ || true
           [ -f artifacts/_publish/latest.json ] && cp artifacts/_publish/latest.json release/ || true
           ls -la release
           echo "count=$(find release -type f | wc -l | tr -d ' ')" >> "$GITHUB_OUTPUT"
@@ -185,8 +184,8 @@ jobs:
           they open without a Gatekeeper warning. Windows builds are unsigned
           and SmartScreen will warn on first run.
 
-          `.app.tar.gz`, `.nsis.zip`, `.AppImage.tar.gz` and their `.sig` files are
-          for the in-app updater, not for manual installation.
+          `.app.tar.gz` and `.sig` files are for the in-app updater, not for
+          manual installation.
           EOT
           )
           # --verify-tag only makes sense for a tag-triggered run; a manual
@@ -238,4 +237,11 @@ jobs:
             echo '```' >> $GITHUB_STEP_SUMMARY
           else
             echo "No updater manifest: signing was not configured for this build." >> $GITHUB_STEP_SUMMARY
+          fi
+          # The in-app updater only reads almaware.net (the repository is
+          # private), so a skipped deploy leaves every client on the old version.
+          if [ -z "$DEPLOY_HOST" ]; then
+            echo "::warning::Not deployed: DEPLOY_HOST is not set, so the in-app updater will not see this release."
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Not deployed to almaware.net**: the in-app updater will not see this release." >> $GITHUB_STEP_SUMMARY
           fi
