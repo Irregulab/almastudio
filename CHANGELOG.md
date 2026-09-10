@@ -9,6 +9,11 @@ release cannot be cut without one — see `docs/UPDATES.md`.
 
 ## [Unreleased]
 
+### Added
+
+- A project's icon can be one of the app's own icons instead of an emoji,
+  drawn in the project's colour.
+
 ## [1.0.6] - 2026-09-10
 
 ### Added

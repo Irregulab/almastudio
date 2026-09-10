@@ -14,7 +14,8 @@ import { useSettings } from '../store/settings'
 import { useUi } from '../store/ui'
 import { useTheme } from '../hooks/useTheme'
 import { useT } from '../i18n'
-import { ConfirmDialog, Field, MenuItem, MenuSeparator, Modal, Popover } from './ui'
+import { ConfirmDialog, Field, MenuItem, MenuSeparator, Modal, Popover, Segmented } from './ui'
+import { PROJECT_ICONS, PROJECT_ICON_NAMES } from '../lib/projectIcons'
 import { isTerminalTab, type HarnessKind, type Project } from '../lib/types'
 import { beginPointerDrag, useDrag } from '../lib/dragDrop'
 
@@ -193,6 +194,7 @@ export function Sidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
 }
 
 export function ProjectIcon({ project, size = 24 }: { project: Project; size?: number }) {
+  const isDark = useTheme()
   if (project.iconImage) {
     return (
       <img
@@ -203,6 +205,7 @@ export function ProjectIcon({ project, size = 24 }: { project: Project; size?: n
       />
     )
   }
+  const Icon = project.iconName ? PROJECT_ICONS[project.iconName] : undefined
   return (
     <span
       className="project__icon"
@@ -213,7 +216,13 @@ export function ProjectIcon({ project, size = 24 }: { project: Project; size?: n
         height: size,
       }}
     >
-      {project.icon || '•'}
+      {Icon ? (
+        // The project's colour, lifted or deepened just enough to read on
+        // the current theme — a pale colour would vanish on a light one.
+        <Icon size={Math.round(size * 0.62)} color={readableAccent(project.color, isDark)} />
+      ) : (
+        project.icon || '•'
+      )}
     </span>
   )
 }
@@ -256,11 +265,14 @@ function ProjectDialog({ project, onClose }: { project: Project | null; onClose:
   const addProject = useWorkspace((s) => s.addProject)
   const updateProject = useWorkspace((s) => s.updateProject)
   const defaultHarness = useSettings((s) => s.settings.defaultHarness)
+  const isDark = useTheme()
 
   const [name, setName] = useState(project?.name ?? '')
   const [root, setRoot] = useState(project?.root ?? '')
   const [icon, setIcon] = useState(project?.icon ?? ICONS[0])
   const [iconImage, setIconImage] = useState(project?.iconImage)
+  const [iconKind, setIconKind] = useState<'emoji' | 'icon'>(project?.iconName ? 'icon' : 'emoji')
+  const [iconName, setIconName] = useState(project?.iconName ?? PROJECT_ICON_NAMES[0])
   const [color, setColor] = useState(project?.color ?? COLORS[0])
   const [instructions, setInstructions] = useState(project?.instructions ?? '')
   const [harness, setHarness] = useState<HarnessKind | 'default'>(
@@ -292,6 +304,8 @@ function ProjectDialog({ project, onClose }: { project: Project | null; onClose:
       name: name.trim(), root: root.trim(), icon, color,
       // Undefined rather than '' so the merge on load treats it as absent.
       iconImage: iconImage || undefined,
+      // The emoji is kept either way, so switching back loses nothing.
+      iconName: iconKind === 'icon' ? iconName : undefined,
       instructions, defaultHarness: harness,
     }
     if (project) updateProject(project.id, payload)
@@ -302,7 +316,10 @@ function ProjectDialog({ project, onClose }: { project: Project | null; onClose:
       void writeProjectInstructions(root.trim(), instructions).catch(() => {})
     }
     onClose()
-  }, [addProject, color, harness, icon, iconImage, instructions, name, onClose, project, root, t, updateProject])
+  }, [
+    addProject, color, harness, icon, iconImage, iconKind, iconName, instructions, name, onClose,
+    project, root, t, updateProject,
+  ])
 
   return (
     <Modal
@@ -355,16 +372,50 @@ function ProjectDialog({ project, onClose }: { project: Project | null; onClose:
           )}
         </div>
         {!iconImage && (
-          <div className="iconpick">
-            {ICONS.map((i) => (
-              <button
-                key={i} className={`iconpick__item${i === icon ? ' iconpick__item--on' : ''}`}
-                onClick={() => setIcon(i)}
+          <>
+            <Segmented<'emoji' | 'icon'>
+              value={iconKind}
+              onChange={setIconKind}
+              options={[
+                { value: 'emoji', label: t('project.iconEmoji') },
+                { value: 'icon', label: t('project.iconSymbol') },
+              ]}
+            />
+            <div style={{ height: 8 }} />
+            {iconKind === 'emoji' ? (
+              <div className="iconpick">
+                {ICONS.map((i) => (
+                  <button
+                    key={i} className={`iconpick__item${i === icon ? ' iconpick__item--on' : ''}`}
+                    onClick={() => setIcon(i)}
+                  >
+                    {i}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              // In the colour being picked below, so the choice is seen as it will look.
+              <div
+                className="iconpick iconpick--icons"
+                style={{ color: readableAccent(color, isDark) }}
               >
-                {i}
-              </button>
-            ))}
-          </div>
+                {PROJECT_ICON_NAMES.map((n) => {
+                  const Icon = PROJECT_ICONS[n]
+                  return (
+                    <button
+                      key={n}
+                      className={`iconpick__item${n === iconName ? ' iconpick__item--on' : ''}`}
+                      onClick={() => setIconName(n)}
+                      aria-label={n}
+                      title={n}
+                    >
+                      <Icon size={16} />
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </>
         )}
       </Field>
 

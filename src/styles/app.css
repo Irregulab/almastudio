@@ -715,6 +715,7 @@
 }
 .iconpick__item:hover { background: var(--bg-hover); }
 .iconpick__item--on { background: var(--bg-active); border-color: var(--accent); }
+.iconpick--icons .iconpick__item { display: flex; align-items: center; justify-content: center; }
 
 .num { position: relative; display: flex; align-items: center; }
 .num .input { padding-right: 34px; }

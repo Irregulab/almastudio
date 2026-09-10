@@ -14,6 +14,11 @@ export interface Project {
   icon: string
   /** Optional image icon as a small PNG data URL; takes precedence over `icon`. */
   iconImage?: string
+  /**
+   * Optional app icon — a name from `PROJECT_ICONS` — drawn in the project's
+   * colour. Takes precedence over `icon`, but not over `iconImage`.
+   */
+  iconName?: string
   /** Accent dot colour, hex. */
   color: string
   /** Main folder. Only the default cwd for new tabs — tabs may live anywhere. */
