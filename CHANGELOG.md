@@ -9,6 +9,8 @@ release cannot be cut without one — see `docs/UPDATES.md`.
 
 ## [Unreleased]
 
+## [1.0.6] - 2026-09-10
+
 ### Added
 
 - Images (PNG, JPEG, GIF, WebP, AVIF, BMP, ICO) and PDFs open in a viewer
@@ -115,7 +117,8 @@ First release.
 - English and Italian.
 - Over-the-air updates.
 
-[Unreleased]: https://github.com/Irregulab/almastudio/compare/v1.0.5...HEAD
+[Unreleased]: https://github.com/Irregulab/almastudio/compare/v1.0.6...HEAD
+[1.0.6]: https://github.com/Irregulab/almastudio/compare/v1.0.5...v1.0.6
 [1.0.5]: https://github.com/Irregulab/almastudio/compare/v1.0.4...v1.0.5
 [1.0.4]: https://github.com/Irregulab/almastudio/compare/v1.0.3...v1.0.4
 [1.0.3]: https://github.com/Irregulab/almastudio/compare/v1.0.2...v1.0.3
