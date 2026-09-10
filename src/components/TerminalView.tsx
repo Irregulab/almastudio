@@ -108,7 +108,9 @@ export function TerminalView({ tab, visible, focused }: Props) {
       lineHeight: settings.terminal.lineHeight,
       scrollback: settings.terminal.scrollback,
       theme: resolveScheme(settings.terminal.scheme, isDark, resolveUiTheme(settings.uiTheme)),
-      macOptionIsMeta: true,
+      // Off unless asked for: Option has to type what the keyboard layout
+      // puts on it — on an Italian Mac ~ @ # [ ] { } are all Option keys.
+      macOptionIsMeta: settings.terminal.optionIsMeta,
     })
     const fit = new FitAddon()
     const search = new SearchAddon()
@@ -280,6 +282,7 @@ export function TerminalView({ tab, visible, focused }: Props) {
     term.options.cursorStyle = settings.terminal.cursorStyle
     term.options.cursorBlink = settings.terminal.cursorBlink
     term.options.scrollback = settings.terminal.scrollback
+    term.options.macOptionIsMeta = settings.terminal.optionIsMeta
     try {
       fitRef.current?.fit()
     } catch {
@@ -295,6 +298,7 @@ export function TerminalView({ tab, visible, focused }: Props) {
     settings.terminal.cursorStyle,
     settings.terminal.cursorBlink,
     settings.terminal.scrollback,
+    settings.terminal.optionIsMeta,
   ])
 
   // Re-fit and focus when the tab comes back into view.

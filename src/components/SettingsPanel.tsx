@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { revealItemInDir } from '@tauri-apps/plugin-opener'
+import { platform } from '@tauri-apps/plugin-os'
 import {
   Bot, Info, Monitor, Palette, RefreshCw, Sparkles, SquareCode, SquareTerminal,
   Terminal,
@@ -303,6 +304,16 @@ function TerminalSection() {
           onChange={(v) => patch('terminal', { rightClickPaste: v })}
         />
       </Field>
+
+      {/* Only macOS has the choice: elsewhere Alt is always Meta and AltGr types. */}
+      {platform() === 'macos' && (
+        <Field label={t('settings.optionIsMeta')} hint={t('settings.optionIsMetaHint')} row>
+          <Toggle
+            checked={s.terminal.optionIsMeta}
+            onChange={(v) => patch('terminal', { optionIsMeta: v })}
+          />
+        </Field>
+      )}
 
       <Field label={t('settings.shell')} hint={t('settings.shellHint', { shell: systemShell })}>
         <input

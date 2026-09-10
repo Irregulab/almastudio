@@ -166,6 +166,11 @@ export interface Settings {
     shell: string
     /** Run harnesses through a login shell so PATH matches a real terminal. */
     loginShell: boolean
+    /**
+     * macOS: Option sends ESC + key (Meta) instead of typing the character
+     * the keyboard layout puts on it.
+     */
+    optionIsMeta: boolean
   }
   defaultHarness: HarnessKind
   harness: Record<HarnessKind, HarnessConfig>

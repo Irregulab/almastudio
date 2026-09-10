@@ -251,6 +251,8 @@
     "shellHint": "Lascia vuoto per usare la shell di sistema ({shell}).",
     "loginShell": "Esegui tramite login shell",
     "loginShellHint": "Carica il PATH completo, così nvm, mise e gli strumenti Homebrew vengono trovati. Disattiva solo se l'avvio è lento.",
+    "optionIsMeta": "Usa Option come tasto Meta",
+    "optionIsMetaHint": "Option invia Esc + tasto, come si aspettano alcune scorciatoie della shell e degli agenti, ma non scrive più i caratteri che la tastiera gli assegna — su una tastiera italiana ~ @ # [ ] { }.",
     "defaultHarness": "Tipo di scheda predefinito",
     "command": "Comando",
     "args": "Argomenti",

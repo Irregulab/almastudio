@@ -9,6 +9,13 @@ release cannot be cut without one — see `docs/UPDATES.md`.
 
 ## [Unreleased]
 
+### Fixed
+
+- Option key combinations type their character in terminals, whatever the
+  keyboard layout: on an Italian keyboard Option+5 gives ~, and @ # [ ] { }
+  work too. Option as a Meta key is now a choice in Settings → Terminal,
+  off by default.
+
 ## [1.0.4] - 2026-09-10
 
 ### Fixed

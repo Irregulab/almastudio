@@ -251,6 +251,8 @@
     "shellHint": "Leave empty to use the system shell ({shell}).",
     "loginShell": "Run through a login shell",
     "loginShellHint": "Loads your full PATH so nvm, mise and Homebrew tools are found. Turn off only if startup is slow.",
+    "optionIsMeta": "Use Option as Meta key",
+    "optionIsMetaHint": "Option then sends Esc + key, as some shell and agent shortcuts expect, but can no longer type the characters your keyboard puts on it — on an Italian keyboard ~ @ # [ ] { }.",
     "defaultHarness": "Default tab type",
     "command": "Command",
     "args": "Arguments",
