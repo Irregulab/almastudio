@@ -9,6 +9,8 @@ release cannot be cut without one — see `docs/UPDATES.md`.
 
 ## [Unreleased]
 
+## [1.0.7] - 2026-09-10
+
 ### Added
 
 - A project's icon can be one of the app's own icons instead of an emoji,
@@ -134,7 +136,8 @@ First release.
 - English and Italian.
 - Over-the-air updates.
 
-[Unreleased]: https://github.com/Irregulab/almastudio/compare/v1.0.6...HEAD
+[Unreleased]: https://github.com/Irregulab/almastudio/compare/v1.0.7...HEAD
+[1.0.7]: https://github.com/Irregulab/almastudio/compare/v1.0.6...v1.0.7
 [1.0.6]: https://github.com/Irregulab/almastudio/compare/v1.0.5...v1.0.6
 [1.0.5]: https://github.com/Irregulab/almastudio/compare/v1.0.4...v1.0.5
 [1.0.4]: https://github.com/Irregulab/almastudio/compare/v1.0.3...v1.0.4
