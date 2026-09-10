@@ -78,7 +78,7 @@ export function CodeEditor({ value, path, onChange, onSave, readOnly }: Props) {
 
     void (async () => {
       const [
-        { EditorState },
+        { EditorState, Prec },
         { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection, rectangularSelection, crosshairCursor },
         { defaultKeymap, history, historyKeymap, indentWithTab },
         { HighlightStyle, syntaxHighlighting, indentOnInput, bracketMatching, foldGutter, foldKeymap },
@@ -197,6 +197,17 @@ export function CodeEditor({ value, path, onChange, onSave, readOnly }: Props) {
           language ? [language] : [],
           EditorState.readOnly.of(!!readOnly),
           EditorView.editable.of(!readOnly),
+          // On Windows AltGr arrives as Ctrl+Alt, and CodeMirror looks a key up
+          // by its typed character first, so AltGr+è (an Italian "[") ran
+          // fold-all (Ctrl-Alt-[) instead of typing, and a German AltGr "\"
+          // re-indented. A character typed through AltGr is text: claim the
+          // key so no binding runs and let the browser type it. A deliberate
+          // left Ctrl+Alt is not AltGraph and still reaches the bindings.
+          Prec.highest(
+            EditorView.domEventHandlers({
+              keydown: (e) => e.key.length === 1 && e.getModifierState('AltGraph'),
+            }),
+          ),
           keymap.of([
             // Save must win over anything the browser or CodeMirror would do.
             { key: 'Mod-s', preventDefault: true, run: () => (onSaveRef.current(), true) },

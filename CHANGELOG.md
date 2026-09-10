@@ -15,6 +15,9 @@ release cannot be cut without one — see `docs/UPDATES.md`.
   keyboard layout: on an Italian keyboard Option+5 gives ~, and @ # [ ] { }
   work too. Option as a Meta key is now a choice in Settings → Terminal,
   off by default.
+- On Windows, characters typed with AltGr in the file editor are typed
+  rather than run as shortcuts: on an Italian keyboard [ and ] folded and
+  unfolded the whole file, and on a German one \ re-indented it.
 
 ## [1.0.4] - 2026-09-10
 
