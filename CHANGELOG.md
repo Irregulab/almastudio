@@ -9,6 +9,15 @@ release cannot be cut without one — see `docs/UPDATES.md`.
 
 ## [Unreleased]
 
+### Added
+
+- Images (PNG, JPEG, GIF, WebP, AVIF, BMP, ICO) and PDFs open in a viewer
+  instead of "binary file". Images sit on a checkerboard and switch between
+  fit and actual size with a click.
+- HTML and SVG files get a Preview beside their source, like Markdown. SVG
+  previews follow unsaved edits; HTML pages render from the saved file with
+  their stylesheets and images, and with scripts switched off.
+
 ## [1.0.5] - 2026-09-10
 
 ### Fixed

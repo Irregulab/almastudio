@@ -105,6 +105,22 @@ export function languageOf(path: string): string | null {
 
 export const isMarkdown = (path: string) => languageOf(path) === 'markdown'
 
+/** What the file view can show besides a file's source. */
+export type PreviewKind = 'markdown' | 'html' | 'svg' | 'image' | 'pdf'
+
+const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'bmp', 'ico'])
+
+/** How a file can be previewed, or null when only its source makes sense. */
+export function previewKindOf(path: string): PreviewKind | null {
+  const name = (path.split(/[/\\]/).pop() ?? '').toLowerCase()
+  const ext = name.includes('.') ? name.split('.').pop()! : ''
+  if (ext === 'pdf') return 'pdf'
+  if (IMAGE_EXTENSIONS.has(ext)) return 'image'
+  if (ext === 'svg') return 'svg'
+  if (ext === 'html' || ext === 'htm') return 'html'
+  return isMarkdown(path) ? 'markdown' : null
+}
+
 /**
  * Splits highlight.js output into lines of class-tagged runs.
  *

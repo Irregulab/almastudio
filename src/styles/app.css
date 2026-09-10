@@ -812,6 +812,42 @@
 
 /* ------------------------------------------------------------ markdown --- */
 
+/* File viewers: images, PDFs and HTML previews fill the file view's body. */
+.imgview { position: absolute; inset: 0; }
+.imgview__stage {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  display: flex;
+  padding: var(--sp-5);
+  cursor: zoom-out;
+  /* A checkerboard behind the image, so transparency reads as transparency. */
+  background-color: var(--bg);
+  background-image: conic-gradient(
+    var(--bg-hover) 25%, transparent 0 50%, var(--bg-hover) 0 75%, transparent 0
+  );
+  background-size: 16px 16px;
+}
+/* margin:auto centres without pushing an oversized image's edge out of reach. */
+.imgview__stage img { display: block; margin: auto; flex: none; }
+.imgview__stage--fit { cursor: zoom-in; }
+.imgview__stage--fit img { max-width: 100%; max-height: 100%; object-fit: contain; flex: 0 1 auto; }
+.imgview__info {
+  position: absolute;
+  right: var(--sp-3);
+  bottom: var(--sp-3);
+  padding: 2px 8px;
+  font-size: 11px;
+  color: var(--fg-muted);
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  pointer-events: none;
+}
+.preview-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+/* Pages are written for the browser's white default, not the app's theme. */
+.preview-frame--page { background: #fff; }
+
 .md {
   max-width: 860px;
   margin: 0 auto;

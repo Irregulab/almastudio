@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { convertFileSrc } from '@tauri-apps/api/core'
 import { openUrl, revealItemInDir } from '@tauri-apps/plugin-opener'
 import { Code2, ExternalLink, Eye, RefreshCw, Save } from 'lucide-react'
 
-import { readTextFile, writeTextFile } from '../lib/ipc'
-import { isMarkdown, languageOf } from '../lib/syntax'
+import { allowPreview, readTextFile, writeTextFile } from '../lib/ipc'
+import { languageOf, previewKindOf } from '../lib/syntax'
 import { useUi } from '../store/ui'
 import { useT } from '../i18n'
 import { CodeEditor } from './CodeEditor'
@@ -25,8 +26,13 @@ export function FileView({ tab, visible }: { tab: FileTab; visible: boolean }) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [conflict, setConflict] = useState<string | null>(null)
-  const markdown = isMarkdown(tab.path)
-  const [mode, setMode] = useState<Mode>(markdown ? 'preview' : 'source')
+  const kind = previewKindOf(tab.path)
+  // Images and PDFs have no source worth showing; the rest toggle like Markdown.
+  const viewOnly = kind === 'image' || kind === 'pdf'
+  const [mode, setMode] = useState<Mode>(kind ? 'preview' : 'source')
+  /** Bumped when the file changes, so previews that read it from disk reload. */
+  const [version, setVersion] = useState(0)
+  const seen = useRef<string | null>(null)
 
   const dirty = content !== original
   const editable = !!file && !file.binary && !file.truncated
@@ -37,11 +43,16 @@ export function FileView({ tab, visible }: { tab: FileTab; visible: boolean }) {
       : `${tab.root.replace(/\/+$/, '')}/${tab.path}`
 
   const load = useCallback(
-    async (discardEdits = false) => {
+    async (discardEdits = false, force = false) => {
       setLoading(true)
       try {
         const f = await readTextFile(absolute)
         setFile(f)
+        // Reload disk-backed previews only when the file changed (or on an
+        // explicit refresh), so coming back to the tab keeps a PDF's page.
+        const signature = f.binary || f.truncated ? String(f.size) : f.content
+        if (force || seen.current !== signature) setVersion((v) => v + 1)
+        seen.current = signature
         setError(null)
         // Reloading must not silently throw away work in progress.
         setOriginal(f.content)
@@ -72,6 +83,8 @@ export function FileView({ tab, visible }: { tab: FileTab; visible: boolean }) {
     try {
       await writeTextFile(absolute, content)
       setOriginal(content)
+      seen.current = content
+      setVersion((v) => v + 1)
       setNotice(t('editor.saved'))
       window.setTimeout(() => setNotice(null), 1800)
       setError(null)
@@ -100,7 +113,14 @@ export function FileView({ tab, visible }: { tab: FileTab; visible: boolean }) {
   }, [absolute, dirty, original, saving, write])
 
   const language = languageOf(tab.path)
-  const showSource = !markdown || mode === 'source'
+  const showSource = !kind || (!viewOnly && mode === 'source')
+  // An SVG being edited is drawn from the editor's text instead (see below).
+  const assetKind =
+    kind === 'svg' ? 'image' : kind === 'image' || kind === 'pdf' || kind === 'html' ? kind : null
+  // An HTML page pulls in stylesheets and images from around it.
+  const previewRoot = absolute.startsWith(tab.root)
+    ? tab.root
+    : absolute.replace(/[/\\][^/\\]*$/, '')
 
   return (
     <div className="diff">
@@ -113,8 +133,14 @@ export function FileView({ tab, visible }: { tab: FileTab; visible: boolean }) {
         {language && <span className="chip">{language}</span>}
         {file && <span className="chip">{formatBytes(file.size)}</span>}
         {notice && <span className="chip chip--ok">{notice}</span>}
+        {kind === 'html' && !showSource && (
+          <>
+            <span className="chip">{t('view.noScripts')}</span>
+            {dirty && <span className="chip">{t('view.savedOnly')}</span>}
+          </>
+        )}
         <span className="spacer" />
-        {markdown && (
+        {kind && !viewOnly && (
           <Segmented<Mode>
             value={mode}
             onChange={setMode}
@@ -138,7 +164,7 @@ export function FileView({ tab, visible }: { tab: FileTab; visible: boolean }) {
             {t('editor.revert')}
           </button>
         )}
-        <button className="icon-btn" onClick={() => void load(!dirty)} aria-label={t('panel.refresh')}>
+        <button className="icon-btn" onClick={() => void load(!dirty, true)} aria-label={t('panel.refresh')}>
           <RefreshCw size={13} className={loading ? 'spin' : undefined} />
         </button>
         <button
@@ -152,19 +178,33 @@ export function FileView({ tab, visible }: { tab: FileTab; visible: boolean }) {
 
       <div className="diff__body">
         {error && <div className="empty">{error}</div>}
-        {file?.binary && <div className="empty">{t('diff.binary')}</div>}
-        {file?.truncated && <div className="empty">{t('diff.truncated')}</div>}
-        {editable &&
-          (showSource ? (
-            <CodeEditor
-              value={content}
-              path={tab.path}
-              onChange={setContent}
-              onSave={() => void save()}
-            />
-          ) : (
+        {showSource ? (
+          <>
+            {file?.binary && <div className="empty">{t('diff.binary')}</div>}
+            {file?.truncated && <div className="empty">{t('diff.truncated')}</div>}
+            {editable && (
+              <CodeEditor
+                value={content}
+                path={tab.path}
+                onChange={setContent}
+                onSave={() => void save()}
+              />
+            )}
+          </>
+        ) : kind === 'markdown' ? (
+          editable ? (
             <MarkdownPreview source={content} />
-          ))}
+          ) : (
+            file?.truncated && <div className="empty">{t('diff.truncated')}</div>
+          )
+        ) : kind === 'svg' && editable ? (
+          // From the editor's text, so the preview follows unsaved edits.
+          <ImagePreview src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(content)}`} />
+        ) : (
+          assetKind && !error && (
+            <AssetPreview kind={assetKind} path={absolute} root={previewRoot} version={version} />
+          )
+        )}
       </div>
 
       {conflict !== null && (
@@ -227,6 +267,78 @@ function MarkdownPreview({ source }: { source: string }) {
       // Sanitised by DOMPurify in renderMarkdown before it reaches here.
       dangerouslySetInnerHTML={{ __html: html }}
     />
+  )
+}
+
+// ---------------------------------------------------- images, pdf, html ---
+
+/**
+ * Images, PDFs and HTML pages, loaded straight from disk through the asset
+ * protocol rather than copied over IPC: no size limit, and an HTML page's
+ * relative stylesheets, images and fonts resolve against its real location.
+ */
+function AssetPreview({
+  kind, path, root, version,
+}: { kind: 'image' | 'pdf' | 'html'; path: string; root: string; version: number }) {
+  const t = useT()
+  const [url, setUrl] = useState<string | null>(null)
+  const [failed, setFailed] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    setFailed(null)
+    // The asset protocol serves nothing until allowed; an image or PDF needs
+    // only itself, a page also the folder its resources live in.
+    void allowPreview(path, kind === 'html' ? root : undefined)
+      .then(() => !cancelled && setUrl(`${convertFileSrc(path)}?v=${version}`))
+      .catch((e) => !cancelled && setFailed(String(e)))
+    return () => {
+      cancelled = true
+    }
+  }, [kind, path, root, version])
+
+  if (failed) return <div className="empty">{failed}</div>
+  if (!url) return <div className="empty">{t('common.loading')}</div>
+  if (kind === 'image') return <ImagePreview src={url} />
+  if (kind === 'pdf') return <iframe className="preview-frame" src={url} title={path} />
+  // An empty sandbox: the page is shown, not run — no scripts, forms,
+  // pop-ups or navigating the app. Its own resources still load.
+  return (
+    <iframe className="preview-frame preview-frame--page" sandbox="" src={url} title={path} />
+  )
+}
+
+/** An image on a checkerboard; clicking switches between fit and actual size. */
+function ImagePreview({ src }: { src: string }) {
+  const t = useT()
+  const [fit, setFit] = useState(true)
+  const [size, setSize] = useState<{ w: number; h: number } | null>(null)
+  const [broken, setBroken] = useState(false)
+
+  useEffect(() => setBroken(false), [src])
+
+  if (broken) return <div className="empty">{t('view.imageError')}</div>
+  return (
+    <div className="imgview">
+      <div
+        className={`imgview__stage${fit ? ' imgview__stage--fit' : ''}`}
+        onClick={() => setFit((f) => !f)}
+      >
+        <img
+          src={src}
+          alt=""
+          draggable={false}
+          onLoad={(e) =>
+            setSize({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })
+          }
+          onError={() => setBroken(true)}
+        />
+      </div>
+      <span className="imgview__info">
+        {size && `${size.w} × ${size.h} · `}
+        {fit ? t('view.fit') : t('view.actualSize')}
+      </span>
+    </div>
   )
 }
 

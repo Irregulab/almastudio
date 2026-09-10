@@ -195,7 +195,12 @@
   },
   "view": {
     "preview": "Anteprima",
-    "source": "Sorgente"
+    "source": "Sorgente",
+    "fit": "Adatta",
+    "actualSize": "Dimensione reale",
+    "imageError": "Impossibile mostrare questa immagine.",
+    "noScripts": "Script disattivati",
+    "savedOnly": "Mostra il file salvato"
   },
   "editor": {
     "save": "Salva",

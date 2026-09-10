@@ -195,7 +195,12 @@
   },
   "view": {
     "preview": "Preview",
-    "source": "Source"
+    "source": "Source",
+    "fit": "Fit",
+    "actualSize": "Actual size",
+    "imageError": "This image could not be displayed.",
+    "noScripts": "Scripts off",
+    "savedOnly": "Showing the saved file"
   },
   "editor": {
     "save": "Save",
