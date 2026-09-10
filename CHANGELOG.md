@@ -11,6 +11,9 @@ release cannot be cut without one — see `docs/UPDATES.md`.
 
 ### Added
 
+- OpenCode tabs, alongside Claude Code and Codex: from File → New OpenCode
+  Tab (⇧⌘O), the + menu, or as a project's default tab type. Restarting a
+  tab continues its last session.
 - Dropping files from Finder or Explorer onto a terminal or agent tab types
   their paths into it, quoted for the shell, as a native terminal does.
 

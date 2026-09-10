@@ -83,6 +83,7 @@ export function useMenuActions() {
             break
           case 'new-tab-claude': void newTab('claude'); break
           case 'new-tab-codex': void newTab('codex'); break
+          case 'new-tab-opencode': void newTab('opencode'); break
           case 'new-tab-terminal': void newTab('shell'); break
           case 'new-tab-browser':
             if (s.activeProjectId) s.openBrowserTab({ projectId: s.activeProjectId })

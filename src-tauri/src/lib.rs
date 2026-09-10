@@ -358,7 +358,7 @@ pub fn run() {
                 }
             }
             if let RunEvent::ExitRequested { .. } | RunEvent::Exit = event {
-                // Never leave orphaned `claude` / `codex` / shell processes
+                // Never leave orphaned agent or shell processes
                 // behind when the app goes away.
                 if let Some(mgr) = app.try_state::<PtyManager>() {
                     store::flush_scrollback(app, &mgr);

@@ -393,6 +393,7 @@ function ProjectDialog({ project, onClose }: { project: Project | null; onClose:
           </option>
           <option value="claude">{t('tabs.claude')}</option>
           <option value="codex">{t('tabs.codex')}</option>
+          <option value="opencode">{t('tabs.opencode')}</option>
           <option value="shell">{t('tabs.shell')}</option>
         </select>
       </Field>

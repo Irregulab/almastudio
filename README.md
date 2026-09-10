@@ -1,8 +1,8 @@
 # AlmaStudio
 
 A desktop workspace for AI coding agents. Projects on the left, Claude Code /
-Codex / shell tabs in the middle (tiled if you want), and a git, file and diff
-panel on the right.
+Codex / OpenCode / shell tabs in the middle (tiled if you want), and a git,
+file and diff panel on the right.
 
 Built with Tauri 2 (Rust) and React. The whole UI is one webview and a handful
 of blocked threads — no Electron, no per-tab browser process.
@@ -12,8 +12,9 @@ of blocked threads — no Electron, no per-tab browser process.
 - **Projects** — name, icon, colour, a main folder and its own instructions for
   the AI harness. The main folder is only the *default* for new tabs; any tab
   can be opened in any folder on the machine.
-- **Tabs** — each tab runs Claude Code, Codex or a plain shell in a real PTY,
-  or shows a diff, an editable file, or a browser. Opening a tab starts it immediately; only tabs
+- **Tabs** — each tab runs Claude Code, Codex, OpenCode or a plain shell in a
+  real PTY, or shows a diff, an editable file, or a browser. Dropping files
+  from Finder onto a terminal tab types their paths into it. Opening a tab starts it immediately; only tabs
   restored from a previous run consult the auto-start setting. Split panes
   horizontally and vertically; drag a tab onto another pane's centre to move it
   there, or onto an edge to split that pane and drop it into the new half.

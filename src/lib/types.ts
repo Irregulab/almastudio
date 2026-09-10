@@ -1,6 +1,6 @@
 /** Shared domain types. Mirrors the serde structs in src-tauri. */
 
-export type HarnessKind = 'claude' | 'codex' | 'shell'
+export type HarnessKind = 'claude' | 'codex' | 'opencode' | 'shell'
 export type TabKind = HarnessKind | 'diff' | 'file' | 'browser'
 export type DiffSide = 'worktree' | 'index' | 'head'
 export type PanelView = 'changes' | 'files' | 'git'
@@ -75,7 +75,7 @@ export interface BrowserTab extends TabBase {
 export type Tab = TerminalTab | DiffTab | FileTab | BrowserTab
 
 export const isTerminalTab = (t: Tab): t is TerminalTab =>
-  t.kind === 'claude' || t.kind === 'codex' || t.kind === 'shell'
+  t.kind === 'claude' || t.kind === 'codex' || t.kind === 'opencode' || t.kind === 'shell'
 
 // --------------------------------------------------------------- layout ----
 

@@ -2,8 +2,8 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import {
   Bot, Columns2, FileDiff, FileText, FolderOpen, Globe, Loader2, MoveRight,
-  PanelsTopLeft, Plus, RotateCw, Rows2, Sparkles, Square, SquareTerminal,
-  Terminal, X,
+  PanelsTopLeft, Plus, RotateCw, Rows2, Sparkles, Square, SquareCode,
+  SquareTerminal, Terminal, X,
 } from 'lucide-react'
 
 import { ptyKill } from '../lib/ipc'
@@ -28,6 +28,7 @@ export function tabIcon(kind: Tab['kind'], size = 13) {
   switch (kind) {
     case 'claude': return <Sparkles size={size} />
     case 'codex': return <Bot size={size} />
+    case 'opencode': return <SquareCode size={size} />
     case 'shell': return <Terminal size={size} />
     case 'diff': return <FileDiff size={size} />
     case 'file': return <FileText size={size} />
@@ -318,6 +319,7 @@ function TabChip({
 const KIND_LABEL: Record<HarnessKind, string> = {
   claude: 'Claude Code',
   codex: 'Codex',
+  opencode: 'OpenCode',
   shell: 'Terminal',
 }
 
@@ -429,6 +431,12 @@ function PaneActions({ leaf }: { leaf: LeafNode }) {
           onClick={() => { setAnchor(null); void newTab('codex', leaf.id) }}
         />
         <MenuItem
+          icon={<SquareCode size={13} />}
+          label={t('tabs.opencode')}
+          hint="⇧⌘O"
+          onClick={() => { setAnchor(null); void newTab('opencode', leaf.id) }}
+        />
+        <MenuItem
           icon={<Terminal size={13} />}
           label={t('tabs.shell')}
           hint="⌘T"
@@ -478,6 +486,9 @@ function EmptyPane({ paneId }: { paneId: string }) {
         </button>
         <button className="btn btn--sm" onClick={() => void newTab('codex', paneId)}>
           <Bot size={13} /> {t('tabs.codex')}
+        </button>
+        <button className="btn btn--sm" onClick={() => void newTab('opencode', paneId)}>
+          <SquareCode size={13} /> {t('tabs.opencode')}
         </button>
         <button className="btn btn--sm" onClick={() => void newTab('shell', paneId)}>
           <Terminal size={13} /> {t('tabs.shell')}

@@ -1,4 +1,4 @@
-//! PTY-backed sessions for the three tab kinds (claude / codex / shell).
+//! PTY-backed sessions for the terminal tab kinds (claude / codex / opencode / shell).
 //!
 //! Design notes that matter for CPU and memory:
 //!

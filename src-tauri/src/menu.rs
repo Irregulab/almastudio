@@ -23,6 +23,7 @@ fn fallback(key: &str) -> &'static str {
         "menu.openFolder" => "Open Folder as Tab…",
         "menu.newClaude" => "New Claude Code Tab",
         "menu.newCodex" => "New Codex Tab",
+        "menu.newOpenCode" => "New OpenCode Tab",
         "menu.newTerminal" => "New Terminal Tab",
         "menu.newBrowser" => "New Browser Tab",
         "menu.closeTab" => "Close Tab",
@@ -90,6 +91,9 @@ pub fn build<R: Runtime>(app: &AppHandle<R>, labels: HashMap<String, String>) ->
         .build(app)?;
     let new_codex = MenuItemBuilder::with_id("new-tab-codex", l.get("menu.newCodex"))
         .accelerator("CmdOrCtrl+Shift+C")
+        .build(app)?;
+    let new_opencode = MenuItemBuilder::with_id("new-tab-opencode", l.get("menu.newOpenCode"))
+        .accelerator("CmdOrCtrl+Shift+O")
         .build(app)?;
     let new_terminal = MenuItemBuilder::with_id("new-tab-terminal", l.get("menu.newTerminal"))
         .accelerator("CmdOrCtrl+T")
@@ -184,6 +188,7 @@ pub fn build<R: Runtime>(app: &AppHandle<R>, labels: HashMap<String, String>) ->
         .separator()
         .item(&new_claude)
         .item(&new_codex)
+        .item(&new_opencode)
         .item(&new_terminal)
         .item(&new_browser)
         .separator()

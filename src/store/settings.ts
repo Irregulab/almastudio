@@ -46,6 +46,16 @@ export const DEFAULT_SETTINGS: Settings = {
       instructionsMode: 'env',
       instructionsFlag: '',
     },
+    opencode: {
+      command: 'opencode',
+      args: [],
+      resumeArgs: ['--continue'],
+      // OpenCode has no system-prompt flag — `--prompt` would send the
+      // instructions as the first message — so it gets them from
+      // .almastudio/instructions.md and the environment.
+      instructionsMode: 'env',
+      instructionsFlag: '',
+    },
     shell: {
       command: '',
       args: [],

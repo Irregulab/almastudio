@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { revealItemInDir } from '@tauri-apps/plugin-opener'
 import {
-  Bot, Info, Monitor, Palette, RefreshCw, Sparkles, SquareTerminal, Terminal,
+  Bot, Info, Monitor, Palette, RefreshCw, Sparkles, SquareCode, SquareTerminal,
+  Terminal,
 } from 'lucide-react'
 
 import { appInfo, defaultShell, stateDirPath } from '../lib/ipc'
@@ -336,6 +337,7 @@ function HarnessSection() {
           options={[
             { value: 'claude', label: t('tabs.claude'), icon: <Sparkles size={13} /> },
             { value: 'codex', label: t('tabs.codex'), icon: <Bot size={13} /> },
+            { value: 'opencode', label: t('tabs.opencode'), icon: <SquareCode size={13} /> },
             { value: 'shell', label: t('tabs.shell'), icon: <Terminal size={13} /> },
           ]}
         />
@@ -349,6 +351,7 @@ function HarnessSection() {
         options={[
           { value: 'claude', label: t('tabs.claude') },
           { value: 'codex', label: t('tabs.codex') },
+          { value: 'opencode', label: t('tabs.opencode') },
         ]}
       />
 
