@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 
 import { ptyKill } from '../lib/ipc'
+import { beginPointerDrag, useDrag } from '../lib/dragDrop'
 import { useUi } from '../store/ui'
 import { useWorkspace } from '../store/workspace'
 import { useSettings } from '../store/settings'
@@ -23,8 +24,6 @@ import type {
 } from '../lib/types'
 import { isTerminalTab } from '../lib/types'
 
-const MIME = 'application/x-almastudio-tab'
-
 export function tabIcon(kind: Tab['kind'], size = 13) {
   switch (kind) {
     case 'claude': return <Sparkles size={size} />
@@ -36,61 +35,22 @@ export function tabIcon(kind: Tab['kind'], size = 13) {
   }
 }
 
-type DropZone = 'center' | 'left' | 'right' | 'top' | 'bottom'
-
-/** Which drop a pointer position over a pane means. */
-function zoneAt(e: React.DragEvent, rect: DOMRect): DropZone {
-  const EDGE = 0.22
-  const left = (e.clientX - rect.left) / rect.width
-  const top = (e.clientY - rect.top) / rect.height
-  const distances: Array<[DropZone, number]> = [
-    ['left', left],
-    ['right', 1 - left],
-    ['top', top],
-    ['bottom', 1 - top],
-  ]
-  const [zone, nearest] = distances.reduce((a, b) => (b[1] < a[1] ? b : a))
-  return nearest > EDGE ? 'center' : zone
-}
-
 export function Pane({ leaf }: { leaf: LeafNode }) {
   const tabsById = useWorkspace((s) => s.tabs)
   const activePaneId = useWorkspace(
     (s) => (s.activeProjectId ? s.workspaces[s.activeProjectId]?.activePaneId : null),
   )
   const setActivePane = useWorkspace((s) => s.setActivePane)
-  const moveTab = useWorkspace((s) => s.moveTab)
-  const dropTabIntoSplit = useWorkspace((s) => s.dropTabIntoSplit)
   const isActive = activePaneId === leaf.id
-  const [zone, setZone] = useState<DropZone | null>(null)
+  // A primitive, so a moving pointer only re-renders the pane it enters or leaves.
+  const zone = useDrag((s) =>
+    s.target?.kind === 'pane' && s.target.paneId === leaf.id ? s.target.zone : null,
+  )
 
   const tabs = useMemo(
     () => leaf.tabIds.map((id) => tabsById[id]).filter(Boolean),
     [leaf.tabIds, tabsById],
   )
-
-  const onDragOver = (e: React.DragEvent) => {
-    if (!e.dataTransfer.types.includes(MIME)) return
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
-    const next = zoneAt(e, e.currentTarget.getBoundingClientRect())
-    // dragover fires continuously; only re-render when the target changes.
-    if (next !== zone) setZone(next)
-  }
-
-  const onDrop = (e: React.DragEvent) => {
-    const tabId = e.dataTransfer.getData(MIME)
-    const target = zone
-    setZone(null)
-    if (!tabId || !target) return
-    e.preventDefault()
-    if (target === 'center') {
-      moveTab(tabId, leaf.id, leaf.tabIds.length)
-      return
-    }
-    const dir = target === 'left' || target === 'right' ? 'row' : 'col'
-    dropTabIntoSplit(tabId, leaf.id, dir, target === 'left' || target === 'top')
-  }
 
   return (
     <div
@@ -100,12 +60,9 @@ export function Pane({ leaf }: { leaf: LeafNode }) {
       <TabBar leaf={leaf} tabs={tabs} />
       <div
         className="pane__body"
-        onDragOver={onDragOver}
-        onDragLeave={(e) => {
-          // Leaving for a child element is not leaving the pane.
-          if (!e.currentTarget.contains(e.relatedTarget as Node)) setZone(null)
-        }}
-        onDrop={onDrop}
+        data-drop-pane
+        data-pane-id={leaf.id}
+        data-count={leaf.tabIds.length}
       >
         {tabs.map((tab) => (
           <div key={tab.id} className="pane__content" hidden={tab.id !== leaf.activeTabId}>
@@ -140,9 +97,10 @@ function TabBar({ leaf, tabs }: { leaf: LeafNode; tabs: Tab[] }) {
   const t = useT()
   const setActiveTab = useWorkspace((s) => s.setActiveTab)
   const closeTab = useWorkspace((s) => s.closeTab)
-  const moveTab = useWorkspace((s) => s.moveTab)
   const dirtyTabs = useUi((s) => s.dirtyTabs)
-  const [dropIndex, setDropIndex] = useState<number | null>(null)
+  const dropIndex = useDrag((s) =>
+    s.target?.kind === 'tab-slot' && s.target.paneId === leaf.id ? s.target.index : null,
+  )
   const [confirmClose, setConfirmClose] = useState<Tab | null>(null)
 
   const requestClose = (tab: Tab) => {
@@ -150,32 +108,20 @@ function TabBar({ leaf, tabs }: { leaf: LeafNode; tabs: Tab[] }) {
     else closeTab(tab.id)
   }
 
-  const onDrop = (e: React.DragEvent, index: number) => {
-    e.preventDefault()
-    setDropIndex(null)
-    const tabId = e.dataTransfer.getData(MIME)
-    if (tabId) moveTab(tabId, leaf.id, index)
-  }
-
   return (
-    <div
-      className="tabbar"
-      onDragOver={(e) => {
-        if (e.dataTransfer.types.includes(MIME)) e.preventDefault()
-      }}
-      onDrop={(e) => onDrop(e, tabs.length)}
-    >
+    // Anywhere on the strip outside a chip means "append".
+    <div className="tabbar" data-drop-tabbar data-pane-id={leaf.id} data-count={tabs.length}>
       <div className="tabbar__tabs">
         {tabs.map((tab, i) => (
           <TabChip
             key={tab.id}
             tab={tab}
+            index={i}
             active={tab.id === leaf.activeTabId}
             dropBefore={dropIndex === i}
+            dropAfter={dropIndex === tabs.length && i === tabs.length - 1}
             onSelect={() => setActiveTab(leaf.id, tab.id)}
             onClose={() => requestClose(tab)}
-            onDragOverChip={(before) => setDropIndex(before ? i : i + 1)}
-            onDropChip={(e, before) => onDrop(e, before ? i : i + 1)}
             paneId={leaf.id}
           />
         ))}
@@ -202,15 +148,15 @@ function TabBar({ leaf, tabs }: { leaf: LeafNode; tabs: Tab[] }) {
 }
 
 function TabChip({
-  tab, active, dropBefore, onSelect, onClose, onDragOverChip, onDropChip, paneId,
+  tab, index, active, dropBefore, dropAfter, onSelect, onClose, paneId,
 }: {
   tab: Tab
+  index: number
   active: boolean
   dropBefore: boolean
+  dropAfter: boolean
   onSelect: () => void
   onClose: () => void
-  onDragOverChip: (before: boolean) => void
-  onDropChip: (e: React.DragEvent, before: boolean) => void
   paneId: string
 }) {
   const t = useT()
@@ -250,21 +196,14 @@ function TabChip({
     <>
       <div
         ref={ref}
-        className={`tab${active ? ' tab--active' : ''}${dropBefore ? ' tab--drop' : ''}`}
-        draggable={!renaming}
-        onDragStart={(e) => {
-          e.dataTransfer.setData(MIME, tab.id)
-          e.dataTransfer.effectAllowed = 'move'
-        }}
-        onDragOver={(e) => {
-          if (!e.dataTransfer.types.includes(MIME)) return
-          e.preventDefault()
-          const r = e.currentTarget.getBoundingClientRect()
-          onDragOverChip(e.clientX < r.left + r.width / 2)
-        }}
-        onDrop={(e) => {
-          const r = e.currentTarget.getBoundingClientRect()
-          onDropChip(e, e.clientX < r.left + r.width / 2)
+        className={`tab${active ? ' tab--active' : ''}${dropBefore ? ' tab--drop' : ''}${
+          dropAfter ? ' tab--drop-after' : ''
+        }`}
+        data-drop-tab-chip
+        data-pane-id={paneId}
+        data-index={index}
+        onPointerDown={(e) => {
+          if (!renaming) beginPointerDrag(e, { kind: 'tab', id: tab.id, label })
         }}
         onClick={onSelect}
         onDoubleClick={() => setRenaming(true)}

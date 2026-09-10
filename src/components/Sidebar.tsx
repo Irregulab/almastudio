@@ -16,13 +16,12 @@ import { useTheme } from '../hooks/useTheme'
 import { useT } from '../i18n'
 import { ConfirmDialog, Field, MenuItem, MenuSeparator, Modal, Popover } from './ui'
 import { isTerminalTab, type HarnessKind, type Project } from '../lib/types'
+import { beginPointerDrag, useDrag } from '../lib/dragDrop'
 
 const ICONS = [
   '🟢', '🚀', '⚙️', '📦', '🧪', '🔧', '🌐', '📱', '🖥️', '🗄️',
   '🧩', '📊', '🔐', '🎛️', '🛰️', '🏗️', '💡', '🧠', '📚', '🎨',
 ]
-/** Distinct from the tab MIME so a tab can never be dropped into the list. */
-const PROJECT_MIME = 'application/x-almastudio-project'
 
 const COLORS = [
   '#7cb518', '#4a9ede', '#e0973c', '#d1594f', '#9b6bdb',
@@ -38,8 +37,8 @@ export function Sidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
   const removeProject = useWorkspace((s) => s.removeProject)
   const [query, setQuery] = useState('')
   const reorderProjects = useWorkspace((s) => s.reorderProjects)
-  const [dragIndex, setDragIndex] = useState<number | null>(null)
-  const [dropIndex, setDropIndex] = useState<number | null>(null)
+  const dragIndex = useDrag((s) => (s.item?.kind === 'project' ? s.item.index : null))
+  const dropIndex = useDrag((s) => (s.target?.kind === 'project-slot' ? s.target.index : null))
   const [editing, setEditing] = useState<Project | 'new' | null>(null)
   const [confirmRemove, setConfirmRemove] = useState<Project | null>(null)
   const [menu, setMenu] = useState<{ anchor: HTMLElement; project: Project } | null>(null)
@@ -57,16 +56,6 @@ export function Sidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
   // Reordering a filtered list would move rows the user cannot see, so it is
   // only offered when the whole list is on screen.
   const canReorder = !query.trim() && projects.length > 1
-
-  const endDrag = () => {
-    setDragIndex(null)
-    setDropIndex(null)
-  }
-
-  const commitDrop = (to: number) => {
-    if (dragIndex !== null) reorderProjects(dragIndex, to)
-    endDrag()
-  }
 
   return (
     <nav className="sidebar">
@@ -90,18 +79,7 @@ export function Sidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
         </div>
       )}
 
-      <div
-        className="sidebar__list"
-        onDragOver={(e) => {
-          if (e.dataTransfer.types.includes(PROJECT_MIME)) e.preventDefault()
-        }}
-        onDrop={(e) => {
-          if (!e.dataTransfer.types.includes(PROJECT_MIME)) return
-          e.preventDefault()
-          // Dropping in the empty space below the rows means "put it last".
-          commitDrop(projects.length)
-        }}
-      >
+      <div className="sidebar__list" data-drop-project-list data-count={projects.length}>
         {projects.length === 0 && (
           <div className="empty">
             <div style={{ fontWeight: 600 }}>{t('sidebar.noProjects')}</div>
@@ -120,34 +98,20 @@ export function Sidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
               dropIndex === index ? 'project--drop-before' : '',
               dropIndex === index + 1 ? 'project--drop-after' : '',
               dragIndex === index ? 'project--dragging' : '',
+              canReorder ? 'project--reorderable' : '',
             ]
               .filter(Boolean)
               .join(' ')}
             style={
               { '--project-row-accent': readableAccent(p.color, isDark) } as React.CSSProperties
             }
-            draggable={canReorder}
-            onDragStart={(e) => {
-              e.dataTransfer.setData(PROJECT_MIME, p.id)
-              e.dataTransfer.effectAllowed = 'move'
-              setDragIndex(index)
-            }}
-            onDragEnd={endDrag}
-            onDragOver={(e) => {
-              if (!e.dataTransfer.types.includes(PROJECT_MIME)) return
-              e.preventDefault()
-              e.dataTransfer.dropEffect = 'move'
-              const r = e.currentTarget.getBoundingClientRect()
-              const next = e.clientY < r.top + r.height / 2 ? index : index + 1
-              if (next !== dropIndex) setDropIndex(next)
-            }}
-            onDrop={(e) => {
-              if (!e.dataTransfer.types.includes(PROJECT_MIME)) return
-              e.preventDefault()
-              e.stopPropagation()
-              const r = e.currentTarget.getBoundingClientRect()
-              commitDrop(e.clientY < r.top + r.height / 2 ? index : index + 1)
-            }}
+            data-drop-project
+            data-index={index}
+            onPointerDown={
+              canReorder
+                ? (e) => beginPointerDrag(e, { kind: 'project', id: p.id, index, label: p.name })
+                : undefined
+            }
             onClick={() => setActiveProject(p.id)}
             onContextMenu={(e) => {
               e.preventDefault()

@@ -12,12 +12,14 @@ import { menuLabels, resolveLocale, useI18n, useT } from './i18n'
 import { readableAccent } from './lib/color'
 import { useApplyTheme } from './hooks/useTheme'
 import { useMenuActions } from './hooks/useMenuActions'
+import { useFileDrop } from './hooks/useFileDrop'
 import { ProjectIcon, Sidebar } from './components/Sidebar'
 import { TileNode } from './components/Tiles'
 import { RightPanel } from './components/RightPanel'
 import { SettingsPanel } from './components/SettingsPanel'
 import { UpdateWatcher } from './components/Updater'
 import { ExitGuard } from './components/ExitGuard'
+import { DragPreview } from './components/DragPreview'
 import './styles/global.css'
 import './styles/app.css'
 
@@ -25,6 +27,7 @@ export default function App() {
   const t = useT()
   const isDark = useApplyTheme()
   useMenuActions()
+  useFileDrop()
 
   const [booted, setBooted] = useState(false)
   const [platform, setPlatform] = useState<string>('')
@@ -204,6 +207,7 @@ export default function App() {
       {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} />}
       <UpdateWatcher />
       <ExitGuard />
+      <DragPreview />
     </div>
   )
 }

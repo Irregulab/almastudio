@@ -17,7 +17,6 @@ const ZOOM_STEPS = [0.7, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2]
 /** Routes native menu items (and their accelerators) to store actions. */
 export function useMenuActions() {
   useEffect(() => {
-    let zoom = 1
     let unlisten: (() => void) | undefined
 
     const activePane = () => {
@@ -57,12 +56,15 @@ export function useMenuActions() {
     }
 
     const applyZoom = (delta: number | 'reset') => {
+      let zoom = useUi.getState().zoom
       if (delta === 'reset') zoom = 1
       else {
         const i = ZOOM_STEPS.indexOf(zoom)
         const next = Math.max(0, Math.min(ZOOM_STEPS.length - 1, (i < 0 ? 3 : i) + delta))
         zoom = ZOOM_STEPS[next]
       }
+      // Kept in the store: file drops need it to map native positions to CSS pixels.
+      useUi.getState().setZoom(zoom)
       void getCurrentWebview().setZoom(zoom).catch(() => {})
     }
 

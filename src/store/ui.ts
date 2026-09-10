@@ -18,6 +18,8 @@ interface UiState {
    * while anything is supposed to appear on top of it.
    */
   overlays: number
+  /** Current webview zoom; positions reported by native events are unzoomed. */
+  zoom: number
   setSettingsOpen: (v: boolean) => void
   setNewProjectOpen: (v: boolean) => void
   setTabBusy: (id: string, busy: boolean) => void
@@ -25,6 +27,7 @@ interface UiState {
   setTabDirty: (id: string, dirty: boolean) => void
   pushOverlay: () => void
   popOverlay: () => void
+  setZoom: (zoom: number) => void
 }
 
 export const useUi = create<UiState>((set) => ({
@@ -33,6 +36,8 @@ export const useUi = create<UiState>((set) => ({
   busyTabs: {},
   dirtyTabs: {},
   overlays: 0,
+  zoom: 1,
+  setZoom: (zoom) => set({ zoom }),
   setSettingsOpen: (v) => set({ settingsOpen: v }),
   setNewProjectOpen: (v) => set({ newProjectOpen: v }),
   setTabBusy: (id, busy) =>

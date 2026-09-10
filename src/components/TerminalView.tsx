@@ -15,6 +15,7 @@ import {
 import { buildSpawnOptions, harnessCommandLabel } from '../lib/harness'
 import { resolveScheme } from '../lib/schemes'
 import { resolveUiTheme } from '../lib/uiThemes'
+import { useDrag } from '../lib/dragDrop'
 import { useSettings } from '../store/settings'
 import { useWorkspace } from '../store/workspace'
 import { useTheme } from '../hooks/useTheme'
@@ -50,6 +51,7 @@ export function TerminalView({ tab, visible, focused }: Props) {
   const [findOpen, setFindOpen] = useState(false)
   const [findTerm, setFindTerm] = useState('')
   const [findHits, setFindHits] = useState<{ index: number; count: number } | null>(null)
+  const fileDropTarget = useDrag((s) => s.fileDropTab === tab.id)
 
   const commandLabel = harnessCommandLabel(tab.kind, settings)
   needsStartRef.current = needsStart
@@ -309,6 +311,21 @@ export function TerminalView({ tab, visible, focused }: Props) {
     return () => window.removeEventListener('almastudio:tab-restart', onRestart)
   }, [spawn, tab.id, tab.kind])
 
+  // Paths of files dropped on this terminal from Finder or Explorer. Pasted
+  // rather than written straight to the pty, so the program receives them as
+  // a paste — bracketed when it asked for that — exactly as from a native
+  // terminal's drop.
+  useEffect(() => {
+    const onPastePaths = (e: Event) => {
+      const { tabId, text } = (e as CustomEvent<{ tabId: string; text: string }>).detail
+      if (tabId !== tab.id) return
+      termRef.current?.paste(text)
+      termRef.current?.focus()
+    }
+    window.addEventListener('almastudio:paste-paths', onPastePaths)
+    return () => window.removeEventListener('almastudio:paste-paths', onPastePaths)
+  }, [tab.id])
+
   // --------------------------------------------------------------- find ---
   useEffect(() => {
     if (!focused) return
@@ -378,9 +395,10 @@ export function TerminalView({ tab, visible, focused }: Props) {
   )
 
   return (
-    <div className="term" onContextMenu={onContextMenu}>
+    <div className="term" data-terminal-tab={tab.id} onContextMenu={onContextMenu}>
       <div className="term__body">
         <div ref={hostRef} className="term__host" />
+        {fileDropTarget && <div className="dropzone dropzone--center" aria-hidden />}
         {findOpen && (
           <div className="findbar">
             <input
