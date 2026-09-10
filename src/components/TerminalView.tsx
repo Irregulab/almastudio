@@ -212,6 +212,18 @@ export function TerminalView({ tab, visible, focused }: Props) {
         spawnRef.current(tab.resumeOnRestore && tab.kind !== 'shell')
         return false
       }
+      // xterm sends Shift+Enter as a plain Enter, so an agent would submit
+      // instead of starting a new line. Send what Option+Enter sends (ESC CR),
+      // which Claude Code and OpenCode take as "new line". A shell keeps the
+      // plain Enter a native terminal gives it. Swallowed for keypress and
+      // keyup too, or xterm would still emit its own Enter.
+      if (
+        tab.kind !== 'shell' && e.key === 'Enter' && e.shiftKey &&
+        !e.altKey && !e.ctrlKey && !e.metaKey
+      ) {
+        if (e.type === 'keydown') void ptyWrite(tab.id, '\x1b\r').catch(() => {})
+        return false
+      }
       return true
     })
 

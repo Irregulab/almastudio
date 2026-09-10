@@ -9,6 +9,14 @@ release cannot be cut without one — see `docs/UPDATES.md`.
 
 ## [Unreleased]
 
+### Fixed
+
+- Shift+Enter in an agent tab starts a new line instead of sending the
+  message.
+- ⌘+ zooms in. Zoom In never had a working keyboard shortcut; ⌘= works too.
+- Check for Updates… opens Settings on the Updates page, where the result of
+  the check appears, instead of on Appearance.
+
 ## [1.0.3] - 2026-09-10
 
 ### Added

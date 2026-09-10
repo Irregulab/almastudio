@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import { openUrl, revealItemInDir } from '@tauri-apps/plugin-opener'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
+import { platform } from '@tauri-apps/plugin-os'
 
 import { onMenuAction, stateDirPath } from '../lib/ipc'
 import { useSettings } from '../store/settings'
@@ -68,6 +69,24 @@ export function useMenuActions() {
       void getCurrentWebview().setZoom(zoom).catch(() => {})
     }
 
+    // The native menu cannot bind every way of typing "+" (see menu.rs), so
+    // the rest are caught here. On macOS the menu's key equivalent is the "+"
+    // character, and ⌘= is added as browsers do; elsewhere the menu owns
+    // Ctrl+=, and this adds the "+" character (Ctrl+Shift+= or the numpad).
+    // WebKit gives the page first go at ⌘ shortcuts, so a key handled here
+    // never reaches the menu as well: one press, one zoom step.
+    const mac = platform() === 'macos'
+    const onZoomKey = (e: KeyboardEvent) => {
+      const mod = mac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey
+      if (!mod || e.altKey) return
+      if (e.key === '+' || (mac && e.key === '=')) {
+        e.preventDefault()
+        e.stopPropagation()
+        applyZoom(1)
+      }
+    }
+    window.addEventListener('keydown', onZoomKey, true)
+
     void (async () => {
       unlisten = await onMenuAction((id) => {
         const s = useWorkspace.getState()
@@ -128,7 +147,8 @@ export function useMenuActions() {
           case 'zoom-out': applyZoom(-1); break
           case 'zoom-reset': applyZoom('reset'); break
           case 'check-updates':
-            useUi.getState().setSettingsOpen(true)
+            // Straight to the Updates page, where the check's result shows.
+            useUi.getState().setSettingsOpen(true, 'updates')
             void checkForUpdates(false)
             break
           case 'docs': void openUrl(DOCS_URL).catch(() => {}); break
@@ -139,7 +159,10 @@ export function useMenuActions() {
       })
     })()
 
-    return () => unlisten?.()
+    return () => {
+      unlisten?.()
+      window.removeEventListener('keydown', onZoomKey, true)
+    }
   }, [])
 }
 

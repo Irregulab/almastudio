@@ -139,8 +139,19 @@ pub fn build<R: Runtime>(app: &AppHandle<R>, labels: HashMap<String, String>) ->
     let prev_tab = MenuItemBuilder::with_id("prev-tab", l.get("menu.prevTab"))
         .accelerator("Ctrl+Shift+Tab")
         .build(app)?;
+    // muda has no key name for "+": the "CmdOrCtrl+Plus" this used to say
+    // parsed to nothing, and Tauri drops an unparsable accelerator silently,
+    // so Zoom In had no shortcut at all. On macOS the numpad-plus code becomes
+    // the key equivalent "+", which matches the "+" key on any layout and
+    // shows as ⌘+. Elsewhere it would mean the numpad key only, so the "=" key
+    // (an unshifted "+" on US layouts) is bound instead. The frontend catches
+    // the remaining ways of typing "+" (see useMenuActions).
+    #[cfg(target_os = "macos")]
+    const ZOOM_IN: &str = "CmdOrCtrl+NumpadAdd";
+    #[cfg(not(target_os = "macos"))]
+    const ZOOM_IN: &str = "CmdOrCtrl+=";
     let zoom_in = MenuItemBuilder::with_id("zoom-in", l.get("menu.zoomIn"))
-        .accelerator("CmdOrCtrl+Plus")
+        .accelerator(ZOOM_IN)
         .build(app)?;
     let zoom_out = MenuItemBuilder::with_id("zoom-out", l.get("menu.zoomOut"))
         .accelerator("CmdOrCtrl+-")

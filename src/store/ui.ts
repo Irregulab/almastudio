@@ -1,8 +1,12 @@
 import { create } from 'zustand'
 
+export type SettingsSection = 'appearance' | 'terminal' | 'harness' | 'workspace' | 'updates' | 'about'
+
 /** Transient UI state — never persisted. */
 interface UiState {
   settingsOpen: boolean
+  /** The Settings page shown; kept here so a menu item can open a given one. */
+  settingsSection: SettingsSection
   newProjectOpen: boolean
   /**
    * Which sessions are currently producing output. Derived from pty activity
@@ -20,7 +24,9 @@ interface UiState {
   overlays: number
   /** Current webview zoom; positions reported by native events are unzoomed. */
   zoom: number
-  setSettingsOpen: (v: boolean) => void
+  /** Opening starts on `section`, or on Appearance when none is given. */
+  setSettingsOpen: (v: boolean, section?: SettingsSection) => void
+  setSettingsSection: (section: SettingsSection) => void
   setNewProjectOpen: (v: boolean) => void
   setTabBusy: (id: string, busy: boolean) => void
   clearTabBusy: (id: string) => void
@@ -32,13 +38,16 @@ interface UiState {
 
 export const useUi = create<UiState>((set) => ({
   settingsOpen: false,
+  settingsSection: 'appearance',
   newProjectOpen: false,
   busyTabs: {},
   dirtyTabs: {},
   overlays: 0,
   zoom: 1,
   setZoom: (zoom) => set({ zoom }),
-  setSettingsOpen: (v) => set({ settingsOpen: v }),
+  setSettingsOpen: (v, section) =>
+    set(v ? { settingsOpen: true, settingsSection: section ?? 'appearance' } : { settingsOpen: false }),
+  setSettingsSection: (section) => set({ settingsSection: section }),
   setNewProjectOpen: (v) => set({ newProjectOpen: v }),
   setTabBusy: (id, busy) =>
     set((s) => (s.busyTabs[id] === busy ? s : { busyTabs: { ...s.busyTabs, [id]: busy } })),

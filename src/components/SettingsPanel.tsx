@@ -7,6 +7,7 @@ import {
 
 import { appInfo, defaultShell, stateDirPath } from '../lib/ipc'
 import { DEFAULT_SETTINGS, useSettings } from '../store/settings'
+import { useUi, type SettingsSection } from '../store/ui'
 import { AVAILABLE_LOCALES, LOCALE_NAMES, useT } from '../i18n'
 import { SCHEME_NAMES } from '../lib/schemes'
 import { UI_THEMES } from '../lib/uiThemes'
@@ -15,7 +16,7 @@ import { ConfirmDialog, Field, Modal, NumberInput, Segmented, Toggle } from './u
 import { UpdateSection } from './Updater'
 import type { AppInfo, HarnessKind, Language, PanelView, ThemeMode } from '../lib/types'
 
-type Section = 'appearance' | 'terminal' | 'harness' | 'workspace' | 'updates' | 'about'
+type Section = SettingsSection
 
 const ACCENTS = [
   '#0078d4', '#7cb518', '#e0973c', '#d1594f',
@@ -24,7 +25,9 @@ const ACCENTS = [
 
 export function SettingsPanel({ onClose }: { onClose: () => void }) {
   const t = useT()
-  const [section, setSection] = useState<Section>('appearance')
+  // In the store, so "Check for Updates…" can open the panel on its page.
+  const section = useUi((s) => s.settingsSection)
+  const setSection = useUi((s) => s.setSettingsSection)
   const [confirmReset, setConfirmReset] = useState(false)
   const reset = useSettings((s) => s.reset)
 
