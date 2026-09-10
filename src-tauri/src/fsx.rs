@@ -240,6 +240,12 @@ fn checked(path: &str) -> Result<PathBuf, String> {
     Ok(p)
 }
 
+/// Whether a file or folder exists, for callers that must not act on a stale path.
+#[tauri::command]
+pub fn path_exists(path: String) -> bool {
+    checked(&path).map(|p| p.exists()).unwrap_or(false)
+}
+
 #[tauri::command]
 pub fn create_dir(path: String) -> Result<String, String> {
     let p = checked(&path)?;

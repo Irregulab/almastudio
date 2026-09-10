@@ -20,6 +20,11 @@ release cannot be cut without one — see `docs/UPDATES.md`.
   call "open URL" but had been given no URL it was allowed to open, so every
   link — in terminals, Markdown previews and Help → Documentation — was
   refused without a word. Links a program marks up itself (OSC 8) open too.
+- Claude Code tabs resume their own conversation after a restart. They all
+  continued the folder's most recent one, so three tabs on three sessions
+  came back on the same. Each tab now records which session it is on,
+  following /clear and /resume as well; tabs from before this version
+  continue the latest conversation one last time.
 
 ## [1.0.6] - 2026-09-10
 

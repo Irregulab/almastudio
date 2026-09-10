@@ -35,6 +35,13 @@ fn scrollback_dir(app: &AppHandle) -> anyhow::Result<PathBuf> {
     Ok(dir)
 }
 
+/// One record per Claude Code tab, written by the tab's own SessionStart hook
+/// (see `claudeSessionSettings` in the frontend), naming the session it is on.
+/// Not created here: the hook creates it on first use.
+fn sessions_dir(app: &AppHandle) -> anyhow::Result<PathBuf> {
+    Ok(state_dir(app)?.join("sessions"))
+}
+
 /// Tab ids come from the frontend, so never let one escape its directory.
 fn safe_key(key: &str) -> String {
     let cleaned: String = key
@@ -159,26 +166,37 @@ pub fn scrollback_load(
     })
 }
 
-/// Drops scrollback for tabs the workspace no longer contains.
+/// Drops scrollback, and Claude session records, for tabs the workspace no
+/// longer contains.
 #[tauri::command]
 pub fn scrollback_prune(app: AppHandle, keep: Vec<String>) -> Result<(), String> {
     let dir = scrollback_dir(&app).map_err(|e| e.to_string())?;
-    let keep: Vec<String> = keep.iter().map(|k| format!("{}.bin", safe_key(k))).collect();
-    if let Ok(entries) = fs::read_dir(&dir) {
-        for entry in entries.flatten() {
-            let name = entry.file_name().to_string_lossy().to_string();
-            if !keep.contains(&name) {
-                let _ = fs::remove_file(entry.path());
-            }
-        }
+    prune_dir(&dir, "bin", &keep);
+    if let Ok(dir) = sessions_dir(&app) {
+        prune_dir(&dir, "json", &keep);
     }
     Ok(())
+}
+
+/// Removes every file in `dir` other than `<key>.<ext>` for the kept tab ids.
+fn prune_dir(dir: &Path, ext: &str, keep: &[String]) {
+    let keep: Vec<String> = keep.iter().map(|k| format!("{}.{ext}", safe_key(k))).collect();
+    let Ok(entries) = fs::read_dir(dir) else { return };
+    for entry in entries.flatten() {
+        let name = entry.file_name().to_string_lossy().to_string();
+        if !keep.contains(&name) {
+            let _ = fs::remove_file(entry.path());
+        }
+    }
 }
 
 #[tauri::command]
 pub fn scrollback_forget(app: AppHandle, id: String) -> Result<(), String> {
     let dir = scrollback_dir(&app).map_err(|e| e.to_string())?;
     let _ = fs::remove_file(dir.join(format!("{}.bin", safe_key(&id))));
+    if let Ok(dir) = sessions_dir(&app) {
+        let _ = fs::remove_file(dir.join(format!("{}.json", safe_key(&id))));
+    }
     Ok(())
 }
 

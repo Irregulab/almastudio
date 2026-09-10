@@ -13,6 +13,7 @@ import {
   onPtyData, onPtyExit, ptyResize, ptySpawn, ptyStatus, ptyWrite, scrollbackLoad,
 } from '../lib/ipc'
 import { buildSpawnOptions, harnessCommandLabel } from '../lib/harness'
+import { claudeSessionFor } from '../lib/claudeSession'
 import { resolveScheme } from '../lib/schemes'
 import { resolveUiTheme } from '../lib/uiThemes'
 import { useDrag } from '../lib/dragDrop'
@@ -67,6 +68,9 @@ export function TerminalView({ tab, visible, focused }: Props) {
         setTabStatus(tab.id, 'starting')
         writtenTo.current = 0
         term.reset()
+        // Which Claude conversation this tab is on, so it resumes its own.
+        const claudeSession =
+          tab.kind === 'claude' ? await claudeSessionFor(tab.id, resume) : undefined
         const options = buildSpawnOptions({
           tab,
           project,
@@ -74,6 +78,7 @@ export function TerminalView({ tab, visible, focused }: Props) {
           cols: term.cols,
           rows: term.rows,
           resume,
+          claudeSession,
         })
         await ptySpawn(options)
         setTabStatus(tab.id, 'running')

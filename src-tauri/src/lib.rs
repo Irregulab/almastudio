@@ -298,6 +298,7 @@ pub fn run() {
             fsx::write_text_file,
             fsx::read_file_base64,
             fsx::allow_preview,
+            fsx::path_exists,
             watcher::watch_start,
             browser::browser_open,
             browser::browser_set_bounds,
