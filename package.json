@@ -1,7 +1,7 @@
 {
   "name": "almastudio",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "description": "AlmaStudio \u2014 a multi-project desktop workspace for AI coding agents",
   "scripts": {

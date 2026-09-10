@@ -96,6 +96,15 @@ jobs:
   publish:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    # Promoted to job level so the optional deploy step can test them in its
+    # `if`: a step's own `env` block is not visible to its own condition.
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+      DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -113,17 +122,72 @@ jobs:
           echo "Publishing $V"
 
       - name: Build latest.json
+        id: manifest
+        continue-on-error: true
         run: |
           node scripts/make-latest-json.mjs \
             artifacts "${{ steps.v.outputs.version }}" "$UPDATE_BASE_URL"
 
+      - name: Gather release assets
+        id: assets
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          # Installers people actually download.
+          find artifacts -type f \( \
+            -name '*.dmg' -o -name '*-setup.exe' -o -name '*.msi' -o \
+            -name '*.AppImage' -o -name '*.deb' -o -name '*.rpm' \
+          \) -exec cp {} release/ \;
+          # Signed updater bundles, when signing was configured.
+          find artifacts -type f \( \
+            -name '*.app.tar.gz' -o -name '*.app.tar.gz.sig' -o \
+            -name '*.nsis.zip' -o -name '*.nsis.zip.sig' -o \
+            -name '*.AppImage.tar.gz' -o -name '*.AppImage.tar.gz.sig' \
+          \) -exec cp {} release/ \; || true
+          [ -f artifacts/_publish/latest.json ] && cp artifacts/_publish/latest.json release/ || true
+          ls -la release
+          echo "count=$(find release -type f | wc -l | tr -d ' ')" >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          V="${{ steps.v.outputs.version }}"
+          NOTES=$(cat <<'EOT'
+          Installers for macOS (Apple silicon and Intel), Windows and Linux.
+
+          | Platform | File |
+          |---|---|
+          | macOS | `.dmg` |
+          | Windows | `-setup.exe` |
+          | Linux | `.AppImage`, `.deb`, `.rpm` |
+
+          `.app.tar.gz`, `.nsis.zip`, `.AppImage.tar.gz` and their `.sig` files are
+          for the in-app updater, not for manual installation.
+          EOT
+          )
+          # --verify-tag only makes sense for a tag-triggered run; a manual
+          # re-publish has no tag to verify against.
+          VERIFY=""
+          [ "${GITHUB_REF_TYPE:-}" = "tag" ] && VERIFY="--verify-tag"
+
+          if gh release view "v$V" >/dev/null 2>&1; then
+            gh release upload "v$V" release/* --clobber
+          else
+            # shellcheck disable=SC2086
+            gh release create "v$V" release/* \
+              --title "AlmaStudio $V" \
+              --notes "$NOTES" \
+              $VERIFY
+          fi
+
       - name: Deploy to almaware.net
+        # Optional: skipped entirely when the deploy secrets are not set, so a
+        # GitHub-only release still succeeds.
+        if: ${{ env.DEPLOY_HOST != '' }}
         env:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
-          DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
         run: |
           set -euo pipefail
           install -m 700 -d ~/.ssh
@@ -142,7 +206,14 @@ jobs:
 
       - name: Summary
         run: |
-          echo "### AlmaStudio ${{ steps.v.outputs.version }} published" >> $GITHUB_STEP_SUMMARY
-          echo '```json' >> $GITHUB_STEP_SUMMARY
-          cat artifacts/_publish/latest.json >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
+          V="${{ steps.v.outputs.version }}"
+          echo "### AlmaStudio $V" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.assets.outputs.count }} asset(s) attached to the release." >> $GITHUB_STEP_SUMMARY
+          if [ -f artifacts/_publish/latest.json ]; then
+            echo '```json' >> $GITHUB_STEP_SUMMARY
+            cat artifacts/_publish/latest.json >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "No updater manifest: signing was not configured for this build." >> $GITHUB_STEP_SUMMARY
+          fi
