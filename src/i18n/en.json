@@ -47,7 +47,9 @@
     "edit": "Project settings…",
     "remove": "Remove project",
     "removeConfirm": "Remove “{name}” from AlmaStudio? The folder on disk is not touched.",
-    "collapse": "Collapse sidebar"
+    "collapse": "Collapse sidebar",
+    "moveUp": "Move up",
+    "moveDown": "Move down"
   },
   "project": {
     "new": "New project",

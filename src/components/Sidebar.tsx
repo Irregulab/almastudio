@@ -1,7 +1,10 @@
 import { useCallback, useMemo, useState } from 'react'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import { revealItemInDir } from '@tauri-apps/plugin-opener'
-import { FolderOpen, ImageUp, Loader2, Pencil, Plus, Search, Settings2, Trash2, X } from 'lucide-react'
+import {
+  ArrowDown, ArrowUp, FolderOpen, ImageUp, Loader2, Pencil, Plus, Search,
+  Settings2, Trash2, X,
+} from 'lucide-react'
 
 import { dirName, writeProjectInstructions } from '../lib/ipc'
 import { readableAccent } from '../lib/color'
@@ -18,6 +21,9 @@ const ICONS = [
   '🟢', '🚀', '⚙️', '📦', '🧪', '🔧', '🌐', '📱', '🖥️', '🗄️',
   '🧩', '📊', '🔐', '🎛️', '🛰️', '🏗️', '💡', '🧠', '📚', '🎨',
 ]
+/** Distinct from the tab MIME so a tab can never be dropped into the list. */
+const PROJECT_MIME = 'application/x-almastudio-project'
+
 const COLORS = [
   '#7cb518', '#4a9ede', '#e0973c', '#d1594f', '#9b6bdb',
   '#2fae91', '#d4b03c', '#7a8290',
@@ -31,9 +37,14 @@ export function Sidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
   const setActiveProject = useWorkspace((s) => s.setActiveProject)
   const removeProject = useWorkspace((s) => s.removeProject)
   const [query, setQuery] = useState('')
+  const reorderProjects = useWorkspace((s) => s.reorderProjects)
+  const [dragIndex, setDragIndex] = useState<number | null>(null)
+  const [dropIndex, setDropIndex] = useState<number | null>(null)
   const [editing, setEditing] = useState<Project | 'new' | null>(null)
   const [confirmRemove, setConfirmRemove] = useState<Project | null>(null)
   const [menu, setMenu] = useState<{ anchor: HTMLElement; project: Project } | null>(null)
+  // Position in the real order, which is what the move actions operate on.
+  const menuIndex = menu ? projects.findIndex((p) => p.id === menu.project.id) : -1
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -42,6 +53,20 @@ export function Sidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
       (p) => p.name.toLowerCase().includes(q) || p.root.toLowerCase().includes(q),
     )
   }, [projects, query])
+
+  // Reordering a filtered list would move rows the user cannot see, so it is
+  // only offered when the whole list is on screen.
+  const canReorder = !query.trim() && projects.length > 1
+
+  const endDrag = () => {
+    setDragIndex(null)
+    setDropIndex(null)
+  }
+
+  const commitDrop = (to: number) => {
+    if (dragIndex !== null) reorderProjects(dragIndex, to)
+    endDrag()
+  }
 
   return (
     <nav className="sidebar">
@@ -65,7 +90,18 @@ export function Sidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
         </div>
       )}
 
-      <div className="sidebar__list">
+      <div
+        className="sidebar__list"
+        onDragOver={(e) => {
+          if (e.dataTransfer.types.includes(PROJECT_MIME)) e.preventDefault()
+        }}
+        onDrop={(e) => {
+          if (!e.dataTransfer.types.includes(PROJECT_MIME)) return
+          e.preventDefault()
+          // Dropping in the empty space below the rows means "put it last".
+          commitDrop(projects.length)
+        }}
+      >
         {projects.length === 0 && (
           <div className="empty">
             <div style={{ fontWeight: 600 }}>{t('sidebar.noProjects')}</div>
@@ -75,13 +111,43 @@ export function Sidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
             </button>
           </div>
         )}
-        {filtered.map((p) => (
+        {filtered.map((p, index) => (
           <button
             key={p.id}
-            className={`project${p.id === activeProjectId ? ' project--active' : ''}`}
+            className={[
+              'project',
+              p.id === activeProjectId ? 'project--active' : '',
+              dropIndex === index ? 'project--drop-before' : '',
+              dropIndex === index + 1 ? 'project--drop-after' : '',
+              dragIndex === index ? 'project--dragging' : '',
+            ]
+              .filter(Boolean)
+              .join(' ')}
             style={
               { '--project-row-accent': readableAccent(p.color, isDark) } as React.CSSProperties
             }
+            draggable={canReorder}
+            onDragStart={(e) => {
+              e.dataTransfer.setData(PROJECT_MIME, p.id)
+              e.dataTransfer.effectAllowed = 'move'
+              setDragIndex(index)
+            }}
+            onDragEnd={endDrag}
+            onDragOver={(e) => {
+              if (!e.dataTransfer.types.includes(PROJECT_MIME)) return
+              e.preventDefault()
+              e.dataTransfer.dropEffect = 'move'
+              const r = e.currentTarget.getBoundingClientRect()
+              const next = e.clientY < r.top + r.height / 2 ? index : index + 1
+              if (next !== dropIndex) setDropIndex(next)
+            }}
+            onDrop={(e) => {
+              if (!e.dataTransfer.types.includes(PROJECT_MIME)) return
+              e.preventDefault()
+              e.stopPropagation()
+              const r = e.currentTarget.getBoundingClientRect()
+              commitDrop(e.clientY < r.top + r.height / 2 ? index : index + 1)
+            }}
             onClick={() => setActiveProject(p.id)}
             onContextMenu={(e) => {
               e.preventDefault()
@@ -108,6 +174,21 @@ export function Sidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
       <Popover
         anchor={menu?.anchor ?? null} open={!!menu} onClose={() => setMenu(null)}
       >
+        {projects.length > 1 && (
+          <>
+            <MenuItem
+              icon={<ArrowUp size={13} />} label={t('sidebar.moveUp')}
+              disabled={menuIndex <= 0}
+              onClick={() => { setMenu(null); reorderProjects(menuIndex, menuIndex - 1) }}
+            />
+            <MenuItem
+              icon={<ArrowDown size={13} />} label={t('sidebar.moveDown')}
+              disabled={menuIndex < 0 || menuIndex >= projects.length - 1}
+              onClick={() => { setMenu(null); reorderProjects(menuIndex, menuIndex + 2) }}
+            />
+            <MenuSeparator />
+          </>
+        )}
         <MenuItem
           icon={<Pencil size={13} />} label={t('sidebar.edit')}
           onClick={() => { const p = menu!.project; setMenu(null); setEditing(p) }}

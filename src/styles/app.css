@@ -1040,3 +1040,23 @@
 
 /* Dragging a tab must not leave the terminal grabbing the pointer. */
 .pane__body [draggable='true'] { -webkit-user-drag: element; }
+
+/* Project reordering: a line where the row will land, and a faded original. */
+.project--dragging { opacity: 0.4; }
+.project--drop-before,
+.project--drop-after { position: relative; }
+.project--drop-before::after,
+.project--drop-after::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+  pointer-events: none;
+}
+.project--drop-before::after { top: -2px; }
+.project--drop-after::after { bottom: -2px; }
+.project[draggable='true'] { cursor: grab; }
+.project[draggable='true']:active { cursor: grabbing; }

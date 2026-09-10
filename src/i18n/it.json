@@ -47,7 +47,9 @@
     "edit": "Impostazioni progetto…",
     "remove": "Rimuovi progetto",
     "removeConfirm": "Rimuovere “{name}” da AlmaStudio? La cartella su disco non viene toccata.",
-    "collapse": "Comprimi barra laterale"
+    "collapse": "Comprimi barra laterale",
+    "moveUp": "Sposta su",
+    "moveDown": "Sposta giù"
   },
   "project": {
     "new": "Nuovo progetto",

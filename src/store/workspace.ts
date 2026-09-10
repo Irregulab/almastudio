@@ -156,11 +156,21 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
           : s.workspaces,
     })),
 
+  /**
+   * Moves the project at `from` so it sits before whatever is at index `to`
+   * in the *current* order — the same way a drop indicator drawn between two
+   * rows reads. Removing the item first shifts everything after it down by
+   * one, so a forward move has to compensate; `to === projects.length` means
+   * "put it last".
+   */
   reorderProjects: (from, to) =>
     set((s) => {
+      if (from === to || from === to - 1) return {}
+      if (from < 0 || from >= s.projects.length) return {}
       const next = [...s.projects]
       const [moved] = next.splice(from, 1)
-      next.splice(to, 0, moved)
+      const target = Math.max(0, Math.min(from < to ? to - 1 : to, next.length))
+      next.splice(target, 0, moved)
       return { projects: next }
     }),
 
