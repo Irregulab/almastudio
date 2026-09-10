@@ -200,6 +200,14 @@ struct GeometryDirty(Mutex<Option<Instant>>);
 /// power cut loses the window's position — the same failure the workspace and
 /// settings already guard against by writing on a debounce rather than at
 /// exit. This applies that policy to the geometry too.
+///
+/// The save itself must run on the main thread. `save_window_state` holds the
+/// plugin's cache lock while it queries the window, and from any other thread
+/// each query is a round trip through the main thread's event loop. The
+/// plugin's own `Moved`/`Resized` handler takes that same lock on the main
+/// thread, so a move landing mid-save — which is what the display
+/// reconfiguration after waking from sleep produces — deadlocked the two and
+/// froze the whole app.
 fn spawn_geometry_flusher(app: tauri::AppHandle) {
     const SETTLE: Duration = Duration::from_millis(700);
     std::thread::spawn(move || loop {
@@ -218,7 +226,10 @@ fn spawn_geometry_flusher(app: tauri::AppHandle) {
             }
         };
         if due {
-            let _ = app.save_window_state(WINDOW_STATE_FLAGS);
+            let handle = app.clone();
+            let _ = app.run_on_main_thread(move || {
+                let _ = handle.save_window_state(WINDOW_STATE_FLAGS);
+            });
         }
     });
 }

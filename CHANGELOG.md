@@ -9,6 +9,14 @@ release cannot be cut without one — see `docs/UPDATES.md`.
 
 ## [Unreleased]
 
+### Fixed
+
+- The app no longer freezes after the Mac wakes from sleep. Saving the
+  window's position from a background thread could deadlock against the
+  window moving at the same moment, which is exactly what happens while the
+  displays are reconfigured on wake; the window stopped responding for good
+  and had to be force-quit.
+
 ## [1.0.7] - 2026-09-10
 
 ### Added
