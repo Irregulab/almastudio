@@ -9,6 +9,8 @@ release cannot be cut without one — see `docs/UPDATES.md`.
 
 ## [Unreleased]
 
+## [1.0.8] - 2026-09-10
+
 ### Fixed
 
 - The app no longer freezes after the Mac wakes from sleep. Saving the
@@ -144,7 +146,8 @@ First release.
 - English and Italian.
 - Over-the-air updates.
 
-[Unreleased]: https://github.com/Irregulab/almastudio/compare/v1.0.7...HEAD
+[Unreleased]: https://github.com/Irregulab/almastudio/compare/v1.0.8...HEAD
+[1.0.8]: https://github.com/Irregulab/almastudio/compare/v1.0.7...v1.0.8
 [1.0.7]: https://github.com/Irregulab/almastudio/compare/v1.0.6...v1.0.7
 [1.0.6]: https://github.com/Irregulab/almastudio/compare/v1.0.5...v1.0.6
 [1.0.5]: https://github.com/Irregulab/almastudio/compare/v1.0.4...v1.0.5
