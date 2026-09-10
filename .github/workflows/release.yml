@@ -181,6 +181,10 @@ jobs:
           | Windows | `-setup.exe` |
           | Linux | `.AppImage`, `.deb`, `.rpm` |
 
+          macOS builds are signed with Developer ID and notarised by Apple, so
+          they open without a Gatekeeper warning. Windows builds are unsigned
+          and SmartScreen will warn on first run.
+
           `.app.tar.gz`, `.nsis.zip`, `.AppImage.tar.gz` and their `.sig` files are
           for the in-app updater, not for manual installation.
           EOT
