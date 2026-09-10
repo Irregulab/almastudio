@@ -9,6 +9,8 @@ release cannot be cut without one — see `docs/UPDATES.md`.
 
 ## [Unreleased]
 
+## [1.0.4] - 2026-09-10
+
 ### Fixed
 
 - Shift+Enter in an agent tab starts a new line instead of sending the
@@ -81,7 +83,8 @@ First release.
 - English and Italian.
 - Over-the-air updates.
 
-[Unreleased]: https://github.com/Irregulab/almastudio/compare/v1.0.3...HEAD
+[Unreleased]: https://github.com/Irregulab/almastudio/compare/v1.0.4...HEAD
+[1.0.4]: https://github.com/Irregulab/almastudio/compare/v1.0.3...v1.0.4
 [1.0.3]: https://github.com/Irregulab/almastudio/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/Irregulab/almastudio/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/Irregulab/almastudio/compare/v1.0.0...v1.0.1
