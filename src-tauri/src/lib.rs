@@ -7,12 +7,65 @@ mod store;
 mod watcher;
 
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant};
 
+use parking_lot::Mutex;
 use serde::Serialize;
-use tauri::{Manager, RunEvent, WindowEvent};
+use tauri::{Emitter, Manager, RunEvent, WindowEvent};
 
 use pty::PtyManager;
 use watcher::WatchManager;
+
+/// Gates shutdown behind the frontend's confirmation.
+///
+/// Quitting kills every running agent, so it asks first. The frontend decides
+/// whether to prompt — it knows what is running and whether the user turned
+/// the prompt off — and calls `confirm_exit` when it is done. Two close
+/// attempts in quick succession bypass all of it, so a wedged or broken
+/// frontend can never trap the user in an app they cannot quit.
+#[derive(Default)]
+struct ExitGate {
+    confirmed: AtomicBool,
+    last_request: Mutex<Option<Instant>>,
+}
+
+/// A second attempt within this window force-quits.
+const FORCE_QUIT_WINDOW: Duration = Duration::from_secs(3);
+
+impl ExitGate {
+    /// True when shutdown should proceed; false when the frontend was asked.
+    fn should_proceed(&self, app: &tauri::AppHandle) -> bool {
+        if self.confirmed.load(Ordering::Relaxed) {
+            return true;
+        }
+        let mut last = self.last_request.lock();
+        if let Some(at) = *last {
+            if at.elapsed() < FORCE_QUIT_WINDOW {
+                self.confirmed.store(true, Ordering::Relaxed);
+                return true;
+            }
+        }
+        *last = Some(Instant::now());
+        drop(last);
+        let _ = app.emit("app://close-requested", ());
+        false
+    }
+}
+
+#[tauri::command]
+fn confirm_exit(app: tauri::AppHandle) {
+    app.state::<ExitGate>().confirmed.store(true, Ordering::Relaxed);
+    app.exit(0);
+}
+
+/// Lets the frontend drop a pending request when the user cancels, so the
+/// force-quit window does not linger and turn an unrelated later close into an
+/// immediate quit.
+#[tauri::command]
+fn cancel_exit(app: tauri::AppHandle) {
+    *app.state::<ExitGate>().last_request.lock() = None;
+}
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -80,11 +133,14 @@ pub fn run() {
     builder
         .manage(PtyManager::default())
         .manage(WatchManager::default())
+        .manage(ExitGate::default())
         .invoke_handler(tauri::generate_handler![
             app_info,
             ready,
             default_shell,
             log_frontend,
+            confirm_exit,
+            cancel_exit,
             menu::apply_menu,
             pty::pty_spawn,
             pty::pty_write,
@@ -106,6 +162,7 @@ pub fn run() {
             git::git_log,
             git::git_branches,
             git::git_checkout,
+            git::find_git_repos,
             fsx::list_dir,
             fsx::read_text_file,
             fsx::find_files,
@@ -156,18 +213,29 @@ pub fn run() {
             menu::on_menu_event(app, event.id().as_ref());
         })
         .on_window_event(|window, event| {
-            if let WindowEvent::CloseRequested { .. } = event {
-                // Persist what the tabs were showing before the processes die,
-                // so a restart can restore them.
+            if let WindowEvent::CloseRequested { api, .. } = event {
                 let app = window.app_handle();
+                // Save first either way: whether or not the user goes through
+                // with quitting, the state on disk should be current.
                 if let Some(mgr) = app.try_state::<PtyManager>() {
                     store::flush_scrollback(app, &mgr);
+                }
+                if !app.state::<ExitGate>().should_proceed(app) {
+                    api.prevent_close();
                 }
             }
         })
         .build(tauri::generate_context!())
         .expect("error while building AlmaStudio")
         .run(|app, event| {
+            // Quitting from the menu or the dock does not raise a window close,
+            // so the same gate has to cover this path.
+            if let RunEvent::ExitRequested { api, .. } = &event {
+                if !app.state::<ExitGate>().should_proceed(app) {
+                    api.prevent_exit();
+                    return;
+                }
+            }
             if let RunEvent::ExitRequested { .. } | RunEvent::Exit = event {
                 // Never leave orphaned `claude` / `codex` / shell processes
                 // behind when the app goes away.

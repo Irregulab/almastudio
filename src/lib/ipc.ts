@@ -198,3 +198,25 @@ export const onBrowserNavigated = (
   cb: (p: NavigatedPayload) => void,
 ): Promise<UnlistenFn> =>
   listen<NavigatedPayload>('browser://navigated', (e) => cb(e.payload))
+
+// ------------------------------------------------------------------ exit ----
+
+export const confirmExit = () => invoke<void>('confirm_exit')
+export const cancelExit = () => invoke<void>('cancel_exit')
+
+/** The backend asks before shutting down; nothing closes until we answer. */
+export const onCloseRequested = (cb: () => void): Promise<UnlistenFn> =>
+  listen('app://close-requested', () => cb())
+
+// ------------------------------------------------------- repo discovery ----
+
+export interface RepoEntry {
+  path: string
+  name: string
+  rel: string
+  branch: string | null
+  dirty: number
+}
+
+export const findGitRepos = (root: string, maxDepth?: number) =>
+  invoke<RepoEntry[]>('find_git_repos', { root, maxDepth })

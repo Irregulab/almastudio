@@ -19,7 +19,9 @@ of blocked threads — no Electron, no per-tab browser process.
   there, or onto an edge to split that pane and drop it into the new half.
 - **Right panel** — three views: changed files, the full file tree, and git
   (branch, staging, commit, history, branch switching). Clicking a changed file
-  opens its diff as a tab in the main area.
+  opens its diff as a tab in the main area. Point a project at a folder full of
+  repositories and the panel lists the ones underneath it instead of reporting
+  that the folder itself is not one.
 - **Code and Markdown** — syntax highlighting in the editor and in diffs,
   themed from the same tokens as the rest of the app. Files are editable, with
   explicit save and a conflict check. Markdown opens as a rendered preview with
@@ -118,6 +120,13 @@ files in the next tab along, so a save re-reads the file first and compares it
 with what was loaded; if it moved underneath, you choose between overwriting
 and taking what is on disk. Reloading keeps unsaved edits rather than dropping
 them.
+
+**Quitting asks first, but can never trap you.** Shutdown kills every running
+agent, so the backend holds the close and asks the frontend, which knows what
+is at stake and whether the prompt is wanted. Since that puts a native quit at
+the mercy of the webview, two close attempts within three seconds bypass the
+gate entirely — a wedged frontend cannot leave the user in an app they cannot
+close.
 
 **Only the active project is mounted.** Switching projects disposes the
 terminals of the one you left but never kills its processes; coming back

@@ -555,3 +555,111 @@ pub fn git_checkout(root: String, name: String) -> Result<(), String> {
         None => repo.set_head_detached(object.id()).map_err(|e| e.to_string()),
     }
 }
+
+// ------------------------------------------------------- repo discovery ----
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RepoEntry {
+    pub path: String,
+    pub name: String,
+    /// Path relative to the folder that was searched.
+    pub rel: String,
+    pub branch: Option<String>,
+    /// Number of changed files, so the list is useful at a glance.
+    pub dirty: usize,
+}
+
+/// Directories that never contain a project worth listing and are expensive
+/// to walk.
+const SKIP_DIRS: &[&str] = &[
+    "node_modules", "target", "dist", "build", ".next", ".turbo", ".venv",
+    "venv", "__pycache__", "vendor", "Pods", ".gradle", ".cache", "Library",
+];
+
+/// Finds git repositories beneath `root`.
+///
+/// This is what makes a folder full of projects usable: point AlmaStudio at
+/// `~/git` and the panel can still show you which repository you mean, rather
+/// than reporting that the folder itself is not one. A found repository is not
+/// descended into — nested repositories are almost always submodules, and
+/// walking them would multiply the cost for no benefit.
+#[tauri::command]
+pub fn find_git_repos(root: String, max_depth: Option<usize>) -> Result<Vec<RepoEntry>, String> {
+    let root_path = PathBuf::from(&root);
+    if !root_path.is_dir() {
+        return Err(format!("not a directory: {root}"));
+    }
+    let max_depth = max_depth.unwrap_or(3).min(6);
+    const MAX_RESULTS: usize = 60;
+
+    let mut found: Vec<PathBuf> = Vec::new();
+    // Breadth-first, so the nearest repositories are reported first.
+    let mut frontier = vec![(root_path.clone(), 0usize)];
+
+    while let Some((dir, depth)) = frontier.pop() {
+        if found.len() >= MAX_RESULTS {
+            break;
+        }
+        let Ok(entries) = std::fs::read_dir(&dir) else { continue };
+        let mut children = Vec::new();
+
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let name = entry.file_name().to_string_lossy().to_string();
+            if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                continue;
+            }
+            // `.git` is a directory in a normal clone and a file in a worktree
+            // or submodule, so its mere presence is the signal.
+            if name == ".git" {
+                found.push(dir.clone());
+                children.clear();
+                break;
+            }
+            if name.starts_with('.') || SKIP_DIRS.contains(&name.as_str()) {
+                continue;
+            }
+            if depth < max_depth {
+                children.push((path, depth + 1));
+            }
+        }
+        frontier.extend(children);
+    }
+
+    found.sort();
+    found.dedup();
+
+    let mut out = Vec::with_capacity(found.len());
+    for path in found {
+        // Opening each repository is cheap and the branch is the single most
+        // useful thing to show next to its name.
+        let branch = Repository::open(&path)
+            .ok()
+            .and_then(|r| r.head().ok().and_then(|h| h.shorthand().ok().map(String::from)));
+        let dirty = Repository::open(&path)
+            .ok()
+            .and_then(|r| {
+                let mut opts = StatusOptions::new();
+                opts.include_untracked(true).include_ignored(false);
+                r.statuses(Some(&mut opts)).ok().map(|s| s.len())
+            })
+            .unwrap_or(0);
+
+        out.push(RepoEntry {
+            name: path
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_else(|| path.to_string_lossy().to_string()),
+            rel: path
+                .strip_prefix(&root_path)
+                .unwrap_or(&path)
+                .to_string_lossy()
+                .replace('\\', "/"),
+            path: path.to_string_lossy().to_string(),
+            branch,
+            dirty,
+        });
+    }
+    Ok(out)
+}

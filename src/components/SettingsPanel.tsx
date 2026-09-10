@@ -483,6 +483,13 @@ function WorkspaceSection() {
           onChange={(v) => patch('startup', { autoStartTabs: v })}
         />
       </Field>
+
+      <Field label={t('settings.confirmOnExit')} hint={t('settings.confirmOnExitHint')} row>
+        <Toggle
+          checked={s.startup.confirmOnExit}
+          onChange={(v) => patch('startup', { confirmOnExit: v })}
+        />
+      </Field>
     </>
   )
 }

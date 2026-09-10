@@ -177,7 +177,13 @@ export interface Settings {
     diffView: 'unified' | 'split'
     contextLines: number
   }
-  startup: { restoreTabs: boolean; restoreScrollback: boolean; autoStartTabs: boolean }
+  startup: {
+    restoreTabs: boolean
+    restoreScrollback: boolean
+    autoStartTabs: boolean
+    /** Ask before quitting while agents are running or edits are unsaved. */
+    confirmOnExit: boolean
+  }
   updates: { autoCheck: boolean; intervalHours: number }
 }
 

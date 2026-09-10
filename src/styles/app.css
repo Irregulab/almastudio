@@ -1060,3 +1060,12 @@
 .project--drop-after::after { bottom: -2px; }
 .project[draggable='true'] { cursor: grab; }
 .project[draggable='true']:active { cursor: grabbing; }
+
+.discovery__hint {
+  margin: 0;
+  padding: 0 var(--sp-4) var(--sp-3);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--fg-subtle);
+}
+.chip--dirty { color: var(--yellow); border-color: color-mix(in srgb, var(--yellow) 40%, transparent); }

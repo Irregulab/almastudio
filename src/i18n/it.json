@@ -157,7 +157,9 @@
     "openFile": "Apri file",
     "scope": "Cartella",
     "scopeProject": "Cartella del progetto",
-    "scopeTab": "Cartella della scheda attiva"
+    "scopeTab": "Cartella della scheda attiva",
+    "reposFound": "Repository trovati",
+    "reposHint": "Questa cartella non è un repository git, ma queste lo sono. Scegline uno per esaminarlo."
   },
   "fs": {
     "newFile": "Nuovo file",
@@ -203,6 +205,13 @@
     "discardTitle": "Modifiche non salvate",
     "discardBody": "“{name}” ha modifiche non salvate. Chiudere comunque?",
     "closeAnyway": "Chiudi senza salvare"
+  },
+  "exit": {
+    "title": "Uscire da AlmaStudio?",
+    "body": "L'uscita interrompe tutto ciò che è in esecuzione. Le schede e le loro cartelle vengono ripristinate al prossimo avvio; il lavoro in corso no.",
+    "quit": "Esci",
+    "running": "{n} assistente/i in esecuzione",
+    "unsaved": "{n} file con modifiche non salvate"
   },
   "settings": {
     "title": "Impostazioni",
@@ -268,7 +277,9 @@
     "reveal": "Mostra",
     "resetDefaults": "Ripristina i valori predefiniti",
     "resetConfirm": "Ripristinare tutte le impostazioni ai valori predefiniti?",
-    "argsHint": "Un argomento per riga."
+    "argsHint": "Un argomento per riga.",
+    "confirmOnExit": "Chiedi conferma all'uscita",
+    "confirmOnExitHint": "Chiede solo se qualcosa è in esecuzione o non salvato. Chiudendo due volte di seguito esce sempre."
   },
   "update": {
     "checking": "Controllo aggiornamenti…",

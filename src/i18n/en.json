@@ -157,7 +157,9 @@
     "openFile": "Open file",
     "scope": "Folder",
     "scopeProject": "Project folder",
-    "scopeTab": "Active tab folder"
+    "scopeTab": "Active tab folder",
+    "reposFound": "Repositories found",
+    "reposHint": "This folder is not a git repository, but these are. Pick one to inspect it."
   },
   "fs": {
     "newFile": "New file",
@@ -203,6 +205,13 @@
     "discardTitle": "Unsaved changes",
     "discardBody": "“{name}” has unsaved changes. Close it anyway?",
     "closeAnyway": "Close without saving"
+  },
+  "exit": {
+    "title": "Quit AlmaStudio?",
+    "body": "Quitting stops everything that is running. Tabs and their folders come back next time; work in progress does not.",
+    "quit": "Quit",
+    "running": "{n} harness(es) running",
+    "unsaved": "{n} file(s) with unsaved changes"
   },
   "settings": {
     "title": "Settings",
@@ -268,7 +277,9 @@
     "reveal": "Reveal",
     "resetDefaults": "Reset to defaults",
     "resetConfirm": "Reset all settings to their defaults?",
-    "argsHint": "One argument per line."
+    "argsHint": "One argument per line.",
+    "confirmOnExit": "Ask before quitting",
+    "confirmOnExitHint": "Only asks when something is running or unsaved. Closing twice quickly always quits."
   },
   "update": {
     "checking": "Checking for updates…",

@@ -7,9 +7,9 @@ import {
 } from 'lucide-react'
 
 import {
-  createDir, createFile, findFiles, gitBranches, gitCheckout, gitCommit,
-  gitDiscard, gitLog, gitStage, gitStatus, gitUnstage, listDir, onFsChange,
-  renamePath, trashPath, watchStart, watchStop,
+  createDir, createFile, findFiles, findGitRepos, gitBranches, gitCheckout,
+  gitCommit, gitDiscard, gitLog, gitStage, gitStatus, gitUnstage, listDir,
+  onFsChange, renamePath, trashPath, watchStart, watchStop, type RepoEntry,
 } from '../lib/ipc'
 import { useSettings } from '../store/settings'
 import { useWorkspace } from '../store/workspace'
@@ -31,14 +31,16 @@ interface Props {
   view: PanelView
   onViewChange: (v: PanelView) => void
   onClose: () => void
-  /** True when locked to the project folder rather than following the tab. */
-  pinned: boolean
+  /** Folder the panel is locked to, or null when it follows the active tab. */
+  pinnedRoot: string | null
   onScopeChange: (scope: 'project' | 'tab') => void
+  /** Locks the panel to an arbitrary folder — a repository found beneath it. */
+  onPickRoot: (path: string) => void
 }
 
 export function RightPanel({
-  projectId, root, projectRoot, tabRoot, view, onViewChange, onClose, pinned,
-  onScopeChange,
+  projectId, root, projectRoot, tabRoot, view, onViewChange, onClose, pinnedRoot,
+  onScopeChange, onPickRoot,
 }: Props) {
   const t = useT()
   const settings = useSettings((s) => s.settings)
@@ -113,13 +115,16 @@ export function RightPanel({
         root={root}
         projectRoot={projectRoot}
         tabRoot={tabRoot}
-        pinned={pinned}
+        pinnedRoot={pinnedRoot}
         onChoose={onScopeChange}
       />
 
       <div className="panel__body">
         {view === 'changes' && (
-          <ChangesView projectId={projectId} status={status} onChanged={() => setTick((n) => n + 1)} />
+          <ChangesView
+            projectId={projectId} status={status}
+            onChanged={() => setTick((n) => n + 1)} onPickRepo={onPickRoot}
+          />
         )}
         {view === 'files' && (
           <FilesView
@@ -128,10 +133,80 @@ export function RightPanel({
           />
         )}
         {view === 'git' && (
-          <GitView root={root} status={status} onChanged={() => setTick((n) => n + 1)} />
+          <GitView
+            root={root} status={status}
+            onChanged={() => setTick((n) => n + 1)} onPickRepo={onPickRoot}
+          />
         )}
       </div>
     </aside>
+  )
+}
+
+/**
+ * Shown instead of a bare "not a git repository": a folder full of projects is
+ * a perfectly reasonable thing to point AlmaStudio at, and the repositories
+ * underneath it are what the user actually meant.
+ */
+function RepoDiscovery({
+  root, onPick,
+}: { root: string; onPick: (path: string) => void }) {
+  const t = useT()
+  const [repos, setRepos] = useState<RepoEntry[] | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    setRepos(null)
+    void findGitRepos(root, 3)
+      .then((r) => !cancelled && setRepos(r))
+      .catch(() => !cancelled && setRepos([]))
+    return () => {
+      cancelled = true
+    }
+  }, [root])
+
+  if (repos === null) {
+    return (
+      <div className="empty">
+        <GitBranch size={22} />
+        <div>{t('common.loading')}</div>
+      </div>
+    )
+  }
+
+  if (repos.length === 0) {
+    return (
+      <div className="empty">
+        <GitBranch size={22} />
+        <div>{t('panel.noRepo')}</div>
+        <div className="subtle">{t('panel.noRepoHint', { folder: root })}</div>
+      </div>
+    )
+  }
+
+  return (
+    <section className="group">
+      <header className="group__head">
+        <span className="group__toggle">
+          <GitBranch size={12} /> {t('panel.reposFound')}
+          <span className="group__count">{repos.length}</span>
+        </span>
+      </header>
+      <p className="discovery__hint">{t('panel.reposHint')}</p>
+      <ul className="filelist">
+        {repos.map((repo) => (
+          <li key={repo.path} className="filerow" onClick={() => onPick(repo.path)}>
+            <GitBranch size={12} className="subtle" />
+            <span className="filerow__name truncate">{repo.name}</span>
+            {repo.branch && <span className="chip">{repo.branch}</span>}
+            {repo.dirty > 0 && (
+              <span className="chip chip--dirty">{repo.dirty}</span>
+            )}
+            <span className="filerow__dir truncate subtle">{dirname(repo.rel)}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
   )
 }
 
@@ -141,17 +216,26 @@ export function RightPanel({
  * paths visible, instead of as an icon whose meaning has to be guessed.
  */
 function ScopeChooser({
-  root, projectRoot, tabRoot, pinned, onChoose,
+  root, projectRoot, tabRoot, pinnedRoot, onChoose,
 }: {
   root: string
   projectRoot: string
   tabRoot: string | null
-  pinned: boolean
+  pinnedRoot: string | null
   onChoose: (scope: 'project' | 'tab') => void
 }) {
   const t = useT()
   const [anchor, setAnchor] = useState<HTMLElement | null>(null)
-  const following = !pinned
+  const following = !pinnedRoot
+  // Picking a repository found beneath the project locks the panel to a folder
+  // that is neither the project nor the tab — a third state the label has to
+  // account for rather than mislabelling as "Project folder".
+  const custom = !!pinnedRoot && !sameFolder(pinnedRoot, projectRoot)
+  const label = custom
+    ? basename(pinnedRoot!) || pinnedRoot!
+    : following
+      ? t('panel.scopeTab')
+      : t('panel.scopeProject')
 
   return (
     <>
@@ -161,7 +245,7 @@ function ScopeChooser({
         onClick={(e) => setAnchor(e.currentTarget)}
       >
         <span className="panel__scope-mode">
-          {t('panel.scope')}: {following ? t('panel.scopeTab') : t('panel.scopeProject')}
+          {t('panel.scope')}: {label}
           <ChevronDown size={10} />
         </span>
         <span className="panel__scope-path truncate mono">
@@ -171,7 +255,7 @@ function ScopeChooser({
 
       <Popover anchor={anchor} open={!!anchor} onClose={() => setAnchor(null)}>
         <MenuItem
-          icon={!following ? <Check size={13} /> : undefined}
+          icon={!following && !custom ? <Check size={13} /> : undefined}
           label={t('panel.scopeProject')}
           hint={shorten(projectRoot)}
           onClick={() => { setAnchor(null); onChoose('project') }}
@@ -182,10 +266,21 @@ function ScopeChooser({
           hint={tabRoot ? shorten(tabRoot) : t('common.none')}
           onClick={() => { setAnchor(null); onChoose('tab') }}
         />
+        {custom && (
+          <MenuItem
+            icon={<Check size={13} />}
+            label={basename(pinnedRoot!) || pinnedRoot!}
+            hint={shorten(pinnedRoot!)}
+            onClick={() => setAnchor(null)}
+          />
+        )}
       </Popover>
     </>
   )
 }
+
+const sameFolder = (a: string, b: string) =>
+  a.replace(/[/\\]+$/, '') === b.replace(/[/\\]+$/, '')
 
 /** Tail of a path, enough to tell two folders apart in a menu. */
 function shorten(path: string, max = 34): string {
@@ -210,8 +305,13 @@ function PanelTab({
 // --------------------------------------------------------------- changes ---
 
 function ChangesView({
-  projectId, status, onChanged,
-}: { projectId: string; status: RepoStatus | null; onChanged: () => void }) {
+  projectId, status, onChanged, onPickRepo,
+}: {
+  projectId: string
+  status: RepoStatus | null
+  onChanged: () => void
+  onPickRepo: (path: string) => void
+}) {
   const t = useT()
   const openDiffTab = useWorkspace((s) => s.openDiffTab)
   const [confirm, setConfirm] = useState<ChangedFile | null>(null)
@@ -226,15 +326,7 @@ function ChangesView({
   }, [status])
 
   if (!status) return <div className="empty">{t('common.loading')}</div>
-  if (!status.isRepo) {
-    return (
-      <div className="empty">
-        <GitBranch size={22} />
-        <div>{t('panel.noRepo')}</div>
-        <div className="subtle">{t('panel.noRepoHint', { folder: status.root })}</div>
-      </div>
-    )
-  }
+  if (!status.isRepo) return <RepoDiscovery root={status.root} onPick={onPickRepo} />
   if (status.files.length === 0) {
     return (
       <div className="empty">
@@ -685,8 +777,13 @@ function TreeNode({
 // ------------------------------------------------------------------- git ---
 
 function GitView({
-  root, status, onChanged,
-}: { root: string; status: RepoStatus | null; onChanged: () => void }) {
+  root, status, onChanged, onPickRepo,
+}: {
+  root: string
+  status: RepoStatus | null
+  onChanged: () => void
+  onPickRepo: (path: string) => void
+}) {
   const t = useT()
   const [message, setMessage] = useState('')
   const [commits, setCommits] = useState<CommitInfo[]>([])
@@ -701,12 +798,7 @@ function GitView({
   }, [root, status])
 
   if (!status?.isRepo) {
-    return (
-      <div className="empty">
-        <GitBranch size={22} />
-        <div>{t('panel.noRepo')}</div>
-      </div>
-    )
+    return <RepoDiscovery root={root} onPick={onPickRepo} />
   }
 
   const stagedCount = status.files.filter((f) => f.staged).length

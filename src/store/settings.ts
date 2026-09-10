@@ -62,7 +62,12 @@ export const DEFAULT_SETTINGS: Settings = {
     diffView: 'unified',
     contextLines: 3,
   },
-  startup: { restoreTabs: true, restoreScrollback: true, autoStartTabs: true },
+  startup: {
+    restoreTabs: true,
+    restoreScrollback: true,
+    autoStartTabs: true,
+    confirmOnExit: true,
+  },
   updates: { autoCheck: true, intervalHours: 6 },
 }
 

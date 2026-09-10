@@ -17,6 +17,7 @@ import { TileNode } from './components/Tiles'
 import { RightPanel } from './components/RightPanel'
 import { SettingsPanel } from './components/SettingsPanel'
 import { UpdateWatcher } from './components/Updater'
+import { ExitGuard } from './components/ExitGuard'
 import './styles/global.css'
 import './styles/app.css'
 
@@ -202,6 +203,7 @@ export default function App() {
 
       {settingsOpen && <SettingsPanel onClose={() => setSettingsOpen(false)} />}
       <UpdateWatcher />
+      <ExitGuard />
     </div>
   )
 }
@@ -249,12 +251,13 @@ function PanelHost({
           projectRoot={projectRoot}
           tabRoot={tabRoot}
           view={panel.view}
-          pinned={!!panel.pinnedRoot}
+          pinnedRoot={panel.pinnedRoot}
           onViewChange={(view) => setPanel(projectId, { view })}
           onClose={() => setPanel(projectId, { open: false })}
           onScopeChange={(scope) =>
             setPanel(projectId, { pinnedRoot: scope === 'project' ? projectRoot : null })
           }
+          onPickRoot={(path) => setPanel(projectId, { pinnedRoot: path })}
         />
       </div>
     </>
