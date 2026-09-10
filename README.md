@@ -122,6 +122,15 @@ with what was loaded; if it moved underneath, you choose between overwriting
 and taking what is on disk. Reloading keeps unsaved edits rather than dropping
 them.
 
+**Window geometry survives more than a clean exit.** The window-state plugin
+saves only on a graceful close, so a crash or a force-quit loses where the
+window was — the same failure the workspace and settings already guard against
+by writing on a debounce. Geometry is now written the same way, shortly after a
+move or resize settles. It is also clamped to the current monitor's work area
+on launch, because the plugin restores the saved *size* unconditionally: a
+window last used on a large external display would otherwise come back taller
+than a laptop screen, with its title bar off the top and no way to move it.
+
 **Quitting asks first, but can never trap you.** Shutdown kills every running
 agent, so the backend holds the close and asks the frontend, which knows what
 is at stake and whether the prompt is wanted. Since that puts a native quit at

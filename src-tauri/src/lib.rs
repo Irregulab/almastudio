@@ -12,7 +12,8 @@ use std::time::{Duration, Instant};
 
 use parking_lot::Mutex;
 use serde::Serialize;
-use tauri::{Emitter, Manager, RunEvent, WindowEvent};
+use tauri::{Emitter, LogicalSize, Manager, PhysicalPosition, PhysicalSize, RunEvent, WindowEvent};
+use tauri_plugin_window_state::{AppHandleExt as _, StateFlags};
 
 use pty::PtyManager;
 use watcher::WatchManager;
@@ -116,6 +117,100 @@ fn default_shell() -> String {
     }
 }
 
+/// Keeps the restored geometry usable on whatever screen is actually here.
+///
+/// The window-state plugin restores the saved size unconditionally and only
+/// sanity-checks the position, so a window last used on a large external
+/// display comes back taller than a laptop screen with its title bar off the
+/// top — unmovable and unresizable. This clamps the window to the current
+/// monitor's work area, and centres it when there was no saved geometry to
+/// restore in the first place.
+fn fit_to_screen(window: &tauri::WebviewWindow) {
+    // A maximized or fullscreen window already fills the screen exactly;
+    // clamping it would shave the margin off and break out of that state.
+    if window.is_maximized().unwrap_or(false) || window.is_fullscreen().unwrap_or(false) {
+        return;
+    }
+    let Ok(Some(monitor)) = window.current_monitor().or_else(|_| window.primary_monitor()) else {
+        return;
+    };
+    let area = monitor.work_area();
+    let Ok(size) = window.outer_size() else { return };
+    let Ok(position) = window.outer_position() else { return };
+
+    // Leave a margin so the window never sits flush against the screen edge.
+    const MARGIN: i32 = 8;
+    let max_w = area.size.width.saturating_sub(MARGIN as u32 * 2);
+    let max_h = area.size.height.saturating_sub(MARGIN as u32 * 2);
+
+    let width = size.width.min(max_w).max(600);
+    let height = size.height.min(max_h).max(400);
+    if width != size.width || height != size.height {
+        let _ = window.set_size(PhysicalSize::new(width, height));
+    }
+
+    // The title bar has to stay reachable, so the window may not start above
+    // the work area or be pushed entirely off either side.
+    let min_x = area.position.x + MARGIN;
+    let max_x = area.position.x + area.size.width as i32 - width as i32 - MARGIN;
+    let min_y = area.position.y + MARGIN;
+    let max_y = area.position.y + area.size.height as i32 - height as i32 - MARGIN;
+
+    let x = position.x.clamp(min_x.min(max_x), max_x.max(min_x));
+    let y = position.y.clamp(min_y.min(max_y), max_y.max(min_y));
+    if x != position.x || y != position.y {
+        let _ = window.set_position(PhysicalPosition::new(x, y));
+    }
+}
+
+/// Which parts of the window state are persisted. Kept in one place because
+/// the periodic save below has to use the same set as the plugin itself.
+const WINDOW_STATE_FLAGS: StateFlags = StateFlags::SIZE
+    .union(StateFlags::POSITION)
+    .union(StateFlags::MAXIMIZED)
+    .union(StateFlags::FULLSCREEN);
+
+/// Records that the window moved or resized; the flusher below writes it out.
+#[derive(Default)]
+struct GeometryDirty(Mutex<Option<Instant>>);
+
+/// Persists window geometry shortly after it settles.
+///
+/// The plugin only saves on a graceful close, so a crash, a force-quit or a
+/// power cut loses the window's position — the same failure the workspace and
+/// settings already guard against by writing on a debounce rather than at
+/// exit. This applies that policy to the geometry too.
+fn spawn_geometry_flusher(app: tauri::AppHandle) {
+    const SETTLE: Duration = Duration::from_millis(700);
+    std::thread::spawn(move || loop {
+        std::thread::sleep(Duration::from_millis(500));
+        let Some(dirty) = app.try_state::<GeometryDirty>() else { break };
+        let due = {
+            let mut at = dirty.0.lock();
+            match *at {
+                // Wait for dragging to stop before writing, so one resize does
+                // not produce a hundred writes.
+                Some(t) if t.elapsed() >= SETTLE => {
+                    *at = None;
+                    true
+                }
+                _ => false,
+            }
+        };
+        if due {
+            let _ = app.save_window_state(WINDOW_STATE_FLAGS);
+        }
+    });
+}
+
+/// True when the plugin has geometry saved for this window from a previous run.
+fn has_saved_geometry(app: &tauri::AppHandle) -> bool {
+    app.path()
+        .app_config_dir()
+        .map(|d| d.join(".window-state.json").exists())
+        .unwrap_or(false)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let mut builder = tauri::Builder::default()
@@ -123,7 +218,14 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_window_state::Builder::default().build());
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                // VISIBLE is deliberately excluded: restoring it would show
+                // the window before the frontend has painted, undoing the
+                // hidden start that avoids an unstyled flash.
+                .with_state_flags(WINDOW_STATE_FLAGS)
+                .build(),
+        );
 
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
@@ -134,6 +236,7 @@ pub fn run() {
         .manage(PtyManager::default())
         .manage(WatchManager::default())
         .manage(ExitGate::default())
+        .manage(GeometryDirty::default())
         .invoke_handler(tauri::generate_handler![
             app_info,
             ready,
@@ -186,9 +289,22 @@ pub fn run() {
         ])
         .setup(|app| {
             let handle = app.handle().clone();
+            if let Some(window) = handle.get_webview_window("main") {
+                if has_saved_geometry(&handle) {
+                    fit_to_screen(&window);
+                } else {
+                    // First run: `center` was removed from the window config
+                    // because it overrode the restored position, so centring
+                    // happens here instead — only when there is nothing to
+                    // restore.
+                    let _ = window.set_size(LogicalSize::new(1440.0, 900.0));
+                    let _ = window.center();
+                }
+            }
             menu::build(&handle, HashMap::new())?;
             store::spawn_scrollback_flusher(handle.clone());
             pty::spawn_activity_monitor(handle.clone());
+            spawn_geometry_flusher(handle.clone());
 
             // The window starts hidden so the user never sees an unstyled
             // flash, and the frontend calls `ready` once it has painted. If it
@@ -213,6 +329,11 @@ pub fn run() {
             menu::on_menu_event(app, event.id().as_ref());
         })
         .on_window_event(|window, event| {
+            if matches!(event, WindowEvent::Moved(_) | WindowEvent::Resized(_)) {
+                if let Some(dirty) = window.app_handle().try_state::<GeometryDirty>() {
+                    *dirty.0.lock() = Some(Instant::now());
+                }
+            }
             if let WindowEvent::CloseRequested { api, .. } = event {
                 let app = window.app_handle();
                 // Save first either way: whether or not the user goes through
