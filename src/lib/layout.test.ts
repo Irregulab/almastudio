@@ -1,16 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
-  allLeaves, findLeaf, findLeafOfTab, makeLeaf, moveTab, normalize,
-  removeLeaf, removeTab, resizeSplit, splitLeaf,
+  allLeaves, allTabIds, containsNode, findLeafOfTab, firstPaneId, makeLeaf, normalize,
+  removeLeaf, resizeSplit, splitLeaf,
 } from './layout'
-import type { LayoutNode, SplitNode } from './types'
-
-const leafWith = (...tabs: string[]) => makeLeaf(tabs)
+import type { SplitNode } from './types'
 
 describe('splitLeaf', () => {
   it('wraps a leaf in a split containing both panes', () => {
-    const a = leafWith('t1')
-    const b = leafWith('t2')
+    const a = makeLeaf('t1')
+    const b = makeLeaf('t2')
     const root = splitLeaf(a, a.id, 'row', b) as SplitNode
 
     expect(root.type).toBe('split')
@@ -20,9 +18,9 @@ describe('splitLeaf', () => {
   })
 
   it('extends an existing row instead of nesting another one', () => {
-    const a = leafWith('t1')
-    const b = leafWith('t2')
-    const c = leafWith('t3')
+    const a = makeLeaf('t1')
+    const b = makeLeaf('t2')
+    const c = makeLeaf('t3')
     let root = splitLeaf(a, a.id, 'row', b)
     root = splitLeaf(root, b.id, 'row', c)
 
@@ -35,9 +33,9 @@ describe('splitLeaf', () => {
   })
 
   it('nests when the direction differs', () => {
-    const a = leafWith('t1')
-    const b = leafWith('t2')
-    const c = leafWith('t3')
+    const a = makeLeaf('t1')
+    const b = makeLeaf('t2')
+    const c = makeLeaf('t3')
     let root = splitLeaf(a, a.id, 'row', b)
     root = splitLeaf(root, b.id, 'col', c) as SplitNode
 
@@ -50,16 +48,16 @@ describe('splitLeaf', () => {
 
 describe('splitLeaf before', () => {
   it('places the new pane first when asked', () => {
-    const a = leafWith('t1')
-    const b = leafWith('t2')
+    const a = makeLeaf('t1')
+    const b = makeLeaf('t2')
     const root = splitLeaf(a, a.id, 'row', b, true) as SplitNode
     expect(root.children.map((c) => c.id)).toEqual([b.id, a.id])
   })
 
   it('still extends a same-direction row rather than nesting', () => {
-    const a = leafWith('a')
-    const b = leafWith('b')
-    const c = leafWith('c')
+    const a = makeLeaf('a')
+    const b = makeLeaf('b')
+    const c = makeLeaf('c')
     let root = splitLeaf(a, a.id, 'row', b)
     root = splitLeaf(root, a.id, 'row', c, true)
     const split = root as SplitNode
@@ -71,7 +69,7 @@ describe('splitLeaf before', () => {
 
 describe('normalize', () => {
   it('collapses a split with a single child', () => {
-    const leaf = leafWith('t1')
+    const leaf = makeLeaf('t1')
     const split: SplitNode = {
       type: 'split', id: 's', dir: 'row', sizes: [1], children: [leaf],
     }
@@ -79,9 +77,9 @@ describe('normalize', () => {
   })
 
   it('rescales absorbed children so sizes still sum to one', () => {
-    const a = leafWith('a')
-    const b = leafWith('b')
-    const c = leafWith('c')
+    const a = makeLeaf('a')
+    const b = makeLeaf('b')
+    const c = makeLeaf('c')
     const inner: SplitNode = {
       type: 'split', id: 'inner', dir: 'row', sizes: [0.5, 0.5], children: [b, c],
     }
@@ -98,95 +96,54 @@ describe('normalize', () => {
   })
 })
 
-describe('removeTab', () => {
-  it('activates the neighbour when the active tab goes away', () => {
-    const leaf = leafWith('t1', 't2', 't3')
-    const withActive: LayoutNode = { ...leaf, activeTabId: 't2' }
-    const { root } = removeTab(withActive, 't2')
+describe('finding panes and sessions', () => {
+  const tree = () => {
+    const a = makeLeaf('a')
+    const b = makeLeaf('b')
+    const c = makeLeaf('c')
+    let root = splitLeaf(a, a.id, 'row', b)
+    root = splitLeaf(root, b.id, 'col', c)
+    return { a, b, c, root }
+  }
 
-    const next = findLeaf(root!, leaf.id)!
-    expect(next.tabIds).toEqual(['t1', 't3'])
-    expect(next.activeTabId).toBe('t3')
+  it('finds the pane showing a session anywhere in the tree', () => {
+    const { c, root } = tree()
+    expect(findLeafOfTab(root, 'c')!.id).toBe(c.id)
+    expect(findLeafOfTab(root, 'nope')).toBeNull()
   })
 
-  it('activates the previous tab when the last one is removed', () => {
-    const leaf: LayoutNode = { ...leafWith('t1', 't2'), activeTabId: 't2' }
-    const { root } = removeTab(leaf, 't2')
-    expect(findLeaf(root!, leaf.id)!.activeTabId).toBe('t1')
+  it('lists sessions in rendering order and starts from the first pane', () => {
+    const { a, root } = tree()
+    expect(allTabIds(root)).toEqual(['a', 'b', 'c'])
+    expect(firstPaneId(root)).toBe(a.id)
   })
 
-  it('leaves the active tab alone when another one is removed', () => {
-    const leaf: LayoutNode = { ...leafWith('t1', 't2', 't3'), activeTabId: 't3' }
-    const { root } = removeTab(leaf, 't1')
-    expect(findLeaf(root!, leaf.id)!.activeTabId).toBe('t3')
-  })
-
-  it('keeps the last pane alive but empty', () => {
-    const leaf = leafWith('t1')
-    const { root, removedPaneId } = removeTab(leaf, 't1')
-
-    expect(removedPaneId).toBeNull()
-    expect(allLeaves(root!)).toHaveLength(1)
-    expect(allLeaves(root!)[0].tabIds).toEqual([])
-    expect(allLeaves(root!)[0].activeTabId).toBeNull()
-  })
-
-  it('collapses an emptied pane when siblings remain', () => {
-    const a = leafWith('t1')
-    const b = leafWith('t2')
-    const root = splitLeaf(a, a.id, 'row', b)
-    const { root: next, removedPaneId } = removeTab(root, 't2')
-
-    expect(removedPaneId).toBe(b.id)
-    // The split degenerates back to the surviving leaf.
-    expect(next!.type).toBe('leaf')
-    expect(allLeaves(next!)[0].tabIds).toEqual(['t1'])
-  })
-})
-
-describe('moveTab', () => {
-  it('reorders within the same pane', () => {
-    const leaf = leafWith('t1', 't2', 't3')
-    const root = moveTab(leaf, 't3', leaf.id, 0)
-    expect(findLeaf(root, leaf.id)!.tabIds).toEqual(['t3', 't1', 't2'])
-  })
-
-  it('moves between panes and focuses the tab in its new home', () => {
-    const a = leafWith('t1', 't2')
-    const b = leafWith('t3')
-    const root = splitLeaf(a, a.id, 'row', b)
-    const next = moveTab(root, 't1', b.id, 0)
-
-    expect(findLeaf(next, a.id)!.tabIds).toEqual(['t2'])
-    const target = findLeaf(next, b.id)!
-    expect(target.tabIds).toEqual(['t1', 't3'])
-    expect(target.activeTabId).toBe('t1')
-  })
-
-  it('refuses a move that would collapse the target pane away', () => {
-    const a = leafWith('t1')
-    const b = leafWith('t2')
-    const root = splitLeaf(a, a.id, 'row', b)
-    // Emptying `a` removes it; `b` survives, so this move is fine.
-    const ok = moveTab(root, 't1', b.id, 0)
-    expect(findLeafOfTab(ok, 't1')!.id).toBe(b.id)
-
-    // Moving a pane's only tab into itself is a no-op, not a collapse.
-    const same = moveTab(a, 't1', a.id, 0)
-    expect(findLeaf(same, a.id)!.tabIds).toEqual(['t1'])
+  it('knows which splits and panes a tree contains', () => {
+    const { c, root } = tree()
+    expect(containsNode(root, root.id)).toBe(true)
+    expect(containsNode(root, c.id)).toBe(true)
+    expect(containsNode(root, 'elsewhere')).toBe(false)
   })
 })
 
 describe('removeLeaf', () => {
   it('returns null when the last pane is removed', () => {
-    const a = leafWith('t1')
+    const a = makeLeaf('t1')
     expect(removeLeaf(a, a.id)).toBeNull()
   })
 
+  it('collapses the split when one pane is left', () => {
+    const a = makeLeaf('t1')
+    const b = makeLeaf('t2')
+    const next = removeLeaf(splitLeaf(a, a.id, 'row', b), b.id)!
+    expect(next).toEqual(a)
+    expect(allLeaves(next)).toHaveLength(1)
+  })
+
   it('redistributes sizes across the survivors', () => {
-    const a = leafWith('a')
-    const b = leafWith('b')
-    const c = leafWith('c')
+    const a = makeLeaf('a')
+    const b = makeLeaf('b')
+    const c = makeLeaf('c')
     let root = splitLeaf(a, a.id, 'row', b)
     root = splitLeaf(root, b.id, 'row', c)
     const next = removeLeaf(root, b.id) as SplitNode
@@ -198,8 +155,8 @@ describe('removeLeaf', () => {
 
 describe('resizeSplit', () => {
   it('normalises the fractions it is given', () => {
-    const a = leafWith('a')
-    const b = leafWith('b')
+    const a = makeLeaf('a')
+    const b = makeLeaf('b')
     const root = splitLeaf(a, a.id, 'row', b) as SplitNode
     const next = resizeSplit(root, root.id, [3, 1]) as SplitNode
 

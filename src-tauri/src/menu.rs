@@ -101,8 +101,10 @@ pub fn build<R: Runtime>(app: &AppHandle<R>, labels: HashMap<String, String>) ->
     let new_browser = MenuItemBuilder::with_id("new-tab-browser", l.get("menu.newBrowser"))
         .accelerator("CmdOrCtrl+Shift+B")
         .build(app)?;
+    // ⌘W closes the focused pane — the whole tab when it is not split — and
+    // ⇧⌘W the tab with every pane in it.
     let close_tab = MenuItemBuilder::with_id("close-tab", l.get("menu.closeTab"))
-        .accelerator("CmdOrCtrl+W")
+        .accelerator("CmdOrCtrl+Shift+W")
         .build(app)?;
 
     let find = MenuItemBuilder::with_id("find", l.get("menu.find"))
@@ -131,7 +133,7 @@ pub fn build<R: Runtime>(app: &AppHandle<R>, labels: HashMap<String, String>) ->
         .accelerator("CmdOrCtrl+Shift+D")
         .build(app)?;
     let close_pane = MenuItemBuilder::with_id("close-pane", l.get("menu.closePane"))
-        .accelerator("CmdOrCtrl+Shift+W")
+        .accelerator("CmdOrCtrl+W")
         .build(app)?;
     let next_tab = MenuItemBuilder::with_id("next-tab", l.get("menu.nextTab"))
         .accelerator("Ctrl+Tab")
@@ -203,6 +205,7 @@ pub fn build<R: Runtime>(app: &AppHandle<R>, labels: HashMap<String, String>) ->
         .item(&new_terminal)
         .item(&new_browser)
         .separator()
+        .item(&close_pane)
         .item(&close_tab);
     #[cfg(not(target_os = "macos"))]
     {
@@ -232,7 +235,6 @@ pub fn build<R: Runtime>(app: &AppHandle<R>, labels: HashMap<String, String>) ->
         .separator()
         .item(&split_right)
         .item(&split_down)
-        .item(&close_pane)
         .separator()
         .item(&next_tab)
         .item(&prev_tab)

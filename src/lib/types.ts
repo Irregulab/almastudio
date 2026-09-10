@@ -79,11 +79,11 @@ export const isTerminalTab = (t: Tab): t is TerminalTab =>
 
 // --------------------------------------------------------------- layout ----
 
+/** A pane: one session, tiled beside the others in its tab. */
 export interface LeafNode {
   type: 'leaf'
   id: string
-  tabIds: string[]
-  activeTabId: string | null
+  tabId: string
 }
 
 export interface SplitNode {
@@ -108,9 +108,21 @@ export interface PanelState {
   pinnedRoot: string | null
 }
 
-export interface ProjectWorkspace {
+/**
+ * A top-level tab. It shows one session, or several tiled side by side once it
+ * has been split; splitting it leaves every other tab as it was.
+ */
+export interface TabGroup {
+  id: string
   layout: LayoutNode
+  /** The pane with focus inside this tab. */
   activePaneId: string
+}
+
+export interface ProjectWorkspace {
+  /** Top-level tabs in strip order. The sessions they show live in `WorkspaceState.tabs`. */
+  groups: TabGroup[]
+  activeGroupId: string | null
   panel: PanelState
 }
 

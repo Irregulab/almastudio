@@ -20,14 +20,15 @@ import { useWorkspace } from '../store/workspace'
 export type DropZone = 'center' | 'left' | 'right' | 'top' | 'bottom'
 
 export type DragItem =
+  /** A tab from the strip; `id` is its group. */
   | { kind: 'tab'; id: string; label: string }
   | { kind: 'project'; id: string; index: number; label: string }
 
 export type DropTarget =
-  /** Between two chips of a tab strip; `index` is the insertion point. */
-  | { kind: 'tab-slot'; paneId: string; index: number }
-  /** Over a pane's body: the centre moves the tab in, an edge splits. */
-  | { kind: 'pane'; paneId: string; zone: DropZone; count: number }
+  /** Between two chips of the tab strip; `index` is the insertion point. */
+  | { kind: 'tab-slot'; index: number }
+  /** Over a pane: an edge puts the tab's focused session beside it; the centre does nothing. */
+  | { kind: 'pane'; paneId: string; zone: DropZone }
   /** Between two rows of the project list. */
   | { kind: 'project-slot'; index: number }
 
@@ -86,17 +87,16 @@ function targetAt(item: DragItem, x: number, y: number): DropTarget | null {
   if (chip) {
     const r = chip.getBoundingClientRect()
     const index = Number(chip.dataset.index) + (x < r.left + r.width / 2 ? 0 : 1)
-    return { kind: 'tab-slot', paneId: chip.dataset.paneId!, index }
+    return { kind: 'tab-slot', index }
   }
   const bar = el.closest<HTMLElement>('[data-drop-tabbar]')
-  if (bar) return { kind: 'tab-slot', paneId: bar.dataset.paneId!, index: Number(bar.dataset.count) }
+  if (bar) return { kind: 'tab-slot', index: Number(bar.dataset.count) }
   const pane = el.closest<HTMLElement>('[data-drop-pane]')
   if (pane) {
     return {
       kind: 'pane',
       paneId: pane.dataset.paneId!,
       zone: zoneAt(x, y, pane.getBoundingClientRect()),
-      count: Number(pane.dataset.count),
     }
   }
   return null
@@ -109,14 +109,12 @@ function commit(item: DragItem, target: DropTarget) {
     return
   }
   if (target.kind === 'tab-slot') {
-    ws.moveTab(item.id, target.paneId, target.index)
-  } else if (target.kind === 'pane') {
-    if (target.zone === 'center') {
-      ws.moveTab(item.id, target.paneId, target.count)
-      return
-    }
+    const groups = ws.activeProjectId ? ws.workspaces[ws.activeProjectId]?.groups : undefined
+    const from = groups?.findIndex((g) => g.id === item.id) ?? -1
+    if (from >= 0) ws.moveGroup(from, target.index)
+  } else if (target.kind === 'pane' && target.zone !== 'center') {
     const dir = target.zone === 'left' || target.zone === 'right' ? 'row' : 'col'
-    ws.dropTabIntoSplit(item.id, target.paneId, dir, target.zone === 'left' || target.zone === 'top')
+    ws.dropGroupIntoSplit(item.id, target.paneId, dir, target.zone === 'left' || target.zone === 'top')
   }
 }
 

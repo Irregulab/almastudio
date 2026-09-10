@@ -18,6 +18,17 @@ release cannot be cut without one — see `docs/UPDATES.md`.
   previews follow unsaved edits; HTML pages render from the saved file with
   their stylesheets and images, and with scripts switched off.
 
+### Changed
+
+- Splits belong to a tab. Split Right and Split Down divide only the tab in
+  front, and every other tab stays full screen. Each pane runs one session
+  under a small header of its own, and a new pane starts the same kind of
+  session in the same folder. Drag a tab onto a pane's edge to put it beside
+  it, or use Move to New Tab to take a pane out again.
+- ⌘W closes the focused pane (the tab, when it is not split); ⇧⌘W closes the
+  whole tab.
+- Existing layouts open with every session as a tab of its own.
+
 ## [1.0.5] - 2026-09-10
 
 ### Fixed

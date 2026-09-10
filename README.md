@@ -17,9 +17,9 @@ of blocked threads — no Electron, no per-tab browser process.
   open in a viewer; Markdown, HTML and SVG files preview beside their source.
   Dropping files
   from Finder onto a terminal tab types their paths into it. Opening a tab starts it immediately; only tabs
-  restored from a previous run consult the auto-start setting. Split panes
-  horizontally and vertically; drag a tab onto another pane's centre to move it
-  there, or onto an edge to split that pane and drop it into the new half.
+  restored from a previous run consult the auto-start setting. Split a tab
+  horizontally or vertically — the split belongs to that tab, so every other
+  tab stays full screen — and drag a tab onto a pane's edge to put it beside it.
 - **Right panel** — three views: changed files, the full file tree, and git
   (branch, staging, commit, history, branch switching). Clicking a changed file
   opens its diff as a tab in the main area. Point a project at a folder full of

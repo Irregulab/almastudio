@@ -1,16 +1,23 @@
 import { Fragment, useRef } from 'react'
 import { useWorkspace } from '../store/workspace'
 import { isSplit } from '../lib/layout'
-import type { LayoutNode, SplitNode } from '../lib/types'
+import type { LayoutNode, SplitNode, TabGroup } from '../lib/types'
 import { Pane } from './Pane'
 
 const MIN_FRACTION = 0.12
 
-export function TileNode({ node }: { node: LayoutNode }) {
-  return isSplit(node) ? <Split node={node} /> : <Pane leaf={node} />
+/** One tab's tiling tree. `visible` is whether that tab is the one in front. */
+export function TileNode({
+  node, group, visible,
+}: { node: LayoutNode; group: TabGroup; visible: boolean }) {
+  return isSplit(node) ? (
+    <Split node={node} group={group} visible={visible} />
+  ) : (
+    <Pane leaf={node} group={group} visible={visible} />
+  )
 }
 
-function Split({ node }: { node: SplitNode }) {
+function Split({ node, group, visible }: { node: SplitNode; group: TabGroup; visible: boolean }) {
   const resizeSplit = useWorkspace((s) => s.resizeSplit)
   const hostRef = useRef<HTMLDivElement>(null)
 
@@ -66,7 +73,7 @@ function Split({ node }: { node: SplitNode }) {
             className="tile"
             style={{ flexBasis: `${(node.sizes[i] ?? 1 / node.children.length) * 100}%` }}
           >
-            <TileNode node={child} />
+            <TileNode node={child} group={group} visible={visible} />
           </div>
           {i < node.children.length - 1 && (
             <div

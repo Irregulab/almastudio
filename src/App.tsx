@@ -14,7 +14,7 @@ import { useApplyTheme } from './hooks/useTheme'
 import { useMenuActions } from './hooks/useMenuActions'
 import { useFileDrop } from './hooks/useFileDrop'
 import { ProjectIcon, Sidebar } from './components/Sidebar'
-import { TileNode } from './components/Tiles'
+import { Workspace } from './components/Workspace'
 import { RightPanel } from './components/RightPanel'
 import { SettingsPanel } from './components/SettingsPanel'
 import { UpdateWatcher } from './components/Updater'
@@ -102,8 +102,9 @@ export default function App() {
   // project's, and whatever the active tab is working in.
   const tabRoot = useMemo(() => {
     if (!ws) return null
-    const pane = findLeaf(ws.layout, ws.activePaneId)
-    const active = pane?.activeTabId ? tabs[pane.activeTabId] : undefined
+    const group = ws.groups.find((g) => g.id === ws.activeGroupId)
+    const pane = group ? findLeaf(group.layout, group.activePaneId) : null
+    const active = pane ? tabs[pane.tabId] : undefined
     if (!active) return null
     if (isTerminalTab(active)) return active.cwd
     if (active.kind === 'diff' || active.kind === 'file') return active.root
@@ -184,7 +185,7 @@ export default function App() {
         <div className="app__work">
           <div className="app__tiles">
             {project && ws ? (
-              <TileNode node={ws.layout} />
+              <Workspace projectId={project.id} />
             ) : (
               <div className="empty">
                 <div style={{ fontWeight: 600 }}>{t('sidebar.noProjects')}</div>

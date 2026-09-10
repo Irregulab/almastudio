@@ -1,20 +1,15 @@
-/** Immutable operations on the tiling tree.
+/** Immutable operations on the tiling tree inside a tab.
  *
  * The tree alternates between splits (row/col with fractional sizes) and
- * leaves (a pane holding an ordered list of tabs). Every operation returns a
- * new tree, then `normalize` collapses the degenerate shapes those operations
- * can produce — one-child splits and nested splits sharing a direction — so
- * the tree never accumulates invisible structure over a long session. */
+ * leaves (a pane showing one session). Every operation returns a new tree,
+ * then `normalize` collapses the degenerate shapes those operations can
+ * produce — one-child splits and nested splits sharing a direction — so the
+ * tree never accumulates invisible structure over a long session. */
 
 import type { LayoutNode, LeafNode, SplitNode } from './types'
 import { uid } from './id'
 
-export const makeLeaf = (tabIds: string[] = [], activeTabId: string | null = null): LeafNode => ({
-  type: 'leaf',
-  id: uid('pane'),
-  tabIds,
-  activeTabId: activeTabId ?? tabIds[0] ?? null,
-})
+export const makeLeaf = (tabId: string): LeafNode => ({ type: 'leaf', id: uid('pane'), tabId })
 
 export const isLeaf = (n: LayoutNode): n is LeafNode => n.type === 'leaf'
 export const isSplit = (n: LayoutNode): n is SplitNode => n.type === 'split'
@@ -33,22 +28,22 @@ export function findLeaf(node: LayoutNode, id: string): LeafNode | null {
 }
 
 export function findLeafOfTab(node: LayoutNode, tabId: string): LeafNode | null {
-  return allLeaves(node).find((l) => l.tabIds.includes(tabId)) ?? null
+  return allLeaves(node).find((l) => l.tabId === tabId) ?? null
 }
 
+/** The sessions a tree shows, in rendering order. */
 export function allTabIds(node: LayoutNode): string[] {
-  return allLeaves(node).flatMap((l) => l.tabIds)
+  return allLeaves(node).map((l) => l.tabId)
 }
 
-/** Replaces one leaf in place, leaving the rest of the tree untouched. */
-export function updateLeaf(
-  node: LayoutNode,
-  id: string,
-  fn: (leaf: LeafNode) => LeafNode,
-): LayoutNode {
-  if (isLeaf(node)) return node.id === id ? fn(node) : node
-  return { ...node, children: node.children.map((c) => updateLeaf(c, id, fn)) }
+/** True when `id` names a split or a pane anywhere in the tree. */
+export function containsNode(node: LayoutNode, id: string): boolean {
+  return node.id === id || (isSplit(node) && node.children.some((c) => containsNode(c, id)))
 }
+
+/** The first pane in rendering order. */
+export const firstPaneId = (node: LayoutNode): string =>
+  isLeaf(node) ? node.id : firstPaneId(node.children[0])
 
 /** Flattens one-child splits and merges nested splits of the same direction. */
 export function normalize(node: LayoutNode): LayoutNode {
@@ -131,70 +126,6 @@ export function removeLeaf(root: LayoutNode, leafId: string): LayoutNode | null 
   return next ? normalize(next) : null
 }
 
-/** Removes a tab from whichever pane holds it, dropping the pane if it empties. */
-export function removeTab(
-  root: LayoutNode,
-  tabId: string,
-): { root: LayoutNode | null; removedPaneId: string | null } {
-  const leaf = findLeafOfTab(root, tabId)
-  if (!leaf) return { root, removedPaneId: null }
-
-  const remaining = leaf.tabIds.filter((id) => id !== tabId)
-  if (remaining.length === 0) {
-    // Never dissolve the last pane — an empty workspace still needs somewhere
-    // for the next tab to land.
-    if (allLeaves(root).length === 1) {
-      return {
-        root: updateLeaf(root, leaf.id, (l) => ({ ...l, tabIds: [], activeTabId: null })),
-        removedPaneId: null,
-      }
-    }
-    return { root: removeLeaf(root, leaf.id), removedPaneId: leaf.id }
-  }
-
-  const wasActive = leaf.activeTabId === tabId
-  const idx = leaf.tabIds.indexOf(tabId)
-  const nextActive = wasActive
-    ? remaining[Math.min(idx, remaining.length - 1)]
-    : leaf.activeTabId
-  return {
-    root: updateLeaf(root, leaf.id, (l) => ({ ...l, tabIds: remaining, activeTabId: nextActive })),
-    removedPaneId: null,
-  }
-}
-
-/** Moves a tab into `targetPaneId` at `index`, collapsing an emptied source. */
-export function moveTab(
-  root: LayoutNode,
-  tabId: string,
-  targetPaneId: string,
-  index: number,
-): LayoutNode {
-  const source = findLeafOfTab(root, tabId)
-  if (!source) return root
-
-  if (source.id === targetPaneId) {
-    const without = source.tabIds.filter((id) => id !== tabId)
-    const at = Math.max(0, Math.min(index, without.length))
-    without.splice(at, 0, tabId)
-    return updateLeaf(root, source.id, (l) => ({ ...l, tabIds: without, activeTabId: tabId }))
-  }
-
-  const detached = removeTab(root, tabId)
-  let next = detached.root
-  if (!next) return root
-  // The target pane may have been collapsed away with the emptied source.
-  if (!findLeaf(next, targetPaneId)) return root
-
-  next = updateLeaf(next, targetPaneId, (l) => {
-    const ids = [...l.tabIds]
-    const at = Math.max(0, Math.min(index, ids.length))
-    ids.splice(at, 0, tabId)
-    return { ...l, tabIds: ids, activeTabId: tabId }
-  })
-  return normalize(next)
-}
-
 /** Applies new fractional sizes to one split. */
 export function resizeSplit(root: LayoutNode, splitId: string, sizes: number[]): LayoutNode {
   const walk = (node: LayoutNode): LayoutNode => {
@@ -206,9 +137,4 @@ export function resizeSplit(root: LayoutNode, splitId: string, sizes: number[]):
     return { ...node, children: node.children.map(walk) }
   }
   return walk(root)
-}
-
-/** Pane order as rendered, used by "next / previous pane" navigation. */
-export function paneOrder(root: LayoutNode): string[] {
-  return allLeaves(root).map((l) => l.id)
 }

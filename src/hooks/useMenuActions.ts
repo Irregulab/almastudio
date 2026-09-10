@@ -9,7 +9,7 @@ import { useSettings } from '../store/settings'
 import { useUi } from '../store/ui'
 import { useWorkspace } from '../store/workspace'
 import { checkForUpdates } from '../components/Updater'
-import { findLeaf, findLeafOfTab, paneOrder } from '../lib/layout'
+import { findLeaf } from '../lib/layout'
 import type { HarnessKind } from '../lib/types'
 
 const DOCS_URL = 'https://almaware.net/almastudio/docs'
@@ -20,12 +20,13 @@ export function useMenuActions() {
   useEffect(() => {
     let unlisten: (() => void) | undefined
 
-    const activePane = () => {
+    /** The active project's workspace, the tab in front, and its focused pane. */
+    const front = () => {
       const s = useWorkspace.getState()
-      if (!s.activeProjectId) return null
-      const ws = s.workspaces[s.activeProjectId]
-      if (!ws) return null
-      return findLeaf(ws.layout, ws.activePaneId) ?? null
+      const ws = s.activeProjectId ? s.workspaces[s.activeProjectId] : undefined
+      const group = ws?.groups.find((g) => g.id === ws.activeGroupId)
+      const pane = group ? findLeaf(group.layout, group.activePaneId) : null
+      return { ws, group, pane }
     }
 
     const newTab = async (kind: HarnessKind, pick = false) => {
@@ -42,11 +43,11 @@ export function useMenuActions() {
     }
 
     const cycleTab = (delta: number) => {
-      const pane = activePane()
-      if (!pane || pane.tabIds.length < 2) return
-      const i = pane.tabIds.indexOf(pane.activeTabId ?? pane.tabIds[0])
-      const next = (i + delta + pane.tabIds.length) % pane.tabIds.length
-      useWorkspace.getState().setActiveTab(pane.id, pane.tabIds[next])
+      const { ws } = front()
+      if (!ws || ws.groups.length < 2) return
+      const i = Math.max(0, ws.groups.findIndex((g) => g.id === ws.activeGroupId))
+      const next = ws.groups[(i + delta + ws.groups.length) % ws.groups.length]
+      useWorkspace.getState().setActiveGroup(next.id)
     }
 
     const setPanel = (patch: Parameters<
@@ -107,23 +108,25 @@ export function useMenuActions() {
           case 'new-tab-browser':
             if (s.activeProjectId) s.openBrowserTab({ projectId: s.activeProjectId })
             break
+          // ⇧⌘W: the whole tab, every pane in it.
           case 'close-tab': {
-            const pane = activePane()
-            if (pane?.activeTabId) s.closeTab(pane.activeTabId)
+            const { group } = front()
+            if (group) s.closeGroup(group.id)
             break
           }
+          // ⌘W: the focused pane — which is the whole tab when it is not split.
           case 'close-pane': {
-            const pane = activePane()
-            if (pane) s.closePane(pane.id)
+            const { pane } = front()
+            if (pane) s.closeTab(pane.tabId)
             break
           }
           case 'split-right': {
-            const pane = activePane()
+            const { pane } = front()
             if (pane) s.splitPane(pane.id, 'row')
             break
           }
           case 'split-down': {
-            const pane = activePane()
+            const { pane } = front()
             if (pane) s.splitPane(pane.id, 'col')
             break
           }
@@ -165,5 +168,3 @@ export function useMenuActions() {
     }
   }, [])
 }
-
-export { findLeafOfTab, paneOrder }
