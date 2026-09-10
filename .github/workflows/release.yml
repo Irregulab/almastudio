@@ -14,7 +14,20 @@ env:
   UPDATE_BASE_URL: https://almaware.net/almastudio/updates/stable
 
 jobs:
+  notes:
+    # Fails in seconds, before anything is built, when the version has no
+    # CHANGELOG.md section: every release ships with its notes.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check CHANGELOG.md covers this version
+        run: |
+          V="${{ github.event.inputs.version }}"
+          [ -n "$V" ] || V="${GITHUB_REF_NAME#v}"
+          node scripts/changelog-section.mjs "$V" > /dev/null
+
   build:
+    needs: notes
     strategy:
       fail-fast: false
       matrix:
@@ -117,13 +130,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    # Promoted to job level so the optional deploy step can test them in its
-    # `if`: a step's own `env` block is not visible to its own condition.
-    env:
-      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-      DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
-      DEPLOY_PORT: ${{ secrets.DEPLOY_PORT }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -140,12 +146,18 @@ jobs:
           echo "version=$V" >> "$GITHUB_OUTPUT"
           echo "Publishing $V"
 
+      - name: Release notes from CHANGELOG.md
+        run: |
+          node scripts/changelog-section.mjs "${{ steps.v.outputs.version }}" > release-notes.md
+          # The in-app updater shows its notes as plain text, not Markdown.
+          sed -E 's/^#{1,6} //' release-notes.md > updater-notes.txt
+
       - name: Build latest.json
         id: manifest
         continue-on-error: true
         run: |
           node scripts/make-latest-json.mjs \
-            artifacts "${{ steps.v.outputs.version }}" "$UPDATE_BASE_URL"
+            artifacts "${{ steps.v.outputs.version }}" "$UPDATE_BASE_URL" updater-notes.txt
 
       - name: Gather release assets
         id: assets
@@ -171,7 +183,9 @@ jobs:
         run: |
           set -euo pipefail
           V="${{ steps.v.outputs.version }}"
-          NOTES=$(cat <<'EOT'
+          INSTALL=$(cat <<'EOT'
+          ### Downloads
+
           Installers for macOS (Apple silicon and Intel), Windows and Linux.
 
           | Platform | File |
@@ -188,6 +202,8 @@ jobs:
           manual installation.
           EOT
           )
+          # The version's changelog first, then how to install it.
+          NOTES="$(cat release-notes.md)"$'\n\n'"$INSTALL"
           # --verify-tag only makes sense for a tag-triggered run; a manual
           # re-publish has no tag to verify against.
           VERIFY=""
@@ -195,6 +211,7 @@ jobs:
 
           if gh release view "v$V" >/dev/null 2>&1; then
             gh release upload "v$V" release/* --clobber
+            gh release edit "v$V" --notes "$NOTES"
           else
             # shellcheck disable=SC2086
             gh release create "v$V" release/* \
@@ -202,28 +219,6 @@ jobs:
               --notes "$NOTES" \
               $VERIFY
           fi
-
-      - name: Deploy to almaware.net
-        # Optional: skipped entirely when the deploy secrets are not set, so a
-        # GitHub-only release still succeeds.
-        if: ${{ env.DEPLOY_HOST != '' }}
-        env:
-          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-        run: |
-          set -euo pipefail
-          install -m 700 -d ~/.ssh
-          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy
-          chmod 600 ~/.ssh/deploy
-          ssh-keyscan -p "${DEPLOY_PORT:-22}" -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
-
-          # Upload the new binaries before the manifest, so a client that polls
-          # mid-deploy never sees a latest.json pointing at a missing file.
-          rsync -av -e "ssh -i ~/.ssh/deploy -p ${DEPLOY_PORT:-22}" \
-            artifacts/_publish/files/ \
-            "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/files/"
-          rsync -av -e "ssh -i ~/.ssh/deploy -p ${DEPLOY_PORT:-22}" \
-            artifacts/_publish/latest.json \
-            "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/latest.json"
 
       - name: Summary
         run: |
@@ -238,10 +233,9 @@ jobs:
           else
             echo "No updater manifest: signing was not configured for this build." >> $GITHUB_STEP_SUMMARY
           fi
-          # The in-app updater only reads almaware.net (the repository is
-          # private), so a skipped deploy leaves every client on the old version.
-          if [ -z "$DEPLOY_HOST" ]; then
-            echo "::warning::Not deployed: DEPLOY_HOST is not set, so the in-app updater will not see this release."
+          # Nothing is pushed from here: GitHub's runners cannot reach the
+          # hosting server's SSH, so the server pulls the release instead.
+          if [ -f artifacts/_publish/latest.json ]; then
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "**Not deployed to almaware.net**: the in-app updater will not see this release." >> $GITHUB_STEP_SUMMARY
+            echo "almaware.net picks this release up within five minutes: the hosting server mirrors the latest GitHub release (see docs/UPDATES.md)." >> $GITHUB_STEP_SUMMARY
           fi
