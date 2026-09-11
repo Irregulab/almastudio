@@ -1,132 +1,25 @@
 name: Release
 
-# Tag a version to cut a release:  git tag v0.2.0 && git push --tags
+# Bundles are no longer built here. scripts/release-build.sh builds and signs
+# every platform on a Mac, uploads them to a draft release and pushes the tag;
+# this workflow only takes that draft live — release notes from CHANGELOG.md,
+# the updater manifest, publishing — in about a minute on a Linux runner.
+# Building all four platforms here, macOS minutes at ten times the rate, ran
+# through the organisation's Actions allowance.
+#
+# scripts/publish-release.sh does the work, so the same step can be run by
+# hand when Actions is unavailable. See docs/UPDATES.md.
 on:
   push:
     tags: ['v*']
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to build (without the leading v)'
+        description: 'Version to publish (without the leading v)'
         required: true
 
-env:
-  UPDATE_BASE_URL: https://almaware.net/almastudio/updates/stable
-
 jobs:
-  notes:
-    # Fails in seconds, before anything is built, when the version has no
-    # CHANGELOG.md section: every release ships with its notes.
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Check CHANGELOG.md covers this version
-        run: |
-          V="${{ github.event.inputs.version }}"
-          [ -n "$V" ] || V="${GITHUB_REF_NAME#v}"
-          node scripts/changelog-section.mjs "$V" > /dev/null
-
-  build:
-    needs: notes
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { os: macos-latest,  target: aarch64-apple-darwin,      label: darwin-aarch64 }
-          - { os: macos-latest,  target: x86_64-apple-darwin,       label: darwin-x86_64 }
-          - { os: ubuntu-22.04,  target: x86_64-unknown-linux-gnu,  label: linux-x86_64 }
-          - { os: windows-latest, target: x86_64-pc-windows-msvc,   label: windows-x86_64 }
-
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Linux build dependencies
-        if: matrix.os == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf \
-            build-essential curl wget file libssl-dev libgtk-3-dev libxdo-dev
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
-
-      - uses: swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri -> target
-          key: ${{ matrix.target }}
-
-      - run: npm ci
-
-      - name: Build and sign
-        shell: bash
-        env:
-          # Generated with `npm run tauri signer generate`. The public half
-          # lives in tauri.conf.json; without these the updater artifacts are
-          # unsigned and clients will refuse them.
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          # Apple credentials are read from these staging names and only
-          # exported under the names Tauri looks for when they are non-empty.
-          # An unset secret interpolates to an empty string, and Tauri treats a
-          # defined-but-empty APPLE_CERTIFICATE as "sign this", then fails in
-          # `security import` with an unhelpful parameter error.
-          IN_APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          IN_APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          IN_APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          IN_APPLE_ID: ${{ secrets.APPLE_ID }}
-          IN_APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          IN_APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: |
-          set -eu
-          if [ -n "${IN_APPLE_CERTIFICATE:-}" ]; then
-            echo "Apple certificate present: signing and notarising."
-            export APPLE_CERTIFICATE="$IN_APPLE_CERTIFICATE"
-            export APPLE_CERTIFICATE_PASSWORD="${IN_APPLE_CERTIFICATE_PASSWORD:-}"
-            [ -n "${IN_APPLE_SIGNING_IDENTITY:-}" ] && \
-              export APPLE_SIGNING_IDENTITY="$IN_APPLE_SIGNING_IDENTITY"
-            [ -n "${IN_APPLE_ID:-}" ] && export APPLE_ID="$IN_APPLE_ID"
-            [ -n "${IN_APPLE_PASSWORD:-}" ] && export APPLE_PASSWORD="$IN_APPLE_PASSWORD"
-            [ -n "${IN_APPLE_TEAM_ID:-}" ] && export APPLE_TEAM_ID="$IN_APPLE_TEAM_ID"
-          else
-            echo "No Apple certificate configured: building unsigned."
-          fi
-          npm run tauri build -- --target ${{ matrix.target }}
-
-      - name: Collect artifacts
-        shell: bash
-        run: |
-          mkdir -p out
-          base="src-tauri/target/${{ matrix.target }}/release/bundle"
-          # Updater bundles plus their detached signatures. Tauri 2 signs the
-          # NSIS installer and the AppImage themselves (the files are copied
-          # with the installers below); only macOS gets a separate archive.
-          find "$base" -type f \( \
-            -name '*.app.tar.gz' -o -name '*.app.tar.gz.sig' -o \
-            -name '*-setup.exe.sig' -o -name '*.AppImage.sig' \
-          \) -exec cp {} out/ \;
-          # Human-installable packages.
-          find "$base" -type f \( \
-            -name '*.dmg' -o -name '*-setup.exe' -o -name '*.msi' -o \
-            -name '*.AppImage' -o -name '*.deb' -o -name '*.rpm' \
-          \) -exec cp {} out/ \;
-          ls -la out
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.label }}
-          path: out/
-          if-no-files-found: error
-
   publish:
-    needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -135,107 +28,8 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
 
-      - uses: actions/download-artifact@v4
-        with: { path: artifacts }
-
-      - name: Resolve version
-        id: v
-        run: |
-          V="${{ github.event.inputs.version }}"
-          [ -n "$V" ] || V="${GITHUB_REF_NAME#v}"
-          echo "version=$V" >> "$GITHUB_OUTPUT"
-          echo "Publishing $V"
-
-      - name: Release notes from CHANGELOG.md
-        run: |
-          node scripts/changelog-section.mjs "${{ steps.v.outputs.version }}" > release-notes.md
-          # The in-app updater shows its notes as plain text, not Markdown.
-          sed -E 's/^#{1,6} //' release-notes.md > updater-notes.txt
-
-      - name: Build latest.json
-        id: manifest
-        continue-on-error: true
-        run: |
-          node scripts/make-latest-json.mjs \
-            artifacts "${{ steps.v.outputs.version }}" "$UPDATE_BASE_URL" updater-notes.txt
-
-      - name: Gather release assets
-        id: assets
-        run: |
-          set -euo pipefail
-          mkdir -p release
-          # Installers people actually download.
-          find artifacts -type f \( \
-            -name '*.dmg' -o -name '*-setup.exe' -o -name '*.msi' -o \
-            -name '*.AppImage' -o -name '*.deb' -o -name '*.rpm' \
-          \) -exec cp {} release/ \;
-          # Signed updater bundles and signatures, under the unique names the
-          # manifest step gave them: both macOS slices are built as
-          # AlmaStudio.app.tar.gz. Absent when signing was not configured.
-          [ -d artifacts/_publish/files ] && cp artifacts/_publish/files/* release/ || true
-          [ -f artifacts/_publish/latest.json ] && cp artifacts/_publish/latest.json release/ || true
-          ls -la release
-          echo "count=$(find release -type f | wc -l | tr -d ' ')" >> "$GITHUB_OUTPUT"
-
-      - name: Publish GitHub release
+      - name: Publish the draft release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          V="${{ steps.v.outputs.version }}"
-          INSTALL=$(cat <<'EOT'
-          ### Downloads
-
-          Installers for macOS (Apple silicon and Intel), Windows and Linux.
-
-          | Platform | File |
-          |---|---|
-          | macOS | `.dmg` |
-          | Windows | `-setup.exe` |
-          | Linux | `.AppImage`, `.deb`, `.rpm` |
-
-          macOS builds are signed with Developer ID and notarised by Apple, so
-          they open without a Gatekeeper warning. Windows builds are unsigned
-          and SmartScreen will warn on first run.
-
-          `.app.tar.gz` and `.sig` files are for the in-app updater, not for
-          manual installation.
-          EOT
-          )
-          # The version's changelog first, then how to install it.
-          NOTES="$(cat release-notes.md)"$'\n\n'"$INSTALL"
-          # --verify-tag only makes sense for a tag-triggered run; a manual
-          # re-publish has no tag to verify against.
-          VERIFY=""
-          [ "${GITHUB_REF_TYPE:-}" = "tag" ] && VERIFY="--verify-tag"
-
-          if gh release view "v$V" >/dev/null 2>&1; then
-            gh release upload "v$V" release/* --clobber
-            gh release edit "v$V" --notes "$NOTES"
-          else
-            # shellcheck disable=SC2086
-            gh release create "v$V" release/* \
-              --title "AlmaStudio $V" \
-              --notes "$NOTES" \
-              $VERIFY
-          fi
-
-      - name: Summary
-        run: |
-          V="${{ steps.v.outputs.version }}"
-          echo "### AlmaStudio $V" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "${{ steps.assets.outputs.count }} asset(s) attached to the release." >> $GITHUB_STEP_SUMMARY
-          if [ -f artifacts/_publish/latest.json ]; then
-            echo '```json' >> $GITHUB_STEP_SUMMARY
-            cat artifacts/_publish/latest.json >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-          else
-            echo "No updater manifest: signing was not configured for this build." >> $GITHUB_STEP_SUMMARY
-          fi
-          # Nothing is pushed from here: GitHub's runners cannot reach the
-          # hosting server's SSH, so the server pulls the release instead.
-          if [ -f artifacts/_publish/latest.json ]; then
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "almaware.net picks this release up within five minutes: the hosting server mirrors the latest GitHub release (see docs/UPDATES.md)." >> $GITHUB_STEP_SUMMARY
-          fi
+          VERSION: ${{ github.event.inputs.version || github.ref_name }}
+        run: bash scripts/publish-release.sh "$VERSION"
