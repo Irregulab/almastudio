@@ -9,6 +9,8 @@ release cannot be cut without one — see `docs/UPDATES.md`.
 
 ## [Unreleased]
 
+## [1.0.9] - 2026-09-11
+
 ### Fixed
 
 - Scripts and tools run in AlmaStudio's terminals can use Calendar and
@@ -159,7 +161,8 @@ First release.
 - English and Italian.
 - Over-the-air updates.
 
-[Unreleased]: https://github.com/Irregulab/almastudio/compare/v1.0.8...HEAD
+[Unreleased]: https://github.com/Irregulab/almastudio/compare/v1.0.9...HEAD
+[1.0.9]: https://github.com/Irregulab/almastudio/compare/v1.0.8...v1.0.9
 [1.0.8]: https://github.com/Irregulab/almastudio/compare/v1.0.7...v1.0.8
 [1.0.7]: https://github.com/Irregulab/almastudio/compare/v1.0.6...v1.0.7
 [1.0.6]: https://github.com/Irregulab/almastudio/compare/v1.0.5...v1.0.6
