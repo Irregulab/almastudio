@@ -16,6 +16,11 @@ release cannot be cut without one — see `docs/UPDATES.md`.
   AlmaStudio did not declare it, so the request was refused without a prompt
   and AlmaStudio never appeared under Calendars or Reminders in System
   Settings. It now asks the first time, the way iTerm does.
+- A Claude Code tab no longer starts with its text out of place, with
+  `^[[I^[[?1;2c` near the top, until the window was resized. Replaying the
+  tab's previous output made the terminal answer the questions Claude Code
+  had asked of it last time, and the answers reached the new session as it
+  started, shifting everything it drew after them.
 
 ## [1.0.8] - 2026-09-10
 

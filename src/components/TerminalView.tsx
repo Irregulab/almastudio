@@ -23,6 +23,23 @@ import { useTheme } from '../hooks/useTheme'
 import { useT } from '../i18n'
 import type { TerminalTab } from '../lib/types'
 
+/**
+ * What returns a terminal to its default modes after it has replayed the
+ * output of a program that is no longer running. Otherwise the next program
+ * starts in whatever modes the old one left on: with focus reporting, say,
+ * every focus change sends `ESC [ I` into the new process, and a shell echoes
+ * it as `^[[I`. Unlike a full reset, this leaves the restored output on screen.
+ */
+function defaultModes(term: Terminal): string {
+  // Leaving the alternate screen also restores the cursor saved on entering
+  // it, which anywhere else would move the cursor, so only when it is on.
+  const altScreen = term.buffer.active.type === 'alternate' ? '\x1b[?1049l' : ''
+  // CAN abandons a sequence the old output was cut off in the middle of; then
+  // mouse reporting off, and a soft reset (DECSTR) for the rest: focus
+  // reporting, bracketed paste, cursor keys, a hidden cursor, scroll region.
+  return '\x18' + altScreen + '\x1b[?1000l\x1b[!p'
+}
+
 interface Props {
   tab: TerminalTab
   /** The tab is the visible one in its pane; hidden terminals stay alive. */
@@ -59,7 +76,7 @@ export function TerminalView({ tab, visible, focused }: Props) {
 
   // -------------------------------------------------------------- spawn ---
   const spawn = useCallback(
-    async (resume: boolean) => {
+    async (resume: boolean, keepScreen = false) => {
       const term = termRef.current
       if (!term || spawning.current) return
       spawning.current = true
@@ -67,7 +84,9 @@ export function TerminalView({ tab, visible, focused }: Props) {
         setNeedsStart(false)
         setTabStatus(tab.id, 'starting')
         writtenTo.current = 0
-        term.reset()
+        // A tab starting as it opens keeps the output restored from its last
+        // run above the separator; any other start begins on a clean screen.
+        if (!keepScreen) term.reset()
         // Which Claude conversation this tab is on, so it resumes its own.
         const claudeSession =
           tab.kind === 'claude' ? await claudeSessionFor(tab.id, resume) : undefined
@@ -159,6 +178,10 @@ export function TerminalView({ tab, visible, focused }: Props) {
     /** Batches that arrive while the snapshot is still loading. */
     const pending: Array<{ bytes: Uint8Array; end: number }> = []
     let ready = false
+    /** Restored output is being parsed; see onData. */
+    let replaying = false
+    /** Resolves once everything written so far has been parsed. */
+    const flushed = () => new Promise<void>((resolve) => term.write('', resolve))
 
     const writeBatch = (bytes: Uint8Array, end: number) => {
       const start = end - bytes.length
@@ -191,11 +214,27 @@ export function TerminalView({ tab, visible, focused }: Props) {
         const snap = await scrollbackLoad(tab.id)
         if (disposed) return
         if (snap.bytes.length) {
+          // Replayed output is parsed like live output, so the queries in it
+          // are answered again: Claude Code asks for the terminal's attributes
+          // as it starts. Those answers are held back (see onData), and the
+          // tab starts only once the replay is parsed — written just before a
+          // start, it used to be parsed after, and the answers reached the
+          // new process before it had turned echo off.
+          replaying = true
           term.write(snap.bytes)
-          if (snap.live) writtenTo.current = snap.end
-        }
-        if (!snap.live && snap.bytes.length) {
-          term.write('\r\n\x1b[2m' + '─'.repeat(Math.max(8, term.cols - 2)) + '\x1b[0m\r\n')
+          if (snap.live) {
+            writtenTo.current = snap.end
+          } else {
+            await flushed()
+            if (disposed) return
+            term.write(
+              defaultModes(term) +
+                '\r\n\x1b[2m' + '─'.repeat(Math.max(8, term.cols - 2)) + '\x1b[0m\r\n',
+            )
+          }
+          await flushed()
+          if (disposed) return
+          replaying = false
         }
       }
       ready = true
@@ -211,7 +250,7 @@ export function TerminalView({ tab, visible, focused }: Props) {
       // defers to the setting, since relaunching agents on every app start is
       // a decision the user should get to make.
       if (!tab.restored || settings.startup.autoStartTabs) {
-        await spawn(tab.resumeOnRestore)
+        await spawn(tab.resumeOnRestore, true)
         return
       }
       setNeedsStart(true)
@@ -241,6 +280,9 @@ export function TerminalView({ tab, visible, focused }: Props) {
     })
 
     const onData = term.onData((data) => {
+      // Answers to queries in replayed output: a program long gone asked
+      // them, and the one running now would take them for typed input.
+      if (replaying) return
       void ptyWrite(tab.id, data).catch(() => {})
     })
     const onResize = term.onResize(({ cols, rows }) => {
