@@ -97,24 +97,34 @@ fn app_info(app: tauri::AppHandle) -> AppInfo {
 fn ready(window: tauri::Window) {
     let _ = window.show();
     let _ = window.set_focus();
-    // After showing: only then is the window on its real display, so the
-    // size is converted with that display's scale.
-    if let Ok(size) = window.inner_size() {
-        fit_main_webview(window.app_handle(), size);
-    }
+    // Only once shown is the window on its real display, with the restored
+    // size in place — the plugin applies it asynchronously — and already
+    // narrowed by macOS if it was wider than the screen.
+    fit_to_screen(&window);
+    fit_main_webview(&window);
 }
 
-/// Sizes the main webview to fill its window.
+/// Sizes the main webview to fill its window as it is right now.
 ///
 /// With the `unstable` feature (needed for browser tabs) the main webview is a
-/// child that Tauri resizes itself, only on `Resized`, converting the window's
-/// pixel size with the scale factor current at that moment. A hidden window
-/// restored onto a display with a different scale still reports the scale of
-/// the display it was created on, so the webview was sized for the wrong one —
-/// half the window on a 1x monitor next to a Retina screen — and nothing
-/// corrected it when the real scale took over, until the user resized.
-fn fit_main_webview<R: tauri::Runtime>(app: &tauri::AppHandle<R>, size: PhysicalSize<u32>) {
-    if let Some(webview) = app.get_webview("main") {
+/// child view. Tauri keeps such a view at a fixed fraction of its window, and
+/// recomputes that fraction whenever it is given an explicit size — dividing
+/// by the window's size at that later moment. A size read a moment too early
+/// (the restored size before macOS narrowed a window wider than the screen,
+/// the old size across a scale change) made the fraction wrong for good: the
+/// page stayed wider than the window, cut off on the right, through every
+/// later resize. So Tauri's resizing is off for this webview (see `setup`) and
+/// this runs on every resize, scale change and focus, reading the size afresh.
+fn fit_main_webview<R: tauri::Runtime>(window: &tauri::Window<R>) {
+    let Some(webview) = window.app_handle().get_webview("main") else { return };
+    // On macOS the overlay title bar puts the content under it, so the frame
+    // is the content area — and the frame is what macOS itself constrains.
+    let size = if cfg!(target_os = "macos") {
+        window.outer_size()
+    } else {
+        window.inner_size()
+    };
+    if let Ok(size) = size {
         let _ = webview.set_size(size);
     }
 }
@@ -143,9 +153,12 @@ fn default_shell() -> String {
 /// sanity-checks the position, so a window last used on a large external
 /// display comes back taller than a laptop screen with its title bar off the
 /// top — unmovable and unresizable. This clamps the window to the current
-/// monitor's work area, and centres it when there was no saved geometry to
-/// restore in the first place.
-fn fit_to_screen(window: &tauri::WebviewWindow) {
+/// monitor's work area.
+///
+/// It runs once the window is shown. The plugin applies the restored size
+/// asynchronously, so from `setup` this still saw the configured size — and
+/// resizing to that, clamped, went on to replace the restored one.
+fn fit_to_screen<R: tauri::Runtime>(window: &tauri::Window<R>) {
     // A maximized or fullscreen window already fills the screen exactly;
     // clamping it would shave the margin off and break out of that state.
     if window.is_maximized().unwrap_or(false) || window.is_fullscreen().unwrap_or(false) {
@@ -323,9 +336,7 @@ pub fn run() {
         .setup(|app| {
             let handle = app.handle().clone();
             if let Some(window) = handle.get_webview_window("main") {
-                if has_saved_geometry(&handle) {
-                    fit_to_screen(&window);
-                } else {
+                if !has_saved_geometry(&handle) {
                     // First run: `center` was removed from the window config
                     // because it overrode the restored position, so centring
                     // happens here instead — only when there is nothing to
@@ -333,6 +344,10 @@ pub fn run() {
                     let _ = window.set_size(LogicalSize::new(1440.0, 900.0));
                     let _ = window.center();
                 }
+            }
+            // Sized by hand instead; see `fit_main_webview`.
+            if let Some(webview) = handle.get_webview("main") {
+                let _ = webview.set_auto_resize(false);
             }
             menu::build(&handle, HashMap::new())?;
             store::spawn_scrollback_flusher(handle.clone());
@@ -353,9 +368,9 @@ pub fn run() {
                         );
                         let _ = w.show();
                         let _ = w.set_focus();
-                        if let Ok(size) = w.inner_size() {
-                            fit_main_webview(&handle, size);
-                        }
+                        let window = w.as_ref().window();
+                        fit_to_screen(&window);
+                        fit_main_webview(&window);
                     }
                 }
             });
@@ -365,13 +380,19 @@ pub fn run() {
             menu::on_menu_event(app, event.id().as_ref());
         })
         .on_window_event(|window, event| {
-            // Tauri re-sizes the webview on `Resized` but not when the scale
-            // changes, e.g. when the window lands on or is dragged to a display
-            // with different scaling; see `fit_main_webview`.
-            if let WindowEvent::ScaleFactorChanged { new_inner_size, .. } = event {
-                if window.label() == "main" {
-                    fit_main_webview(window.app_handle(), *new_inner_size);
-                }
+            // The main webview follows its window by hand; see
+            // `fit_main_webview`. Focus is included so that a size which
+            // changed without a resize reaching us is put right as soon as
+            // the window is used again.
+            if window.label() == "main"
+                && matches!(
+                    event,
+                    WindowEvent::Resized(_)
+                        | WindowEvent::ScaleFactorChanged { .. }
+                        | WindowEvent::Focused(true)
+                )
+            {
+                fit_main_webview(window);
             }
             if matches!(event, WindowEvent::Moved(_) | WindowEvent::Resized(_)) {
                 if let Some(dirty) = window.app_handle().try_state::<GeometryDirty>() {

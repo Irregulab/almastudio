@@ -9,6 +9,15 @@ release cannot be cut without one — see `docs/UPDATES.md`.
 
 ## [Unreleased]
 
+### Fixed
+
+- The interface fits its window again. After the window had once been wider
+  than the screen, the app could open with everything laid out wider than
+  the window — the title off-centre, the right panel and its buttons cut off
+  — and resizing did not help. The page is now sized to the window as it
+  actually is, every time it changes, and a saved size too big for the
+  screen is trimmed once the window is shown.
+
 ## [1.1.0] - 2026-09-11
 
 ### Added
