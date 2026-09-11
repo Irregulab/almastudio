@@ -9,6 +9,8 @@ release cannot be cut without one — see `docs/UPDATES.md`.
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-09-11
+
 ### Fixed
 
 - The interface fits its window again. After the window had once been wider
@@ -186,7 +188,8 @@ First release.
 - English and Italian.
 - Over-the-air updates.
 
-[Unreleased]: https://github.com/Irregulab/almastudio/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/Irregulab/almastudio/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/Irregulab/almastudio/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/Irregulab/almastudio/compare/v1.0.9...v1.1.0
 [1.0.9]: https://github.com/Irregulab/almastudio/compare/v1.0.8...v1.0.9
 [1.0.8]: https://github.com/Irregulab/almastudio/compare/v1.0.7...v1.0.8
