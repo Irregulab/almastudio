@@ -51,8 +51,8 @@ of blocked threads — no Electron, no per-tab browser process.
 - Node 20+
 - Rust stable (`rustup`)
 - Platform toolchain: Xcode CLT on macOS, MSVC + WebView2 on Windows,
-  `libwebkit2gtk-4.1-dev` and friends on Linux (see the release workflow for
-  the exact package list).
+  `libwebkit2gtk-4.1-dev` and friends on Linux (`scripts/linux-build.Dockerfile`
+  has the exact package list).
 
 ## Development
 
