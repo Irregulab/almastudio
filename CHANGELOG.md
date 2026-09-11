@@ -9,6 +9,20 @@ release cannot be cut without one — see `docs/UPDATES.md`.
 
 ## [Unreleased]
 
+### Added
+
+- Projects can be grouped by category. Give a project a category in its
+  settings and the sidebar lists it under that heading, in a section that
+  folds away with a click; projects without one stay at the top. Dragging a
+  project among another category's projects moves it there.
+- Repositories found beneath a project folder can be pinned in the Changes
+  and Git panels, and pinned ones are listed first.
+
+### Fixed
+
+- "No tabs open", shown by a project with no tabs, is centred in the window
+  again instead of sitting against the left edge.
+
 ## [1.0.9] - 2026-09-11
 
 ### Fixed

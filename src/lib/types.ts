@@ -21,8 +21,12 @@ export interface Project {
   iconName?: string
   /** Accent dot colour, hex. */
   color: string
+  /** Sidebar category the project is listed under; none when absent. */
+  category?: string
   /** Main folder. Only the default cwd for new tabs — tabs may live anywhere. */
   root: string
+  /** Repositories found beneath `root` that the panel lists first, by path. */
+  pinnedRepos?: string[]
   /** Extra instructions handed to the AI harness for this project. */
   instructions: string
   defaultHarness: HarnessKind | 'default'
@@ -139,6 +143,8 @@ export interface WorkspaceState {
   activeProjectId: string | null
   sidebarOpen: boolean
   sidebarWidth: number
+  /** Sidebar categories folded shut. */
+  collapsedCategories: string[]
 }
 
 // ------------------------------------------------------------- settings ----

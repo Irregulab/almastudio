@@ -29,8 +29,12 @@ export type DropTarget =
   | { kind: 'tab-slot'; index: number }
   /** Over a pane: an edge puts the tab's focused session beside it; the centre does nothing. */
   | { kind: 'pane'; paneId: string; zone: DropZone }
-  /** Between two rows of the project list. */
-  | { kind: 'project-slot'; index: number }
+  /**
+   * Between two rows of the project list. `category` is the section the slot
+   * is in when the list is grouped ('' for projects without one): a project
+   * dropped there joins it.
+   */
+  | { kind: 'project-slot'; index: number; category?: string }
 
 interface DragState {
   item: DragItem | null
@@ -76,7 +80,16 @@ function targetAt(item: DragItem, x: number, y: number): DropTarget | null {
     if (row) {
       const r = row.getBoundingClientRect()
       const index = Number(row.dataset.index) + (y < r.top + r.height / 2 ? 0 : 1)
-      return { kind: 'project-slot', index }
+      return { kind: 'project-slot', index, category: row.dataset.category }
+    }
+    // A category's header means the end of that category, folded or not.
+    const header = el.closest<HTMLElement>('[data-drop-project-section]')
+    if (header) {
+      return {
+        kind: 'project-slot',
+        index: Number(header.dataset.index),
+        category: header.dataset.category,
+      }
     }
     // The empty space below the rows means "put it last".
     const list = el.closest<HTMLElement>('[data-drop-project-list]')
@@ -105,7 +118,9 @@ function targetAt(item: DragItem, x: number, y: number): DropTarget | null {
 function commit(item: DragItem, target: DropTarget) {
   const ws = useWorkspace.getState()
   if (item.kind === 'project') {
-    if (target.kind === 'project-slot') ws.reorderProjects(item.index, target.index)
+    if (target.kind === 'project-slot') {
+      ws.reorderProjects(item.index, target.index, target.category)
+    }
     return
   }
   if (target.kind === 'tab-slot') {

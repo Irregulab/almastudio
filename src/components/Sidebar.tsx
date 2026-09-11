@@ -1,9 +1,9 @@
-import { useCallback, useMemo, useState } from 'react'
+import { Fragment, useCallback, useMemo, useState } from 'react'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import { revealItemInDir } from '@tauri-apps/plugin-opener'
 import {
-  ArrowDown, ArrowUp, FolderOpen, ImageUp, Loader2, Pencil, Plus, Search,
-  Settings2, Trash2, X,
+  ArrowDown, ArrowUp, ChevronDown, ChevronRight, FolderOpen, ImageUp, Loader2, Pencil,
+  Plus, Search, Settings2, Trash2, X,
 } from 'lucide-react'
 
 import { dirName, writeProjectInstructions } from '../lib/ipc'
@@ -18,6 +18,9 @@ import { ConfirmDialog, Field, MenuItem, MenuSeparator, Modal, Popover, Segmente
 import { PROJECT_ICONS, PROJECT_ICON_NAMES } from '../lib/projectIcons'
 import { isTerminalTab, type HarnessKind, type Project } from '../lib/types'
 import { beginPointerDrag, useDrag } from '../lib/dragDrop'
+import {
+  categoryOf, neighbourMoves, projectSections, type ProjectEntry,
+} from '../lib/projectGroups'
 
 const ICONS = [
   '🟢', '🚀', '⚙️', '📦', '🧪', '🔧', '🌐', '📱', '🖥️', '🗄️',
@@ -38,25 +41,86 @@ export function Sidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
   const removeProject = useWorkspace((s) => s.removeProject)
   const [query, setQuery] = useState('')
   const reorderProjects = useWorkspace((s) => s.reorderProjects)
+  const collapsed = useWorkspace((s) => s.collapsedCategories)
+  const toggleCategory = useWorkspace((s) => s.toggleCategory)
   const dragIndex = useDrag((s) => (s.item?.kind === 'project' ? s.item.index : null))
   const dropIndex = useDrag((s) => (s.target?.kind === 'project-slot' ? s.target.index : null))
+  const dropCategory = useDrag((s) =>
+    s.target?.kind === 'project-slot' ? (s.target.category ?? null) : null,
+  )
   const [editing, setEditing] = useState<Project | 'new' | null>(null)
   const [confirmRemove, setConfirmRemove] = useState<Project | null>(null)
   const [menu, setMenu] = useState<{ anchor: HTMLElement; project: Project } | null>(null)
   // Position in the real order, which is what the move actions operate on.
   const menuIndex = menu ? projects.findIndex((p) => p.id === menu.project.id) : -1
+  // Up and down stay within the project's own category.
+  const { up, down } = neighbourMoves(projects, menuIndex)
 
+  // Every row carries its index in the full list, which is what reordering
+  // takes whether the rows are filtered, grouped or neither.
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    if (!q) return projects
-    return projects.filter(
-      (p) => p.name.toLowerCase().includes(q) || p.root.toLowerCase().includes(q),
+    const all = projects.map((project, index) => ({ project, index }))
+    if (!q) return all
+    return all.filter(
+      ({ project: p }) => p.name.toLowerCase().includes(q) || p.root.toLowerCase().includes(q),
     )
   }, [projects, query])
+
+  const sections = useMemo(() => projectSections(projects), [projects])
+  // Sections appear once any project has a category, and never in search
+  // results: a match must not hide inside a folded category.
+  const grouped = !query.trim() && sections.some((s) => s.category !== '')
 
   // Reordering a filtered list would move rows the user cannot see, so it is
   // only offered when the whole list is on screen.
   const canReorder = !query.trim() && projects.length > 1
+
+  /** `category` is the section the row is drawn in, when the list is grouped. */
+  const renderRow = ({ project: p, index }: ProjectEntry, category?: string) => {
+    // A slot index can fall on the edge between two sections; only the
+    // section being dropped into draws the line.
+    const lined = category === undefined || category === dropCategory
+    return (
+      <button
+        key={p.id}
+        className={[
+          'project',
+          p.id === activeProjectId ? 'project--active' : '',
+          lined && dropIndex === index ? 'project--drop-before' : '',
+          lined && dropIndex === index + 1 ? 'project--drop-after' : '',
+          dragIndex === index ? 'project--dragging' : '',
+          canReorder ? 'project--reorderable' : '',
+        ]
+          .filter(Boolean)
+          .join(' ')}
+        style={
+          { '--project-row-accent': readableAccent(p.color, isDark) } as React.CSSProperties
+        }
+        data-drop-project
+        data-index={index}
+        data-category={category}
+        onPointerDown={
+          canReorder
+            ? (e) => beginPointerDrag(e, { kind: 'project', id: p.id, index, label: p.name })
+            : undefined
+        }
+        onClick={() => setActiveProject(p.id)}
+        onContextMenu={(e) => {
+          e.preventDefault()
+          setMenu({ anchor: e.currentTarget, project: p })
+        }}
+        title={p.root}
+      >
+        <ProjectIcon project={p} />
+        <span className="project__text">
+          <span className="project__name truncate">{p.name}</span>
+          <span className="project__path truncate subtle">{p.root}</span>
+        </span>
+        <ProjectActivity projectId={p.id} color={readableAccent(p.color, isDark)} />
+      </button>
+    )
+  }
 
   return (
     <nav className="sidebar">
@@ -90,44 +154,40 @@ export function Sidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
             </button>
           </div>
         )}
-        {filtered.map((p, index) => (
-          <button
-            key={p.id}
-            className={[
-              'project',
-              p.id === activeProjectId ? 'project--active' : '',
-              dropIndex === index ? 'project--drop-before' : '',
-              dropIndex === index + 1 ? 'project--drop-after' : '',
-              dragIndex === index ? 'project--dragging' : '',
-              canReorder ? 'project--reorderable' : '',
-            ]
-              .filter(Boolean)
-              .join(' ')}
-            style={
-              { '--project-row-accent': readableAccent(p.color, isDark) } as React.CSSProperties
-            }
-            data-drop-project
-            data-index={index}
-            onPointerDown={
-              canReorder
-                ? (e) => beginPointerDrag(e, { kind: 'project', id: p.id, index, label: p.name })
-                : undefined
-            }
-            onClick={() => setActiveProject(p.id)}
-            onContextMenu={(e) => {
-              e.preventDefault()
-              setMenu({ anchor: e.currentTarget, project: p })
-            }}
-            title={p.root}
-          >
-            <ProjectIcon project={p} />
-            <span className="project__text">
-              <span className="project__name truncate">{p.name}</span>
-              <span className="project__path truncate subtle">{p.root}</span>
-            </span>
-            <ProjectActivity projectId={p.id} color={readableAccent(p.color, isDark)} />
-          </button>
-        ))}
+        {grouped
+          ? sections.map((section) => {
+              if (section.category === '') {
+                return (
+                  <Fragment key="uncategorised">
+                    {section.projects.map((entry) => renderRow(entry, ''))}
+                  </Fragment>
+                )
+              }
+              const closed = collapsed.includes(section.category)
+              const last = section.projects[section.projects.length - 1]
+              // The header is a drop target too, for the end of the category:
+              // the only way into one that is folded.
+              return (
+                <section key={`category:${section.category}`} className="category">
+                  <button
+                    className={`category__head${
+                      closed && dropCategory === section.category ? ' category__head--drop' : ''
+                    }`}
+                    aria-expanded={!closed}
+                    data-drop-project-section
+                    data-index={last.index + 1}
+                    data-category={section.category}
+                    onClick={() => toggleCategory(section.category)}
+                  >
+                    {closed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
+                    <span className="category__name truncate">{section.category}</span>
+                    <span className="category__count">{section.projects.length}</span>
+                  </button>
+                  {!closed && section.projects.map((entry) => renderRow(entry, section.category))}
+                </section>
+              )
+            })
+          : filtered.map((entry) => renderRow(entry))}
       </div>
 
       <div className="sidebar__foot">
@@ -143,13 +203,13 @@ export function Sidebar({ onOpenSettings }: { onOpenSettings: () => void }) {
           <>
             <MenuItem
               icon={<ArrowUp size={13} />} label={t('sidebar.moveUp')}
-              disabled={menuIndex <= 0}
-              onClick={() => { setMenu(null); reorderProjects(menuIndex, menuIndex - 1) }}
+              disabled={up === null}
+              onClick={() => { setMenu(null); if (up !== null) reorderProjects(menuIndex, up) }}
             />
             <MenuItem
               icon={<ArrowDown size={13} />} label={t('sidebar.moveDown')}
-              disabled={menuIndex < 0 || menuIndex >= projects.length - 1}
-              onClick={() => { setMenu(null); reorderProjects(menuIndex, menuIndex + 2) }}
+              disabled={down === null}
+              onClick={() => { setMenu(null); if (down !== null) reorderProjects(menuIndex, down) }}
             />
             <MenuSeparator />
           </>
@@ -266,8 +326,15 @@ function ProjectDialog({ project, onClose }: { project: Project | null; onClose:
   const updateProject = useWorkspace((s) => s.updateProject)
   const defaultHarness = useSettings((s) => s.settings.defaultHarness)
   const isDark = useTheme()
+  const projects = useWorkspace((s) => s.projects)
+  // Suggested while typing, so one category is not split in two by a typo.
+  const categories = useMemo(
+    () => [...new Set(projects.map(categoryOf).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
+    [projects],
+  )
 
   const [name, setName] = useState(project?.name ?? '')
+  const [category, setCategory] = useState(project?.category ?? '')
   const [root, setRoot] = useState(project?.root ?? '')
   const [icon, setIcon] = useState(project?.icon ?? ICONS[0])
   const [iconImage, setIconImage] = useState(project?.iconImage)
@@ -302,6 +369,7 @@ function ProjectDialog({ project, onClose }: { project: Project | null; onClose:
 
     const payload = {
       name: name.trim(), root: root.trim(), icon, color,
+      category: category.trim() || undefined,
       // Undefined rather than '' so the merge on load treats it as absent.
       iconImage: iconImage || undefined,
       // The emoji is kept either way, so switching back loses nothing.
@@ -317,8 +385,8 @@ function ProjectDialog({ project, onClose }: { project: Project | null; onClose:
     }
     onClose()
   }, [
-    addProject, color, harness, icon, iconImage, iconKind, iconName, instructions, name, onClose,
-    project, root, t, updateProject,
+    addProject, category, color, harness, icon, iconImage, iconKind, iconName, instructions,
+    name, onClose, project, root, t, updateProject,
   ])
 
   return (
@@ -351,6 +419,17 @@ function ProjectDialog({ project, onClose }: { project: Project | null; onClose:
           className="input" value={name} placeholder={t('project.namePlaceholder')}
           onChange={(e) => setName(e.target.value)} autoFocus
         />
+      </Field>
+
+      <Field label={t('project.category')} hint={t('project.categoryHint')}>
+        <input
+          className="input" value={category} list="project-categories"
+          placeholder={t('project.categoryPlaceholder')}
+          onChange={(e) => setCategory(e.target.value)}
+        />
+        <datalist id="project-categories">
+          {categories.map((c) => <option key={c} value={c} />)}
+        </datalist>
       </Field>
 
       <Field label={t('project.icon')} hint={t('project.iconHint')}>

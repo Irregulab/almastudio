@@ -3,7 +3,7 @@ import { revealItemInDir } from '@tauri-apps/plugin-opener'
 import {
   ArrowLeft, Check, ChevronDown, ChevronRight, Eye, EyeOff, FileDiff, FilePlus2,
   FolderPlus, GitBranch, GitCommitHorizontal, History, ListTree, Maximize2,
-  Minus, Pencil, Plus, RefreshCw, Trash2, Undo2, X,
+  Minus, Pencil, Pin, Plus, RefreshCw, Trash2, Undo2, X,
 } from 'lucide-react'
 
 import {
@@ -134,7 +134,7 @@ export function RightPanel({
         )}
         {view === 'git' && (
           <GitView
-            root={root} status={status} revision={tick}
+            projectId={projectId} root={root} status={status} revision={tick}
             onChanged={() => setTick((n) => n + 1)} onPickRepo={onPickRoot}
           />
         )}
@@ -154,8 +154,10 @@ export function RightPanel({
  * of them at once, not one at a time.
  */
 function RepoAccordion({
-  root, render, onFocus,
+  projectId, root, render, onFocus,
 }: {
+  /** Whose pinned repositories are listed first. */
+  projectId: string
   root: string
   /** Body for one repository, rendered only while its section is open. */
   render: (repo: RepoEntry) => React.ReactNode
@@ -165,6 +167,8 @@ function RepoAccordion({
   const [repos, setRepos] = useState<RepoEntry[] | null>(null)
   const [open, setOpen] = useState<Set<string>>(new Set())
   const autoExpanded = useRef('')
+  const pinned = useWorkspace((s) => s.projects.find((p) => p.id === projectId)?.pinnedRepos)
+  const togglePinnedRepo = useWorkspace((s) => s.togglePinnedRepo)
 
   useEffect(() => {
     let cancelled = false
@@ -194,6 +198,16 @@ function RepoAccordion({
       return next
     })
 
+  // Pinned repositories first; each part keeps the order they were found in.
+  const ordered = useMemo(() => {
+    const list = repos ?? []
+    if (!pinned?.length) return list
+    return [
+      ...list.filter((r) => pinned.includes(r.path)),
+      ...list.filter((r) => !pinned.includes(r.path)),
+    ]
+  }, [repos, pinned])
+
   if (repos === null) {
     return (
       <div className="empty">
@@ -218,8 +232,9 @@ function RepoAccordion({
       <p className="discovery__hint">
         {t('panel.reposHint', { n: repos.length })}
       </p>
-      {repos.map((repo) => {
+      {ordered.map((repo) => {
         const isOpen = open.has(repo.path)
+        const isPinned = pinned?.includes(repo.path) ?? false
         return (
           <section key={repo.path} className="group repo">
             <header className="group__head">
@@ -229,6 +244,14 @@ function RepoAccordion({
                 <span className="repo__name truncate">{repo.name}</span>
                 {repo.branch && <span className="chip">{repo.branch}</span>}
                 {repo.dirty > 0 && <span className="chip chip--dirty">{repo.dirty}</span>}
+              </button>
+              <button
+                className={`icon-btn icon-btn--tiny${isPinned ? ' repo__pin--on' : ''}`}
+                title={isPinned ? t('panel.unpinRepo') : t('panel.pinRepo')}
+                aria-pressed={isPinned}
+                onClick={() => togglePinnedRepo(projectId, repo.path)}
+              >
+                <Pin size={12} fill={isPinned ? 'currentColor' : 'none'} />
               </button>
               <button
                 className="icon-btn icon-btn--tiny"
@@ -408,6 +431,7 @@ function ChangesView({
   if (!status.isRepo) {
     return (
       <RepoAccordion
+        projectId={projectId}
         root={status.root}
         onFocus={onPickRepo ?? (() => {})}
         render={(repo) => (
@@ -870,17 +894,18 @@ function TreeNode({
 
 /** One repository's git panel inside an accordion section. */
 function RepoGit({
-  root, revision, onChanged,
-}: { root: string; revision: number; onChanged: () => void }) {
+  projectId, root, revision, onChanged,
+}: { projectId: string; root: string; revision: number; onChanged: () => void }) {
   const t = useT()
   const status = useRepoStatus(root, revision)
   if (!status) return <div className="repo__loading subtle">{t('common.loading')}</div>
-  return <GitView root={root} status={status} onChanged={onChanged} />
+  return <GitView projectId={projectId} root={root} status={status} onChanged={onChanged} />
 }
 
 function GitView({
-  root, status, onChanged, onPickRepo, revision,
+  projectId, root, status, onChanged, onPickRepo, revision,
 }: {
+  projectId: string
   root: string
   status: RepoStatus | null
   onChanged: () => void
@@ -903,10 +928,13 @@ function GitView({
   if (!status?.isRepo) {
     return (
       <RepoAccordion
+        projectId={projectId}
         root={root}
         onFocus={onPickRepo ?? (() => {})}
         render={(repo) => (
-          <RepoGit root={repo.path} revision={revision ?? 0} onChanged={onChanged} />
+          <RepoGit
+            projectId={projectId} root={repo.path} revision={revision ?? 0} onChanged={onChanged}
+          />
         )}
       />
     )

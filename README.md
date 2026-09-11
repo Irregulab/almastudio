@@ -11,7 +11,8 @@ of blocked threads — no Electron, no per-tab browser process.
 
 - **Projects** — name, icon, colour, a main folder and its own instructions for
   the AI harness. The main folder is only the *default* for new tabs; any tab
-  can be opened in any folder on the machine.
+  can be opened in any folder on the machine. Projects can be grouped by
+  category, each a section of the sidebar that folds away.
 - **Tabs** — each tab runs Claude Code, Codex, OpenCode or a plain shell in a
   real PTY, or shows a diff, an editable file, or a browser. Images and PDFs
   open in a viewer; Markdown, HTML and SVG files preview beside their source.
@@ -25,7 +26,7 @@ of blocked threads — no Electron, no per-tab browser process.
   opens its diff as a tab in the main area. Point a project at a folder full of
   repositories and the panel shows them as an accordion — each with its branch,
   its change count, and its own changes when expanded — instead of reporting
-  that the folder itself is not one.
+  that the folder itself is not one. Pinned repositories are listed first.
 - **Code and Markdown** — syntax highlighting in the editor and in diffs,
   themed from the same tokens as the rest of the app. Files are editable, with
   explicit save and a conflict check. Markdown opens as a rendered preview with

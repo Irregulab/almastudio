@@ -71,6 +71,9 @@
     "save": "Save",
     "cancel": "Cancel",
     "folderRequired": "Choose a folder first.",
+    "category": "Category",
+    "categoryPlaceholder": "None",
+    "categoryHint": "Projects with the same category are listed together under it in the sidebar, in a section that folds away.",
     "nameRequired": "Give the project a name.",
     "iconHint": "Pick an emoji or an icon, or use an image from disk.",
     "iconEmoji": "Emoji",
@@ -166,6 +169,8 @@
     "scopeProject": "Project folder",
     "scopeTab": "Active tab folder",
     "reposHint": "This folder is not a git repository. The {n} found beneath it are listed below.",
+    "pinRepo": "Pin to the top",
+    "unpinRepo": "Unpin",
     "focusRepo": "Show only this repository",
     "backToProject": "Back to the project folder"
   },

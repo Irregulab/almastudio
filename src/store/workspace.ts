@@ -3,6 +3,7 @@ import {
   browserClose, ptyKill, scrollbackForget, scrollbackPrune, stateLoad, stateSave,
 } from '../lib/ipc'
 import { uid } from '../lib/id'
+import { categoryOf } from '../lib/projectGroups'
 import { useUi } from './ui'
 import {
   allTabIds, containsNode, findLeaf, findLeafOfTab, firstPaneId, isLeaf, makeLeaf,
@@ -41,6 +42,7 @@ const initial: WorkspaceState = {
   activeProjectId: null,
   sidebarOpen: true,
   sidebarWidth: 240,
+  collapsedCategories: [],
 }
 
 type Dir = 'row' | 'col'
@@ -61,7 +63,13 @@ interface WorkspaceStore extends WorkspaceState {
   updateProject: (id: string, patch: Partial<Project>) => void
   removeProject: (id: string) => void
   setActiveProject: (id: string | null) => void
-  reorderProjects: (from: number, to: number) => void
+  /**
+   * Moves a project with `moveItem` semantics. With `category` it also files
+   * the project under it ('' for none): the section of the list it was dropped in.
+   */
+  reorderProjects: (from: number, to: number, category?: string) => void
+  toggleCategory: (category: string) => void
+  togglePinnedRepo: (projectId: string, path: string) => void
 
   // sessions
   addTerminalTab: (opts: {
@@ -268,11 +276,39 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
           : s.workspaces,
     })),
 
-  reorderProjects: (from, to) =>
+  reorderProjects: (from, to, category) =>
     set((s) => {
-      const projects = moveItem(s.projects, from, to)
-      return projects ? { projects } : {}
+      const moved = s.projects[from]
+      if (!moved) return {}
+      let projects = moveItem(s.projects, from, to) ?? s.projects
+      if (category !== undefined && categoryOf(moved) !== category) {
+        projects = projects.map((p) =>
+          p.id === moved.id ? { ...p, category: category || undefined } : p,
+        )
+      }
+      return projects === s.projects ? {} : { projects }
     }),
+
+  toggleCategory: (category) =>
+    set((s) => ({
+      collapsedCategories: s.collapsedCategories.includes(category)
+        ? s.collapsedCategories.filter((c) => c !== category)
+        : [...s.collapsedCategories, category],
+    })),
+
+  togglePinnedRepo: (projectId, path) =>
+    set((s) => ({
+      projects: s.projects.map((p) => {
+        if (p.id !== projectId) return p
+        const pinned = p.pinnedRepos ?? []
+        return {
+          ...p,
+          pinnedRepos: pinned.includes(path)
+            ? pinned.filter((r) => r !== path)
+            : [...pinned, path],
+        }
+      }),
+    })),
 
   // ------------------------------------------------------------ sessions --
   addTerminalTab: ({ projectId, kind, cwd, title, splitFrom }) => {
@@ -638,6 +674,7 @@ export async function loadWorkspace(): Promise<void> {
       activeProjectId: parsed.activeProjectId ?? parsed.projects?.[0]?.id ?? null,
       sidebarOpen: parsed.sidebarOpen ?? true,
       sidebarWidth: parsed.sidebarWidth ?? 240,
+      collapsedCategories: parsed.collapsedCategories ?? [],
     })
     // Drop scrollback belonging to tabs that no longer exist.
     void scrollbackPrune(Object.keys(tabs)).catch(() => {})
@@ -662,7 +699,8 @@ export function startWorkspacePersistence() {
       state.workspaces !== prev.workspaces ||
       state.activeProjectId !== prev.activeProjectId ||
       state.sidebarOpen !== prev.sidebarOpen ||
-      state.sidebarWidth !== prev.sidebarWidth
+      state.sidebarWidth !== prev.sidebarWidth ||
+      state.collapsedCategories !== prev.collapsedCategories
     if (!changed) return
 
     window.clearTimeout(saveTimer)
@@ -676,6 +714,7 @@ export function startWorkspacePersistence() {
         activeProjectId: s.activeProjectId,
         sidebarOpen: s.sidebarOpen,
         sidebarWidth: s.sidebarWidth,
+        collapsedCategories: s.collapsedCategories,
       }
       void stateSave(STATE_KEY, JSON.stringify(snapshot)).catch(() => {})
     }, 400)

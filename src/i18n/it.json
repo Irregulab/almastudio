@@ -71,6 +71,9 @@
     "save": "Salva",
     "cancel": "Annulla",
     "folderRequired": "Scegli prima una cartella.",
+    "category": "Categoria",
+    "categoryPlaceholder": "Nessuna",
+    "categoryHint": "I progetti con la stessa categoria sono elencati insieme sotto di essa nella barra laterale, in una sezione che si può chiudere.",
     "nameRequired": "Assegna un nome al progetto.",
     "iconHint": "Scegli un'emoji o un'icona, oppure usa un'immagine dal disco.",
     "iconEmoji": "Emoji",
@@ -166,6 +169,8 @@
     "scopeProject": "Cartella del progetto",
     "scopeTab": "Cartella della scheda attiva",
     "reposHint": "Questa cartella non è un repository git. Qui sotto i {n} trovati al suo interno.",
+    "pinRepo": "Fissa in cima",
+    "unpinRepo": "Togli dai fissati",
     "focusRepo": "Mostra solo questo repository",
     "backToProject": "Torna alla cartella del progetto"
   },

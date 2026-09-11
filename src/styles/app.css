@@ -157,6 +157,9 @@
    so their sessions keep running, just hidden. */
 .workspace { display: flex; flex-direction: column; flex: 1 1 auto; min-width: 0; min-height: 0; }
 .workspace__body { flex: 1 1 auto; position: relative; min-height: 0; display: flex; }
+/* The body lays out in a row, where the empty state would shrink to its
+   content and sit against the left edge instead of filling the area. */
+.workspace__body > .empty { flex: 1 1 auto; }
 .workspace__group { position: absolute; inset: 0; display: flex; }
 .workspace__group[hidden] { display: none; }
 
@@ -1180,3 +1183,30 @@ img, a { -webkit-user-drag: none; }
 /* Groups nested inside a section should not draw their own outer rule. */
 .repo__body .group:last-child { border-bottom: none; }
 .repo__body .group__head { top: 0; }
+
+/* Project categories: a plain heading that folds its projects away. */
+.category { margin-top: var(--sp-2); }
+.category:first-child { margin-top: 0; }
+.category__head {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  padding: 4px 7px;
+  border-radius: var(--radius);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: left;
+  color: var(--fg-subtle);
+  transition: background var(--dur-fast) var(--ease);
+}
+.category__head:hover { background: var(--bg-hover); color: var(--fg); }
+.category__name { flex: 1 1 auto; min-width: 0; }
+.category__count { font-size: 10px; }
+/* A folded category a project is being dropped onto. */
+.category__head--drop { box-shadow: inset 0 0 0 1px var(--accent); }
+
+/* A pinned repository wears its pin in the accent colour. */
+.icon-btn.repo__pin--on { color: var(--accent); }

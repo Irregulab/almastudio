@@ -235,3 +235,58 @@ describe('migrateWorkspace', () => {
     expect(migrateWorkspace(current, () => true)).toEqual(current)
   })
 })
+
+describe('categories and pinned repositories', () => {
+  beforeEach(() => {
+    useWorkspace.setState({
+      projects: ['a', 'b', 'c'].map(project),
+      collapsedCategories: [],
+      loaded: true,
+    })
+  })
+
+  const byName = (name: string) => useWorkspace.getState().projects.find((p) => p.name === name)!
+
+  it('files a project dropped among another category’s projects under that category', () => {
+    useWorkspace.getState().updateProject('p-c', { category: 'Work' })
+    useWorkspace.getState().reorderProjects(0, 2, 'Work')
+    expect(order()).toEqual(['b', 'a', 'c'])
+    expect(byName('a').category).toBe('Work')
+  })
+
+  it('takes a project out of its category when dropped among ones without', () => {
+    useWorkspace.getState().updateProject('p-a', { category: 'Work' })
+    useWorkspace.getState().reorderProjects(0, 3, '')
+    expect(order()).toEqual(['b', 'c', 'a'])
+    expect(byName('a').category).toBeUndefined()
+  })
+
+  it('changes the category even where the position stays the same', () => {
+    useWorkspace.getState().reorderProjects(1, 1, 'Home')
+    expect(order()).toEqual(['a', 'b', 'c'])
+    expect(byName('b').category).toBe('Home')
+  })
+
+  it('leaves the category alone when the drop names none', () => {
+    useWorkspace.getState().updateProject('p-a', { category: 'Work' })
+    useWorkspace.getState().reorderProjects(0, 3)
+    expect(byName('a').category).toBe('Work')
+  })
+
+  it('folds and unfolds a category', () => {
+    useWorkspace.getState().toggleCategory('Work')
+    expect(useWorkspace.getState().collapsedCategories).toEqual(['Work'])
+    useWorkspace.getState().toggleCategory('Work')
+    expect(useWorkspace.getState().collapsedCategories).toEqual([])
+  })
+
+  it('pins and unpins repositories for one project only', () => {
+    const ws = useWorkspace.getState()
+    ws.togglePinnedRepo('p-a', '/tmp/a/api')
+    ws.togglePinnedRepo('p-a', '/tmp/a/web')
+    expect(byName('a').pinnedRepos).toEqual(['/tmp/a/api', '/tmp/a/web'])
+    expect(byName('b').pinnedRepos).toBeUndefined()
+    useWorkspace.getState().togglePinnedRepo('p-a', '/tmp/a/api')
+    expect(byName('a').pinnedRepos).toEqual(['/tmp/a/web'])
+  })
+})
