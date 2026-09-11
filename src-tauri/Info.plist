@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Merged by Tauri into the generated Info.plist.
+
+  macOS attributes privacy (TCC) requests from programs running in AlmaStudio's
+  terminals to AlmaStudio itself. Without a usage description for a resource,
+  the request is denied outright: no prompt, and AlmaStudio never shows up in
+  System Settings > Privacy & Security for it. The *FullAccess* keys are read
+  on macOS 14+, the plain ones on older systems.
+-->
+<plist version="1.0">
+<dict>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>A program running in AlmaStudio wants to use your calendars.</string>
+	<key>NSCalendarsUsageDescription</key>
+	<string>A program running in AlmaStudio wants to use your calendars.</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>A program running in AlmaStudio wants to use your reminders.</string>
+	<key>NSRemindersUsageDescription</key>
+	<string>A program running in AlmaStudio wants to use your reminders.</string>
+</dict>
+</plist>

@@ -9,6 +9,14 @@ release cannot be cut without one — see `docs/UPDATES.md`.
 
 ## [Unreleased]
 
+### Fixed
+
+- Scripts and tools run in AlmaStudio's terminals can use Calendar and
+  Reminders again. macOS asks the app hosting a terminal for that access, and
+  AlmaStudio did not declare it, so the request was refused without a prompt
+  and AlmaStudio never appeared under Calendars or Reminders in System
+  Settings. It now asks the first time, the way iTerm does.
+
 ## [1.0.8] - 2026-09-10
 
 ### Fixed
