@@ -9,6 +9,8 @@ release cannot be cut without one — see `docs/UPDATES.md`.
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-09-14
+
 ### Added
 
 - Search across a folder's files from the right panel, as in VS Code: match
@@ -198,7 +200,8 @@ First release.
 - English and Italian.
 - Over-the-air updates.
 
-[Unreleased]: https://github.com/Irregulab/almastudio/compare/v1.1.1...HEAD
+[Unreleased]: https://github.com/Irregulab/almastudio/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/Irregulab/almastudio/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/Irregulab/almastudio/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/Irregulab/almastudio/compare/v1.0.9...v1.1.0
 [1.0.9]: https://github.com/Irregulab/almastudio/compare/v1.0.8...v1.0.9
