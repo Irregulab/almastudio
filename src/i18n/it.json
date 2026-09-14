@@ -115,8 +115,7 @@
     "working": "In esecuzione…",
     "waiting": "In attesa di input",
     "browser": "Browser",
-    "moveToPane": "Sposta nel riquadro {n}",
-    "vscode": "Visual Studio Code"
+    "moveToPane": "Sposta nel riquadro {n}"
   },
   "browser": {
     "back": "Indietro",
@@ -352,7 +351,8 @@
     "filesMany": "in {n} file",
     "truncated": "Sono mostrati solo i primi {n}: restringi la ricerca per vedere gli altri."
   },
-  "vscode": {
-    "failed": "Impossibile aprire Visual Studio Code: {error}"
+  "editors": {
+    "openIn": "Apri in {name}",
+    "failed": "Impossibile aprire {name}: {error}"
   }
 }

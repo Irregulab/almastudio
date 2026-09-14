@@ -115,8 +115,7 @@
     "working": "Working…",
     "waiting": "Waiting for input",
     "browser": "Browser",
-    "moveToPane": "Move to pane {n}",
-    "vscode": "Visual Studio Code"
+    "moveToPane": "Move to pane {n}"
   },
   "browser": {
     "back": "Back",
@@ -352,7 +351,8 @@
     "filesMany": "in {n} files",
     "truncated": "Only the first {n} are shown; narrow the search to see the rest."
   },
-  "vscode": {
-    "failed": "Visual Studio Code could not be opened: {error}"
+  "editors": {
+    "openIn": "Open in {name}",
+    "failed": "{name} could not be opened: {error}"
   }
 }

@@ -1,11 +1,11 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { message } from '@tauri-apps/plugin-dialog'
 import {
-  Bot, CodeXml, Columns2, FolderOpen, Globe, Plus, Rows2, Sparkles, SquareCode, SquareTerminal,
-  Terminal, X,
+  Bot, Braces, CodeXml, Columns2, FolderOpen, Globe, Plus, Rows2, Sparkles, SquareCode,
+  SquareTerminal, Terminal, X,
 } from 'lucide-react'
 
-import { vscodeOpenExternal, vscodeWebUrl } from '../lib/ipc'
+import { externalEditors, openInEditor, type ExternalEditor } from '../lib/ipc'
 
 import { beginPointerDrag, useDrag } from '../lib/dragDrop'
 import { allLeaves, allTabIds, findLeaf } from '../lib/layout'
@@ -202,9 +202,35 @@ function TabActions({ ws }: { ws: ProjectWorkspace }) {
   )
 }
 
+/**
+ * The editors found installed, as last looked up. The menu shows these at
+ * once and looks again each time it opens, so an editor installed while the
+ * app runs still turns up.
+ */
+let knownEditors: ExternalEditor[] = []
+void externalEditors().then((list) => (knownEditors = list)).catch(() => {})
+
+function useExternalEditors() {
+  const [editors, setEditors] = useState(knownEditors)
+  useEffect(() => {
+    let live = true
+    void externalEditors()
+      .then((list) => {
+        knownEditors = list
+        if (live) setEditors(list)
+      })
+      .catch(() => {})
+    return () => {
+      live = false
+    }
+  }, [])
+  return editors
+}
+
 function NewTabMenuItems({ onPick }: { onPick: () => void }) {
   const t = useT()
   const newTab = useNewTab()
+  const editors = useExternalEditors()
   const pick = (fn: () => void) => () => {
     onPick()
     fn()
@@ -216,10 +242,6 @@ function NewTabMenuItems({ onPick }: { onPick: () => void }) {
       <MenuItem icon={<SquareCode size={13} />} label={t('tabs.opencode')} hint="⇧⌘O" onClick={pick(() => void newTab('opencode'))} />
       <MenuItem icon={<Terminal size={13} />} label={t('tabs.shell')} hint="⌘T" onClick={pick(() => void newTab('shell'))} />
       <MenuItem icon={<Globe size={13} />} label={t('tabs.browser')} onClick={pick(openBrowser)} />
-      <MenuItem
-        icon={<CodeXml size={13} />} label={t('tabs.vscode')}
-        onClick={pick(() => void openVsCode(t))}
-      />
       <MenuSeparator />
       <MenuItem
         icon={<FolderOpen size={13} />}
@@ -227,6 +249,15 @@ function NewTabMenuItems({ onPick }: { onPick: () => void }) {
         hint="⌘O"
         onClick={pick(() => void newTab(undefined, true))}
       />
+      {editors.length > 0 && <MenuSeparator />}
+      {editors.map((editor) => (
+        <MenuItem
+          key={editor.id}
+          icon={editor.id === 'intellij' ? <Braces size={13} /> : <CodeXml size={13} />}
+          label={t('editors.openIn', { name: editor.name })}
+          onClick={pick(() => void openProjectIn(editor, t))}
+        />
+      ))}
     </>
   )
 }
@@ -236,31 +267,18 @@ function openBrowser() {
   if (s.activeProjectId) s.openBrowserTab({ projectId: s.activeProjectId })
 }
 
-/**
- * The project in Visual Studio Code: inside AlmaStudio, as a tab, when VS
- * Code's command-line tools can serve it; otherwise in its own window.
- */
-async function openVsCode(t: ReturnType<typeof useT>) {
+/** The project folder in an installed editor, in the editor's own window. */
+async function openProjectIn(editor: ExternalEditor, t: ReturnType<typeof useT>) {
   const s = useWorkspace.getState()
   const project = s.projects.find((p) => p.id === s.activeProjectId)
   if (!project) return
   try {
-    const url = await vscodeWebUrl(project.root)
-    s.openBrowserTab({
-      projectId: project.id,
-      url,
-      title: `VS Code · ${project.name}`,
-      vscodeFolder: project.root,
+    await openInEditor(editor.id, project.root)
+  } catch (e) {
+    await message(t('editors.failed', { name: editor.name, error: String(e) }), {
+      title: editor.name,
+      kind: 'error',
     })
-  } catch {
-    try {
-      await vscodeOpenExternal(project.root)
-    } catch (e) {
-      await message(t('vscode.failed', { error: String(e) }), {
-        title: t('tabs.vscode'),
-        kind: 'error',
-      })
-    }
   }
 }
 

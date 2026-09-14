@@ -267,10 +267,16 @@ export interface SearchResults {
 /** Starting a search cancels the one before; an empty pattern just cancels. */
 export const searchText = (query: SearchQuery) => invoke<SearchResults>('search_text', { query })
 
-// ------------------------------------------------------------------ vscode ----
+// -------------------------------------------------------- external editors ----
 
-/** The address of VS Code, served locally, with `folder` open. */
-export const vscodeWebUrl = (folder: string) => invoke<string>('vscode_web_url', { folder })
+export interface ExternalEditor {
+  id: string
+  name: string
+}
 
-export const vscodeOpenExternal = (folder: string) =>
-  invoke<void>('vscode_open_external', { folder })
+/** Visual Studio Code and IntelliJ IDEA, those installed on this machine. */
+export const externalEditors = () => invoke<ExternalEditor[]>('external_editors')
+
+/** Opens `folder` in an installed editor, in its own window. */
+export const openInEditor = (editor: string, folder: string) =>
+  invoke<void>('open_in_editor', { editor, folder })

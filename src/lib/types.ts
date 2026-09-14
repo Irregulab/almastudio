@@ -91,11 +91,6 @@ export interface BrowserTab extends TabBase {
   kind: 'browser'
   /** Last committed address, so the tab reopens where it was left. */
   url: string
-  /**
-   * Set on a VS Code tab: the folder it shows. Its address names a server and
-   * a token that end with the app, so a fresh one is asked for on reopening.
-   */
-  vscodeFolder?: string
 }
 
 export type Tab = TerminalTab | DiffTab | FileTab | BrowserTab

@@ -80,9 +80,7 @@ interface WorkspaceStore extends WorkspaceState {
   openFileTab: (opts: {
     projectId: string; root: string; path: string; line?: number; column?: number; length?: number
   }) => Tab
-  openBrowserTab: (opts: {
-    projectId: string; url?: string; title?: string; vscodeFolder?: string; splitFrom?: SplitFrom
-  }) => Tab
+  openBrowserTab: (opts: { projectId: string; url?: string; splitFrom?: SplitFrom }) => Tab
   setTabUrl: (tabId: string, url: string) => void
   /** Closes one session: its pane goes, and its tab too when that was the last pane. */
   closeTab: (tabId: string) => void
@@ -385,14 +383,13 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
     return tab
   },
 
-  openBrowserTab: ({ projectId, url, title, vscodeFolder, splitFrom }) => {
+  openBrowserTab: ({ projectId, url, splitFrom }) => {
     const tab: Tab = {
       id: uid('tab'),
       projectId,
       kind: 'browser',
-      title: title ?? '',
+      title: '',
       url: url ?? 'https://duckduckgo.com',
-      vscodeFolder,
     }
     set((s) => ({
       tabs: { ...s.tabs, [tab.id]: tab },
@@ -546,13 +543,7 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
     if (isTerminalTab(tab)) {
       s.addTerminalTab({ projectId: pid, kind: tab.kind, cwd: tab.cwd, splitFrom })
     } else if (tab.kind === 'browser') {
-      s.openBrowserTab({
-        projectId: pid,
-        url: tab.url,
-        title: tab.vscodeFolder ? tab.title : undefined,
-        vscodeFolder: tab.vscodeFolder,
-        splitFrom,
-      })
+      s.openBrowserTab({ projectId: pid, url: tab.url, splitFrom })
     } else {
       s.addTerminalTab({ projectId: pid, kind: 'shell', cwd: tab.root, splitFrom })
     }
@@ -667,6 +658,8 @@ export async function loadWorkspace(): Promise<void> {
     // conversation that never started just makes it error out.
     const tabs: Record<string, Tab> = {}
     for (const [id, tab] of Object.entries(parsed.tabs ?? {})) {
+      // 1.2.0 showed VS Code in a tab, from a server that is no longer started.
+      if (tab.kind === 'browser' && 'vscodeFolder' in tab) continue
       tabs[id] = isTerminalTab(tab)
         ? {
             ...tab,

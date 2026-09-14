@@ -41,7 +41,6 @@ dependencies = [
  "git2",
  "globset",
  "ignore",
- "libc",
  "notify",
  "parking_lot",
  "portable-pty",
@@ -59,7 +58,6 @@ dependencies = [
  "tempfile",
  "trash",
  "url",
- "uuid",
 ]
 
 [[package]]

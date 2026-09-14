@@ -9,6 +9,18 @@ release cannot be cut without one — see `docs/UPDATES.md`.
 
 ## [Unreleased]
 
+### Added
+
+- IntelliJ IDEA in the + menu, next to Visual Studio Code, to open the
+  project folder in. Both are listed only when installed, in a group of
+  their own below Open Folder as Tab.
+
+### Changed
+
+- Visual Studio Code opens in its own window instead of a tab: shown inside
+  AlmaStudio it did not work well enough. VS Code tabs left from 1.2.0 are
+  closed.
+
 ## [1.2.0] - 2026-09-14
 
 ### Added

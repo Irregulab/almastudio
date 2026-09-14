@@ -1,11 +1,11 @@
 mod browser;
+mod editors;
 mod fsx;
 mod git;
 mod menu;
 mod pty;
 mod search;
 mod store;
-mod vscode;
 mod watcher;
 
 use std::collections::HashMap;
@@ -283,7 +283,6 @@ pub fn run() {
         .manage(WatchManager::default())
         .manage(ExitGate::default())
         .manage(GeometryDirty::default())
-        .manage(vscode::VsCodeServer::default())
         .invoke_handler(tauri::generate_handler![
             app_info,
             ready,
@@ -327,8 +326,8 @@ pub fn run() {
             fsx::allow_preview,
             fsx::path_exists,
             search::search_text,
-            vscode::vscode_web_url,
-            vscode::vscode_open_external,
+            editors::external_editors,
+            editors::open_in_editor,
             watcher::watch_start,
             browser::browser_open,
             browser::browser_set_bounds,
@@ -436,7 +435,6 @@ pub fn run() {
                     mgr.kill_all();
                 }
                 browser::close_all(app);
-                vscode::stop(app);
                 if let Some(w) = app.try_state::<WatchManager>() {
                     w.stop_all();
                 }

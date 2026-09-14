@@ -16,8 +16,8 @@ of blocked threads — no Electron, no per-tab browser process.
 - **Tabs** — each tab runs Claude Code, Codex, OpenCode or a plain shell in a
   real PTY, or shows a diff, an editable file, or a browser. Images and PDFs
   open in a viewer; Markdown, HTML and SVG files preview beside their source.
-  Visual Studio Code opens as a tab too, served by its own command-line tools
-  on 127.0.0.1 behind a token, or in its own window when those are missing.
+  Visual Studio Code and IntelliJ IDEA, when installed, open the project in
+  their own window from the + menu.
   Dropping files
   from Finder onto a terminal tab types their paths into it. Opening a tab starts it immediately; only tabs
   restored from a previous run consult the auto-start setting. Split a tab
