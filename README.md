@@ -16,13 +16,17 @@ of blocked threads — no Electron, no per-tab browser process.
 - **Tabs** — each tab runs Claude Code, Codex, OpenCode or a plain shell in a
   real PTY, or shows a diff, an editable file, or a browser. Images and PDFs
   open in a viewer; Markdown, HTML and SVG files preview beside their source.
+  Visual Studio Code opens as a tab too, served by its own command-line tools
+  on 127.0.0.1 behind a token, or in its own window when those are missing.
   Dropping files
   from Finder onto a terminal tab types their paths into it. Opening a tab starts it immediately; only tabs
   restored from a previous run consult the auto-start setting. Split a tab
   horizontally or vertically — the split belongs to that tab, so every other
   tab stays full screen — and drag a tab onto a pane's edge to put it beside it.
-- **Right panel** — three views: changed files, the full file tree, and git
-  (branch, staging, commit, history, branch switching). Clicking a changed file
+- **Right panel** — four views: changed files, the full file tree, git
+  (branch, staging, commit, history, branch switching), and text search across
+  the folder as in VS Code — case, whole word, regular expressions, files to
+  include and exclude, ⇧⌘F — with results opening at their line. Clicking a changed file
   opens its diff as a tab in the main area. Point a project at a folder full of
   repositories and the panel shows them as an accordion — each with its branch,
   its change count, and its own changes when expanded — instead of reporting

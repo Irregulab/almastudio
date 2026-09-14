@@ -44,6 +44,14 @@ base64 = "0.22"
 # and normalise user-typed addresses.
 url = "2"
 parking_lot = "0.12"
+
+# Text search in the right panel: the pattern, and VS Code-style include and
+# exclude globs. Both are already in the tree through `ignore`.
+regex = "1"
+globset = "0.4"
+
+# The connection token for the VS Code server started from the new-tab menu.
+uuid = { version = "1", features = ["v4"] }
 anyhow = "1"
 
 # Deleting a file sends it to the OS trash rather than unlinking it. A tool
@@ -52,6 +60,13 @@ trash = "5"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-updater = "2"
+
+# Ending the VS Code server's whole process group, not just its launcher.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[dev-dependencies]
+tempfile = "3"
 
 # Release profile tuned for a small binary and low resident memory.
 [profile.release]

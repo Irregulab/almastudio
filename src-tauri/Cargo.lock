@@ -39,10 +39,13 @@ dependencies = [
  "anyhow",
  "base64 0.22.1",
  "git2",
+ "globset",
  "ignore",
+ "libc",
  "notify",
  "parking_lot",
  "portable-pty",
+ "regex",
  "serde",
  "serde_json",
  "tauri",
@@ -53,8 +56,10 @@ dependencies = [
  "tauri-plugin-process",
  "tauri-plugin-updater",
  "tauri-plugin-window-state",
+ "tempfile",
  "trash",
  "url",
+ "uuid",
 ]
 
 [[package]]

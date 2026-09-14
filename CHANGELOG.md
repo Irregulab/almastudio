@@ -9,6 +9,16 @@ release cannot be cut without one — see `docs/UPDATES.md`.
 
 ## [Unreleased]
 
+### Added
+
+- Search across a folder's files from the right panel, as in VS Code: match
+  case, whole words and regular expressions, files to include and exclude,
+  and results grouped by file. Clicking a result opens the file at that line.
+  Find in Files (⇧⌘F) goes straight to it.
+- Visual Studio Code from the + menu. With VS Code's command-line tools
+  installed it opens inside AlmaStudio as a tab, served on this machine only
+  and behind a token; otherwise VS Code opens in its own window.
+
 ## [1.1.1] - 2026-09-11
 
 ### Fixed

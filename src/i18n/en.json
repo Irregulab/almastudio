@@ -35,7 +35,9 @@
     "help": "Help",
     "docs": "AlmaStudio Documentation",
     "revealState": "Reveal Application Data…",
-    "newBrowser": "New Browser Tab"
+    "newBrowser": "New Browser Tab",
+    "findInFiles": "Find in Files…",
+    "panelSearch": "Search"
   },
   "sidebar": {
     "projects": "Projects",
@@ -113,7 +115,8 @@
     "working": "Working…",
     "waiting": "Waiting for input",
     "browser": "Browser",
-    "moveToPane": "Move to pane {n}"
+    "moveToPane": "Move to pane {n}",
+    "vscode": "Visual Studio Code"
   },
   "browser": {
     "back": "Back",
@@ -172,7 +175,8 @@
     "pinRepo": "Pin to the top",
     "unpinRepo": "Unpin",
     "focusRepo": "Show only this repository",
-    "backToProject": "Back to the project folder"
+    "backToProject": "Back to the project folder",
+    "search": "Search"
   },
   "fs": {
     "newFile": "New file",
@@ -329,5 +333,26 @@
     "none": "None",
     "folder": "Folder",
     "chooseFolder": "Choose folder"
+  },
+  "search": {
+    "placeholder": "Search",
+    "matchCase": "Match case",
+    "wholeWord": "Match whole word",
+    "regex": "Use regular expression",
+    "toggleFilters": "Files to include or exclude",
+    "include": "Files to include",
+    "exclude": "Files to exclude",
+    "includePlaceholder": "e.g. src, *.ts",
+    "excludePlaceholder": "e.g. dist, *.min.js",
+    "searching": "Searching…",
+    "noResults": "No results",
+    "resultsOne": "1 result",
+    "resultsMany": "{n} results",
+    "filesOne": "in 1 file",
+    "filesMany": "in {n} files",
+    "truncated": "Only the first {n} are shown; narrow the search to see the rest."
+  },
+  "vscode": {
+    "failed": "Visual Studio Code could not be opened: {error}"
   }
 }

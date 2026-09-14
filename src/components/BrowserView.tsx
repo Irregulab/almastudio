@@ -4,7 +4,7 @@ import { openUrl } from '@tauri-apps/plugin-opener'
 
 import {
   browserCommand, browserOpen, browserSetBounds, browserSetVisible,
-  onBrowserNavigated, type Bounds,
+  onBrowserNavigated, vscodeWebUrl, type Bounds,
 } from '../lib/ipc'
 import { useUi } from '../store/ui'
 import { useWorkspace } from '../store/workspace'
@@ -44,7 +44,13 @@ export function BrowserView({ tab, visible }: { tab: BrowserTab; visible: boolea
     const bounds = measure()
     if (!bounds) return
     openedRef.current = true
-    void browserOpen(tab.id, tab.url || 'https://duckduckgo.com', bounds)
+    // A VS Code tab's saved address names a server and token from an earlier
+    // run; the current one is asked for, starting the server if need be.
+    const address = tab.vscodeFolder
+      ? vscodeWebUrl(tab.vscodeFolder)
+      : Promise.resolve(tab.url || 'https://duckduckgo.com')
+    void address
+      .then((target) => browserOpen(tab.id, target, bounds))
       .then((url) => {
         setCurrent(url)
         setAddress(url)
@@ -54,7 +60,7 @@ export function BrowserView({ tab, visible }: { tab: BrowserTab; visible: boolea
         openedRef.current = false
         setError(String(e))
       })
-  }, [measure, tab.id, tab.url, visible])
+  }, [measure, tab.id, tab.url, tab.vscodeFolder, visible])
 
   // Keep the native view aligned with the pane through every layout change.
   useEffect(() => {
@@ -102,10 +108,11 @@ export function BrowserView({ tab, visible }: { tab: BrowserTab; visible: boolea
       setCurrent(url)
       setAddress(url)
       setTabUrl(tab.id, url)
-      if (!tab.renamed) renameTab(tab.id, hostOf(url))
+      // A VS Code tab keeps its name; its host is just 127.0.0.1.
+      if (!tab.renamed && !tab.vscodeFolder) renameTab(tab.id, hostOf(url))
     }).then((un) => (unlisten = un))
     return () => unlisten?.()
-  }, [renameTab, setTabUrl, tab.id, tab.renamed])
+  }, [renameTab, setTabUrl, tab.id, tab.renamed, tab.vscodeFolder])
 
   const go = useCallback(
     (value: string) => {

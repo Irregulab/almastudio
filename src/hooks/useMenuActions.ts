@@ -146,6 +146,13 @@ export function useMenuActions() {
           case 'panel-changes': setPanel({ open: true, view: 'changes' }); break
           case 'panel-files': setPanel({ open: true, view: 'files' }); break
           case 'panel-git': setPanel({ open: true, view: 'git' }); break
+          case 'panel-search': setPanel({ open: true, view: 'search' }); break
+          case 'find-in-files':
+            setPanel({ open: true, view: 'search' })
+            // An already open Search view only needs the cursor; one opening
+            // now takes it as it mounts.
+            window.dispatchEvent(new CustomEvent('almastudio:search-focus'))
+            break
           case 'zoom-in': applyZoom(1); break
           case 'zoom-out': applyZoom(-1); break
           case 'zoom-reset': applyZoom('reset'); break

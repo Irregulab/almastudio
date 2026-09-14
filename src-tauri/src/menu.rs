@@ -35,12 +35,14 @@ fn fallback(key: &str) -> &'static str {
         "menu.paste" => "Paste",
         "menu.selectAll" => "Select All",
         "menu.find" => "Find in Terminal…",
+        "menu.findInFiles" => "Find in Files…",
         "menu.view" => "View",
         "menu.toggleSidebar" => "Toggle Projects Sidebar",
         "menu.togglePanel" => "Toggle Right Panel",
         "menu.panelChanges" => "Changed Files",
         "menu.panelFiles" => "All Files",
         "menu.panelGit" => "Git",
+        "menu.panelSearch" => "Search",
         "menu.splitRight" => "Split Right",
         "menu.splitDown" => "Split Down",
         "menu.closePane" => "Close Pane",
@@ -110,6 +112,9 @@ pub fn build<R: Runtime>(app: &AppHandle<R>, labels: HashMap<String, String>) ->
     let find = MenuItemBuilder::with_id("find", l.get("menu.find"))
         .accelerator("CmdOrCtrl+F")
         .build(app)?;
+    let find_in_files = MenuItemBuilder::with_id("find-in-files", l.get("menu.findInFiles"))
+        .accelerator("CmdOrCtrl+Shift+F")
+        .build(app)?;
 
     let toggle_sidebar = MenuItemBuilder::with_id("toggle-sidebar", l.get("menu.toggleSidebar"))
         .accelerator("CmdOrCtrl+B")
@@ -125,6 +130,9 @@ pub fn build<R: Runtime>(app: &AppHandle<R>, labels: HashMap<String, String>) ->
         .build(app)?;
     let panel_git = MenuItemBuilder::with_id("panel-git", l.get("menu.panelGit"))
         .accelerator("CmdOrCtrl+3")
+        .build(app)?;
+    let panel_search = MenuItemBuilder::with_id("panel-search", l.get("menu.panelSearch"))
+        .accelerator("CmdOrCtrl+4")
         .build(app)?;
     let split_right = MenuItemBuilder::with_id("split-right", l.get("menu.splitRight"))
         .accelerator("CmdOrCtrl+D")
@@ -223,6 +231,7 @@ pub fn build<R: Runtime>(app: &AppHandle<R>, labels: HashMap<String, String>) ->
         .select_all()
         .separator()
         .item(&find)
+        .item(&find_in_files)
         .build()?;
 
     let view = SubmenuBuilder::new(app, l.get("menu.view"))
@@ -232,6 +241,7 @@ pub fn build<R: Runtime>(app: &AppHandle<R>, labels: HashMap<String, String>) ->
         .item(&panel_changes)
         .item(&panel_files)
         .item(&panel_git)
+        .item(&panel_search)
         .separator()
         .item(&split_right)
         .item(&split_down)

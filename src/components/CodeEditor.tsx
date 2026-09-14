@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react'
 import type { EditorView } from '@codemirror/view'
 
+import type { FileReveal } from '../lib/types'
+
 /** CodeMirror 6, loaded on first use.
  *
  * The theme is expressed entirely in `var(--…)` values, so the editor tracks
@@ -15,6 +17,8 @@ interface Props {
   onChange: (value: string) => void
   onSave: () => void
   readOnly?: boolean
+  /** A spot to select and scroll to, e.g. a search result's line. */
+  reveal?: FileReveal
 }
 
 /** Dynamic import of just the grammar this file needs. */
@@ -61,7 +65,7 @@ async function languageFor(path: string) {
   }
 }
 
-export function CodeEditor({ value, path, onChange, onSave, readOnly }: Props) {
+export function CodeEditor({ value, path, onChange, onSave, readOnly, reveal }: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
   // The callbacks are read through refs so the editor is built once per file
@@ -70,6 +74,29 @@ export function CodeEditor({ value, path, onChange, onSave, readOnly }: Props) {
   const onSaveRef = useRef(onSave)
   onChangeRef.current = onChange
   onSaveRef.current = onSave
+  const revealRef = useRef(reveal)
+  revealRef.current = reveal
+  /** The request last carried out, so a later re-render does not jump back. */
+  const revealedRef = useRef<number | null>(null)
+  /** CodeMirror's view class, loaded with the editor, for its scroll effect. */
+  const viewClassRef = useRef<typeof EditorView | null>(null)
+
+  const revealNow = () => {
+    const view = viewRef.current
+    const target = revealRef.current
+    const View = viewClassRef.current
+    if (!view || !View || !target || revealedRef.current === target.nonce) return
+    revealedRef.current = target.nonce
+    const doc = view.state.doc
+    const line = doc.line(Math.min(Math.max(1, target.line), doc.lines))
+    const from = Math.min(line.from + target.column, line.to)
+    const to = Math.min(from + target.length, line.to)
+    view.dispatch({
+      selection: { anchor: from, head: to },
+      effects: View.scrollIntoView(from, { y: 'center' }),
+    })
+    view.focus()
+  }
 
   useEffect(() => {
     const host = hostRef.current
@@ -226,6 +253,8 @@ export function CodeEditor({ value, path, onChange, onSave, readOnly }: Props) {
       })
 
       viewRef.current = new EditorView({ state, parent: host })
+      viewClassRef.current = EditorView
+      revealNow()
     })()
 
     return () => {
@@ -246,6 +275,11 @@ export function CodeEditor({ value, path, onChange, onSave, readOnly }: Props) {
     if (current === value) return
     view.dispatch({ changes: { from: 0, to: current.length, insert: value } })
   }, [value])
+
+  // A new request on an editor that already exists; a first one is carried
+  // out as the editor is built.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => revealNow(), [reveal?.nonce])
 
   return <div ref={hostRef} className="editor" />
 }

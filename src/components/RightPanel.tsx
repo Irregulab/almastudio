@@ -3,7 +3,7 @@ import { revealItemInDir } from '@tauri-apps/plugin-opener'
 import {
   ArrowLeft, Check, ChevronDown, ChevronRight, Eye, EyeOff, FileDiff, FilePlus2,
   FolderPlus, GitBranch, GitCommitHorizontal, History, ListTree, Maximize2,
-  Minus, Pencil, Pin, Plus, RefreshCw, Trash2, Undo2, X,
+  Minus, Pencil, Pin, Plus, RefreshCw, Search, Trash2, Undo2, X,
 } from 'lucide-react'
 
 import {
@@ -16,6 +16,7 @@ import { useWorkspace } from '../store/workspace'
 import { useT } from '../i18n'
 import { ConfirmDialog, MenuItem, MenuSeparator, Popover, PromptDialog } from './ui'
 import { DirIcon, FileIcon } from './FileIcon'
+import { SearchView } from './SearchView'
 import type {
   BranchInfo, ChangedFile, CommitInfo, DirEntryInfo, PanelView, RepoStatus,
 } from '../lib/types'
@@ -96,6 +97,8 @@ export function RightPanel({
           icon={<ListTree size={13} />} label={t('panel.files')} />
         <PanelTab active={view === 'git'} onClick={() => onViewChange('git')}
           icon={<GitBranch size={13} />} label={t('panel.git')} />
+        <PanelTab active={view === 'search'} onClick={() => onViewChange('search')}
+          icon={<Search size={13} />} label={t('panel.search')} />
         <span className="spacer" />
         <button
           className="icon-btn" onClick={() => setTick((n) => n + 1)}
@@ -138,6 +141,7 @@ export function RightPanel({
             onChanged={() => setTick((n) => n + 1)} onPickRepo={onPickRoot}
           />
         )}
+        {view === 'search' && <SearchView projectId={projectId} root={root} revision={tick} />}
       </div>
     </aside>
   )

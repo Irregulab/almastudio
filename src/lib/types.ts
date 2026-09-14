@@ -3,7 +3,7 @@
 export type HarnessKind = 'claude' | 'codex' | 'opencode' | 'shell'
 export type TabKind = HarnessKind | 'diff' | 'file' | 'browser'
 export type DiffSide = 'worktree' | 'index' | 'head'
-export type PanelView = 'changes' | 'files' | 'git'
+export type PanelView = 'changes' | 'files' | 'git' | 'search'
 export type ThemeMode = 'system' | 'dark' | 'light'
 export type Language = 'system' | 'en' | 'it'
 
@@ -69,16 +69,33 @@ export interface DiffTab extends TabBase {
   side: DiffSide
 }
 
+/** Where a file tab puts the cursor, when opened from a search result. */
+export interface FileReveal {
+  /** 1-based. */
+  line: number
+  /** UTF-16 offset in the line, and how much to select from there. */
+  column: number
+  length: number
+  /** Tells asking for the same spot twice apart from a re-render. */
+  nonce: number
+}
+
 export interface FileTab extends TabBase {
   kind: 'file'
   root: string
   path: string
+  reveal?: FileReveal
 }
 
 export interface BrowserTab extends TabBase {
   kind: 'browser'
   /** Last committed address, so the tab reopens where it was left. */
   url: string
+  /**
+   * Set on a VS Code tab: the folder it shows. Its address names a server and
+   * a token that end with the app, so a fresh one is asked for on reopening.
+   */
+  vscodeFolder?: string
 }
 
 export type Tab = TerminalTab | DiffTab | FileTab | BrowserTab

@@ -441,6 +441,7 @@ function WorkspaceSection() {
             { value: 'changes', label: t('panel.changes') },
             { value: 'files', label: t('panel.files') },
             { value: 'git', label: t('panel.git') },
+            { value: 'search', label: t('panel.search') },
           ]}
         />
       </Field>

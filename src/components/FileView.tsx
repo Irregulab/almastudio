@@ -37,6 +37,11 @@ export function FileView({ tab, visible }: { tab: FileTab; visible: boolean }) {
   const dirty = content !== original
   const editable = !!file && !file.binary && !file.truncated
 
+  // A search result points at a line, which only the source shows.
+  useEffect(() => {
+    if (tab.reveal && kind && !viewOnly) setMode('source')
+  }, [tab.reveal, kind, viewOnly])
+
   const absolute =
     tab.path.startsWith('/') || /^[A-Za-z]:/.test(tab.path)
       ? tab.path
@@ -186,6 +191,7 @@ export function FileView({ tab, visible }: { tab: FileTab; visible: boolean }) {
               <CodeEditor
                 value={content}
                 path={tab.path}
+                reveal={tab.reveal}
                 onChange={setContent}
                 onSave={() => void save()}
               />

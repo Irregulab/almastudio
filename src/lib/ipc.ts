@@ -224,3 +224,53 @@ export interface RepoEntry {
 
 export const findGitRepos = (root: string, maxDepth?: number) =>
   invoke<RepoEntry[]>('find_git_repos', { root, maxDepth })
+
+// ------------------------------------------------------------- text search ----
+
+export interface SearchQuery {
+  root: string
+  pattern: string
+  caseSensitive?: boolean
+  wholeWord?: boolean
+  regex?: boolean
+  /** Comma-separated globs, as in VS Code. */
+  include?: string
+  exclude?: string
+  maxMatches?: number
+}
+
+export interface LineMatch {
+  /** 1-based. */
+  line: number
+  /** The line's first match, as a UTF-16 offset and length. */
+  column: number
+  length: number
+  preview: string
+  /** Matches within `preview`, as `[start, end)` offsets. */
+  ranges: [number, number][]
+}
+
+export interface FileMatches {
+  path: string
+  rel: string
+  matches: LineMatch[]
+}
+
+export interface SearchResults {
+  files: FileMatches[]
+  matchCount: number
+  truncated: boolean
+  /** Replaced by a newer search before it finished; nothing to show. */
+  cancelled: boolean
+}
+
+/** Starting a search cancels the one before; an empty pattern just cancels. */
+export const searchText = (query: SearchQuery) => invoke<SearchResults>('search_text', { query })
+
+// ------------------------------------------------------------------ vscode ----
+
+/** The address of VS Code, served locally, with `folder` open. */
+export const vscodeWebUrl = (folder: string) => invoke<string>('vscode_web_url', { folder })
+
+export const vscodeOpenExternal = (folder: string) =>
+  invoke<void>('vscode_open_external', { folder })

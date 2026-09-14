@@ -1,8 +1,11 @@
 import { useRef, useState } from 'react'
+import { message } from '@tauri-apps/plugin-dialog'
 import {
-  Bot, Columns2, FolderOpen, Globe, Plus, Rows2, Sparkles, SquareCode, SquareTerminal,
+  Bot, CodeXml, Columns2, FolderOpen, Globe, Plus, Rows2, Sparkles, SquareCode, SquareTerminal,
   Terminal, X,
 } from 'lucide-react'
+
+import { vscodeOpenExternal, vscodeWebUrl } from '../lib/ipc'
 
 import { beginPointerDrag, useDrag } from '../lib/dragDrop'
 import { allLeaves, allTabIds, findLeaf } from '../lib/layout'
@@ -213,6 +216,10 @@ function NewTabMenuItems({ onPick }: { onPick: () => void }) {
       <MenuItem icon={<SquareCode size={13} />} label={t('tabs.opencode')} hint="⇧⌘O" onClick={pick(() => void newTab('opencode'))} />
       <MenuItem icon={<Terminal size={13} />} label={t('tabs.shell')} hint="⌘T" onClick={pick(() => void newTab('shell'))} />
       <MenuItem icon={<Globe size={13} />} label={t('tabs.browser')} onClick={pick(openBrowser)} />
+      <MenuItem
+        icon={<CodeXml size={13} />} label={t('tabs.vscode')}
+        onClick={pick(() => void openVsCode(t))}
+      />
       <MenuSeparator />
       <MenuItem
         icon={<FolderOpen size={13} />}
@@ -227,6 +234,34 @@ function NewTabMenuItems({ onPick }: { onPick: () => void }) {
 function openBrowser() {
   const s = useWorkspace.getState()
   if (s.activeProjectId) s.openBrowserTab({ projectId: s.activeProjectId })
+}
+
+/**
+ * The project in Visual Studio Code: inside AlmaStudio, as a tab, when VS
+ * Code's command-line tools can serve it; otherwise in its own window.
+ */
+async function openVsCode(t: ReturnType<typeof useT>) {
+  const s = useWorkspace.getState()
+  const project = s.projects.find((p) => p.id === s.activeProjectId)
+  if (!project) return
+  try {
+    const url = await vscodeWebUrl(project.root)
+    s.openBrowserTab({
+      projectId: project.id,
+      url,
+      title: `VS Code · ${project.name}`,
+      vscodeFolder: project.root,
+    })
+  } catch {
+    try {
+      await vscodeOpenExternal(project.root)
+    } catch (e) {
+      await message(t('vscode.failed', { error: String(e) }), {
+        title: t('tabs.vscode'),
+        kind: 'error',
+      })
+    }
+  }
 }
 
 function EmptyWorkspace() {

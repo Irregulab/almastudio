@@ -10,7 +10,7 @@ import {
   removeLeaf, resizeSplit as resizeSplitIn, splitLeaf,
 } from '../lib/layout'
 import type {
-  DiffSide, HarnessKind, PanelState, Project, ProjectWorkspace, Tab, TabGroup,
+  DiffSide, FileTab, HarnessKind, PanelState, Project, ProjectWorkspace, Tab, TabGroup,
   TerminalStatus, TerminalTab, WorkspaceState,
 } from '../lib/types'
 import { isTerminalTab } from '../lib/types'
@@ -76,8 +76,13 @@ interface WorkspaceStore extends WorkspaceState {
     projectId: string; kind: HarnessKind; cwd: string; title?: string; splitFrom?: SplitFrom
   }) => TerminalTab
   openDiffTab: (opts: { projectId: string; root: string; path: string; side: DiffSide }) => Tab
-  openFileTab: (opts: { projectId: string; root: string; path: string }) => Tab
-  openBrowserTab: (opts: { projectId: string; url?: string; splitFrom?: SplitFrom }) => Tab
+  /** With `line` (and `column`, `length`), the file opens with that spot selected. */
+  openFileTab: (opts: {
+    projectId: string; root: string; path: string; line?: number; column?: number; length?: number
+  }) => Tab
+  openBrowserTab: (opts: {
+    projectId: string; url?: string; title?: string; vscodeFolder?: string; splitFrom?: SplitFrom
+  }) => Tab
   setTabUrl: (tabId: string, url: string) => void
   /** Closes one session: its pane goes, and its tab too when that was the last pane. */
   closeTab: (tabId: string) => void
@@ -354,11 +359,13 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
     return tab
   },
 
-  openFileTab: ({ projectId, root, path }) => {
+  openFileTab: ({ projectId, root, path, line, column = 0, length = 0 }) => {
+    const reveal = line ? { line, column, length, nonce: Date.now() } : undefined
     const existing = Object.values(get().tabs).find(
-      (t) => t.kind === 'file' && t.projectId === projectId && t.path === path,
+      (t): t is FileTab => t.kind === 'file' && t.projectId === projectId && t.path === path,
     )
     if (existing) {
+      if (reveal) set((s) => ({ tabs: { ...s.tabs, [existing.id]: { ...existing, reveal } } }))
       get().focusTab(existing.id)
       return existing
     }
@@ -369,6 +376,7 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
       title: path.split('/').pop() ?? path,
       root,
       path,
+      reveal,
     }
     set((s) => ({
       tabs: { ...s.tabs, [tab.id]: tab },
@@ -377,13 +385,14 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
     return tab
   },
 
-  openBrowserTab: ({ projectId, url, splitFrom }) => {
+  openBrowserTab: ({ projectId, url, title, vscodeFolder, splitFrom }) => {
     const tab: Tab = {
       id: uid('tab'),
       projectId,
       kind: 'browser',
-      title: '',
+      title: title ?? '',
       url: url ?? 'https://duckduckgo.com',
+      vscodeFolder,
     }
     set((s) => ({
       tabs: { ...s.tabs, [tab.id]: tab },
@@ -537,7 +546,13 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
     if (isTerminalTab(tab)) {
       s.addTerminalTab({ projectId: pid, kind: tab.kind, cwd: tab.cwd, splitFrom })
     } else if (tab.kind === 'browser') {
-      s.openBrowserTab({ projectId: pid, url: tab.url, splitFrom })
+      s.openBrowserTab({
+        projectId: pid,
+        url: tab.url,
+        title: tab.vscodeFolder ? tab.title : undefined,
+        vscodeFolder: tab.vscodeFolder,
+        splitFrom,
+      })
     } else {
       s.addTerminalTab({ projectId: pid, kind: 'shell', cwd: tab.root, splitFrom })
     }

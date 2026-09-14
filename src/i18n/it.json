@@ -35,7 +35,9 @@
     "help": "Aiuto",
     "docs": "Documentazione AlmaStudio",
     "revealState": "Mostra dati applicazione…",
-    "newBrowser": "Nuova scheda Browser"
+    "newBrowser": "Nuova scheda Browser",
+    "findInFiles": "Cerca nei file…",
+    "panelSearch": "Cerca"
   },
   "sidebar": {
     "projects": "Progetti",
@@ -113,7 +115,8 @@
     "working": "In esecuzione…",
     "waiting": "In attesa di input",
     "browser": "Browser",
-    "moveToPane": "Sposta nel riquadro {n}"
+    "moveToPane": "Sposta nel riquadro {n}",
+    "vscode": "Visual Studio Code"
   },
   "browser": {
     "back": "Indietro",
@@ -172,7 +175,8 @@
     "pinRepo": "Fissa in cima",
     "unpinRepo": "Togli dai fissati",
     "focusRepo": "Mostra solo questo repository",
-    "backToProject": "Torna alla cartella del progetto"
+    "backToProject": "Torna alla cartella del progetto",
+    "search": "Cerca"
   },
   "fs": {
     "newFile": "Nuovo file",
@@ -329,5 +333,26 @@
     "none": "Nessuno",
     "folder": "Cartella",
     "chooseFolder": "Scegli cartella"
+  },
+  "search": {
+    "placeholder": "Cerca",
+    "matchCase": "Maiuscole/minuscole",
+    "wholeWord": "Parola intera",
+    "regex": "Usa espressione regolare",
+    "toggleFilters": "File da includere o escludere",
+    "include": "File da includere",
+    "exclude": "File da escludere",
+    "includePlaceholder": "es. src, *.ts",
+    "excludePlaceholder": "es. dist, *.min.js",
+    "searching": "Ricerca in corso…",
+    "noResults": "Nessun risultato",
+    "resultsOne": "1 risultato",
+    "resultsMany": "{n} risultati",
+    "filesOne": "in 1 file",
+    "filesMany": "in {n} file",
+    "truncated": "Sono mostrati solo i primi {n}: restringi la ricerca per vedere gli altri."
+  },
+  "vscode": {
+    "failed": "Impossibile aprire Visual Studio Code: {error}"
   }
 }
