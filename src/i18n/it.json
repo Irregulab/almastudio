@@ -184,7 +184,8 @@
     "pullDone": "Pull eseguito",
     "pushDone": "Push eseguito",
     "showMore": "Mostra altri",
-    "noCommits": "Ancora nessun commit"
+    "noCommits": "Ancora nessun commit",
+    "conflicts": "Conflitti di merge"
   },
   "fs": {
     "newFile": "Nuovo file",
@@ -213,7 +214,17 @@
     "deletions": "{n} rimosse",
     "contextLines": "Righe di contesto",
     "revealFile": "Mostra il file",
-    "openAsFile": "Apri il contenuto del file"
+    "openAsFile": "Apri il contenuto del file",
+    "stageHunk": "Metti in stage questo blocco",
+    "unstageHunk": "Togli dallo stage questo blocco",
+    "discardHunk": "Annulla questo blocco",
+    "stageLines": "Metti in stage le {n} righe scelte",
+    "unstageLines": "Togli dallo stage le {n} righe scelte",
+    "discardLines": "Annulla le {n} righe scelte",
+    "linesChosen": "{n} righe scelte",
+    "discardHunkConfirm": "Annullare le modifiche di questo blocco? Non si potrà tornare indietro.",
+    "discardLinesConfirm": "Annullare le {n} righe scelte? Non si potrà tornare indietro.",
+    "pickLinesHint": "Clic per scegliere questa riga, Maiusc-clic per un intervallo"
   },
   "view": {
     "preview": "Anteprima",
@@ -311,7 +322,10 @@
     "resetConfirm": "Ripristinare tutte le impostazioni ai valori predefiniti?",
     "argsHint": "Un argomento per riga.",
     "confirmOnExit": "Chiedi conferma all'uscita",
-    "confirmOnExitHint": "Chiede solo se qualcosa è in esecuzione o non salvato. Chiudendo due volte di seguito esce sempre."
+    "confirmOnExitHint": "Chiede solo se qualcosa è in esecuzione o non salvato. Chiudendo due volte di seguito esce sempre.",
+    "autoFetch": "Fetch automatico",
+    "autoFetchHint": "Ogni tanti minuti, per il repository nel pannello. 0 lo disattiva.",
+    "autoFetchUnit": "min"
   },
   "update": {
     "checking": "Controllo aggiornamenti…",
@@ -464,5 +478,13 @@
     "compare": "{base} → {target}",
     "compareHint": "⌘-clic su un altro commit per confrontarli",
     "closeDetails": "Chiudi i dettagli"
+  },
+  "conflicts": {
+    "acceptCurrent": "Accetta la modifica corrente",
+    "acceptIncoming": "Accetta la modifica in arrivo",
+    "acceptBoth": "Accetta entrambe le modifiche",
+    "count": "{n} conflitti",
+    "markResolved": "Segna come risolto",
+    "resolved": "Segnato come risolto"
   }
 }

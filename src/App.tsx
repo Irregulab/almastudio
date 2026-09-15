@@ -13,6 +13,7 @@ import { readableAccent } from './lib/color'
 import { useApplyTheme } from './hooks/useTheme'
 import { useMenuActions } from './hooks/useMenuActions'
 import { useFileDrop } from './hooks/useFileDrop'
+import { useAutoFetch } from './hooks/useAutoFetch'
 import { ProjectIcon, Sidebar } from './components/Sidebar'
 import { Workspace } from './components/Workspace'
 import { RightPanel } from './components/RightPanel'
@@ -116,6 +117,8 @@ export default function App() {
     if (ws.panel.pinnedRoot) return ws.panel.pinnedRoot
     return tabRoot ?? project.root
   }, [project, tabRoot, ws])
+
+  useAutoFetch(inspectRoot, settings.panel.autoFetchMinutes)
 
   const sidebarRef = useRef<HTMLDivElement>(null)
   // The active project's colour drives the tab and activity chrome. It is a

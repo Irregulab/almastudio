@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { openUrl, revealItemInDir } from '@tauri-apps/plugin-opener'
-import { Code2, ExternalLink, Eye, RefreshCw, Save } from 'lucide-react'
+import { Check, Code2, ExternalLink, Eye, RefreshCw, Save } from 'lucide-react'
 
-import { allowPreview, readTextFile, writeTextFile } from '../lib/ipc'
+import { GIT_CHANGED_EVENT } from '../hooks/useAutoFetch'
+import { findConflicts } from '../lib/conflicts'
+import { allowPreview, gitMarkResolved, readTextFile, writeTextFile } from '../lib/ipc'
 import { languageOf, previewKindOf } from '../lib/syntax'
 import { useUi } from '../store/ui'
 import { useT } from '../i18n'
@@ -41,6 +43,17 @@ export function FileView({ tab, visible }: { tab: FileTab; visible: boolean }) {
   useEffect(() => {
     if (tab.reveal && kind && !viewOnly) setMode('source')
   }, [tab.reveal, kind, viewOnly])
+
+  const conflicts = useMemo(() => (editable ? findConflicts(content).length : 0), [content, editable])
+  const inConflict = conflicts > 0
+  /** It had conflict markers, so it can be marked resolved once they are gone. */
+  const [hadConflicts, setHadConflicts] = useState(false)
+  useEffect(() => {
+    if (!inConflict) return
+    setHadConflicts(true)
+    // Conflicts are resolved in the source.
+    if (kind && !viewOnly) setMode('source')
+  }, [inConflict, kind, viewOnly])
 
   const absolute =
     tab.path.startsWith('/') || /^[A-Za-z]:/.test(tab.path)
@@ -117,6 +130,18 @@ export function FileView({ tab, visible }: { tab: FileTab; visible: boolean }) {
     await write()
   }, [absolute, dirty, original, saving, write])
 
+  const markResolved = async () => {
+    try {
+      await gitMarkResolved(absolute)
+      setHadConflicts(false)
+      setNotice(t('conflicts.resolved'))
+      window.setTimeout(() => setNotice(null), 1800)
+      window.dispatchEvent(new CustomEvent(GIT_CHANGED_EVENT))
+    } catch (e) {
+      setError(String(e))
+    }
+  }
+
   const language = languageOf(tab.path)
   const showSource = !kind || (!viewOnly && mode === 'source')
   // An SVG being edited is drawn from the editor's text instead (see below).
@@ -138,6 +163,12 @@ export function FileView({ tab, visible }: { tab: FileTab; visible: boolean }) {
         {language && <span className="chip">{language}</span>}
         {file && <span className="chip">{formatBytes(file.size)}</span>}
         {notice && <span className="chip chip--ok">{notice}</span>}
+        {inConflict && <span className="chip chip--dirty">{t('conflicts.count', { n: conflicts })}</span>}
+        {hadConflicts && !inConflict && !dirty && (
+          <button className="btn btn--sm btn--primary" onClick={() => void markResolved()}>
+            <Check size={12} /> {t('conflicts.markResolved')}
+          </button>
+        )}
         {kind === 'html' && !showSource && (
           <>
             <span className="chip">{t('view.noScripts')}</span>
@@ -192,6 +223,11 @@ export function FileView({ tab, visible }: { tab: FileTab; visible: boolean }) {
                 value={content}
                 path={tab.path}
                 reveal={tab.reveal}
+                conflictLabels={{
+                  current: t('conflicts.acceptCurrent'),
+                  incoming: t('conflicts.acceptIncoming'),
+                  both: t('conflicts.acceptBoth'),
+                }}
                 onChange={setContent}
                 onSave={() => void save()}
               />

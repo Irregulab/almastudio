@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { revealItemInDir } from '@tauri-apps/plugin-opener'
-import { ExternalLink, FileText, RefreshCw } from 'lucide-react'
+import { ExternalLink, FileText, Minus, Plus, RefreshCw, Undo2 } from 'lucide-react'
 
-import { gitDiffFile } from '../lib/ipc'
+import { GIT_CHANGED_EVENT } from '../hooks/useAutoFetch'
+import { gitApplyHunk, gitDiffFile } from '../lib/ipc'
 import {
   highlightLines, languageOf, mergeSyntaxAndWords, type MergedRun, type SynLine,
 } from '../lib/syntax'
@@ -10,7 +11,7 @@ import { pairChangedLines, wordDiff, type Segment } from '../lib/wordDiff'
 import { useSettings } from '../store/settings'
 import { useWorkspace } from '../store/workspace'
 import { useT } from '../i18n'
-import { Segmented } from './ui'
+import { ConfirmDialog, Segmented } from './ui'
 import type { DiffHunk, DiffSide, DiffTab, FileDiff } from '../lib/types'
 
 export function DiffView({ tab, visible }: { tab: DiffTab; visible: boolean }) {
@@ -23,6 +24,12 @@ export function DiffView({ tab, visible }: { tab: DiffTab; visible: boolean }) {
   const [side, setSide] = useState<DiffSide>(tab.side)
   const [layout, setLayout] = useState(settings.panel.diffView)
   const syntax = useDiffSyntax(diff, tab.path)
+  /** Lines picked in each hunk, by index, to stage, unstage or discard alone. */
+  const [picked, setPicked] = useState<Record<number, number[]>>({})
+  const anchor = useRef<{ hunk: number; line: number } | null>(null)
+  const [applying, setApplying] = useState(false)
+  const [applyError, setApplyError] = useState<string | null>(null)
+  const [confirmDiscard, setConfirmDiscard] = useState<number | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -32,6 +39,7 @@ export function DiffView({ tab, visible }: { tab: DiffTab; visible: boolean }) {
         : undefined
       const d = await gitDiffFile(tab.root, tab.path, side, settings.panel.contextLines, commits)
       setDiff(d)
+      setPicked({})
       setError(null)
     } catch (e) {
       setError(String(e))
@@ -47,6 +55,73 @@ export function DiffView({ tab, visible }: { tab: DiffTab; visible: boolean }) {
   }, [visible, load])
 
   const absolute = `${tab.root.replace(/\/+$/, '')}/${tab.path}`
+
+  // Hunks are staged, unstaged or discarded from the working tree and staged
+  // views; a commit's change, or everything against HEAD, is only looked at.
+  const partial = !tab.target && !!diff && !diff.binary && (side === 'worktree' || side === 'index')
+
+  const pick = (hunk: number, line: number, range: boolean) => {
+    const from = anchor.current
+    setPicked((prev) => {
+      const lines = diff?.hunks[hunk]?.lines ?? []
+      const chosen = new Set(prev[hunk] ?? [])
+      if (range && from && from.hunk === hunk) {
+        const [a, b] = from.line < line ? [from.line, line] : [line, from.line]
+        for (let i = a; i <= b; i++) if (lines[i] && lines[i].origin !== ' ') chosen.add(i)
+      } else if (chosen.has(line)) {
+        chosen.delete(line)
+      } else {
+        chosen.add(line)
+      }
+      return { ...prev, [hunk]: [...chosen].sort((x, y) => x - y) }
+    })
+    anchor.current = { hunk, line }
+  }
+
+  const apply = async (hunk: number, action: 'stage' | 'unstage' | 'discard') => {
+    setApplying(true)
+    setApplyError(null)
+    try {
+      const lines = picked[hunk]
+      await gitApplyHunk(
+        tab.root, tab.path, settings.panel.contextLines, hunk, action,
+        lines?.length ? lines : undefined,
+      )
+      window.dispatchEvent(new CustomEvent(GIT_CHANGED_EVENT))
+      await load()
+    } catch (e) {
+      setApplyError(String(e))
+    } finally {
+      setApplying(false)
+    }
+  }
+
+  const hunkActions = (hunk: number) => {
+    if (!partial) return null
+    const chosen = picked[hunk]?.length ?? 0
+    const label = (whole: string, some: string) => (chosen > 0 ? t(some, { n: chosen }) : t(whole))
+    const button = (title: string, icon: React.ReactNode, onClick: () => void) => (
+      <button
+        className="icon-btn icon-btn--tiny" title={title} aria-label={title}
+        disabled={applying} onClick={onClick}
+      >
+        {icon}
+      </button>
+    )
+    return (
+      <span className="hunk__actions">
+        {chosen > 0 && <span className="hunk__chosen">{t('diff.linesChosen', { n: chosen })}</span>}
+        {side === 'worktree' ? (
+          <>
+            {button(label('diff.discardHunk', 'diff.discardLines'), <Undo2 size={12} />, () => setConfirmDiscard(hunk))}
+            {button(label('diff.stageHunk', 'diff.stageLines'), <Plus size={12} />, () => void apply(hunk, 'stage'))}
+          </>
+        ) : (
+          button(label('diff.unstageHunk', 'diff.unstageLines'), <Minus size={12} />, () => void apply(hunk, 'unstage'))
+        )}
+      </span>
+    )
+  }
 
   return (
     <div className="diff">
@@ -106,6 +181,7 @@ export function DiffView({ tab, visible }: { tab: DiffTab; visible: boolean }) {
 
       <div className="diff__body">
         {error && <div className="empty">{error}</div>}
+        {applyError && <div className="git__error git__error--block">{applyError}</div>}
         {!error && diff?.binary && <div className="empty">{t('diff.binary')}</div>}
         {!error && diff && !diff.binary && diff.hunks.length === 0 && (
           <div className="empty">{t('diff.noChanges')}</div>
@@ -113,13 +189,36 @@ export function DiffView({ tab, visible }: { tab: DiffTab; visible: boolean }) {
         {!error && diff && !diff.binary &&
           diff.hunks.map((hunk, i) =>
             layout === 'unified' ? (
-              <UnifiedHunk key={i} hunk={hunk} syntax={syntax.get(i)} />
+              <UnifiedHunk
+                key={i} hunk={hunk} syntax={syntax.get(i)} actions={hunkActions(i)}
+                picked={partial ? (picked[i] ?? []) : undefined}
+                onPick={(line, range) => pick(i, line, range)}
+                pickHint={t('diff.pickLinesHint')}
+              />
             ) : (
-              <SplitHunk key={i} hunk={hunk} syntax={syntax.get(i)} />
+              <SplitHunk key={i} hunk={hunk} syntax={syntax.get(i)} actions={hunkActions(i)} />
             ),
           )}
         {diff?.truncated && <div className="diff__truncated">{t('diff.truncated')}</div>}
       </div>
+
+      {confirmDiscard !== null && (
+        <ConfirmDialog
+          title={t('diff.discardHunk')}
+          message={
+            (picked[confirmDiscard]?.length ?? 0) > 0
+              ? t('diff.discardLinesConfirm', { n: picked[confirmDiscard].length })
+              : t('diff.discardHunkConfirm')
+          }
+          confirmLabel={t('panel.discard')} danger
+          onCancel={() => setConfirmDiscard(null)}
+          onConfirm={() => {
+            const hunk = confirmDiscard
+            setConfirmDiscard(null)
+            void apply(hunk, 'discard')
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -244,39 +343,71 @@ function Line({
   )
 }
 
-function UnifiedHunk({ hunk, syntax }: { hunk: DiffHunk; syntax?: HunkSyntax }) {
+function UnifiedHunk({
+  hunk, syntax, actions, picked, onPick, pickHint,
+}: {
+  hunk: DiffHunk
+  syntax?: HunkSyntax
+  actions?: React.ReactNode
+  /** The lines picked so far; absent where lines cannot be picked. */
+  picked?: number[]
+  onPick?: (line: number, range: boolean) => void
+  pickHint?: string
+}) {
   const segs = useWordPairs(hunk)
   return (
     <div className="hunk">
-      <div className="hunk__header mono">{hunk.header}</div>
+      <div className="hunk__header mono">
+        <span className="hunk__title truncate">{hunk.header}</span>
+        {actions}
+      </div>
       <table className="hunk__table">
         <tbody>
-          {hunk.lines.map((line, i) => (
-            <tr key={i} className={`dl dl--${originClass(line.origin)}`}>
-              <td className="dl__num">{line.oldLineno ?? ''}</td>
-              <td className="dl__num">{line.newLineno ?? ''}</td>
-              <td className="dl__sign">{line.origin === ' ' ? '' : line.origin}</td>
-              <td className="dl__text mono">
-                <Line
-                  segments={segs.get(i)}
-                  syntax={syntax?.get(i)}
-                  content={line.content}
-                />
-              </td>
-            </tr>
-          ))}
+          {hunk.lines.map((line, i) => {
+            // A changed line is picked by clicking its line numbers.
+            const pickable = picked !== undefined && line.origin !== ' '
+            const numCell = pickable
+              ? {
+                  className: 'dl__num dl__num--pick',
+                  title: pickHint,
+                  onClick: (e: React.MouseEvent) => onPick?.(i, e.shiftKey),
+                }
+              : { className: 'dl__num' }
+            return (
+              <tr
+                key={i}
+                className={`dl dl--${originClass(line.origin)}${picked?.includes(i) ? ' dl--picked' : ''}`}
+              >
+                <td {...numCell}>{line.oldLineno ?? ''}</td>
+                <td {...numCell}>{line.newLineno ?? ''}</td>
+                <td className="dl__sign">{line.origin === ' ' ? '' : line.origin}</td>
+                <td className="dl__text mono">
+                  <Line
+                    segments={segs.get(i)}
+                    syntax={syntax?.get(i)}
+                    content={line.content}
+                  />
+                </td>
+              </tr>
+            )
+          })}
         </tbody>
       </table>
     </div>
   )
 }
 
-function SplitHunk({ hunk, syntax }: { hunk: DiffHunk; syntax?: HunkSyntax }) {
+function SplitHunk({
+  hunk, syntax, actions,
+}: { hunk: DiffHunk; syntax?: HunkSyntax; actions?: React.ReactNode }) {
   const segs = useWordPairs(hunk)
   const rows = useMemo(() => buildSplitRows(hunk), [hunk])
   return (
     <div className="hunk">
-      <div className="hunk__header mono">{hunk.header}</div>
+      <div className="hunk__header mono">
+        <span className="hunk__title truncate">{hunk.header}</span>
+        {actions}
+      </div>
       <table className="hunk__table hunk__table--split">
         <tbody>
           {rows.map((row, i) => (

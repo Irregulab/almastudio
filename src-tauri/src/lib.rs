@@ -340,6 +340,8 @@ pub fn run() {
             git_cli::git_stash_drop,
             git_cli::git_create_tag,
             git_cli::git_delete_tag,
+            git_cli::git_apply_hunk,
+            git_cli::git_mark_resolved,
             git::find_git_repos,
             fsx::list_dir,
             fsx::read_text_file,

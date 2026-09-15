@@ -9,6 +9,7 @@ import {
   createDir, createFile, findFiles, gitDiscard, gitStage, gitStatus, gitUnstage, listDir,
   onFsChange, renamePath, trashPath, watchStart, watchStop,
 } from '../lib/ipc'
+import { GIT_CHANGED_EVENT } from '../hooks/useAutoFetch'
 import { useSettings } from '../store/settings'
 import { useWorkspace } from '../store/workspace'
 import { useT } from '../i18n'
@@ -85,6 +86,13 @@ export function RightPanel({
       void watchStop(id).catch(() => {})
     }
   }, [projectId, root, settings.panel.watch])
+
+  // Git state that changed elsewhere: a background fetch, a hunk staged from a diff.
+  useEffect(() => {
+    const bump = () => setTick((n) => n + 1)
+    window.addEventListener(GIT_CHANGED_EVENT, bump)
+    return () => window.removeEventListener(GIT_CHANGED_EVENT, bump)
+  }, [])
 
   return (
     <aside className="panel">
@@ -278,14 +286,16 @@ function ChangesView({
 }) {
   const t = useT()
   const openDiffTab = useWorkspace((s) => s.openDiffTab)
+  const openFileTab = useWorkspace((s) => s.openFileTab)
   /** Files about to be discarded; `untracked` ones are deleted instead. */
   const [confirm, setConfirm] = useState<{ files: ChangedFile[]; untracked: boolean } | null>(null)
 
   const groups = useMemo(() => {
     const files = status?.files ?? []
     return {
-      staged: files.filter((f) => f.staged),
-      changes: files.filter((f) => f.unstaged && !f.untracked),
+      conflicts: files.filter((f) => f.conflicted),
+      staged: files.filter((f) => f.staged && !f.conflicted),
+      changes: files.filter((f) => f.unstaged && !f.untracked && !f.conflicted),
       untracked: files.filter((f) => f.untracked),
     }
   }, [status])
@@ -338,6 +348,16 @@ function ChangesView({
           <div className="subtle">{t('panel.noChangesHint')}</div>
         </div>
       )}
+      <FileGroup
+        title={t('panel.conflicts')} files={groups.conflicts}
+        actions={[]}
+        // A conflict is resolved in the file itself, not in a diff.
+        onOpen={(f) => openFileTab({ projectId, root: status.root, path: f.path })}
+        rowAction={{
+          icon: <Check size={12} />, label: t('conflicts.markResolved'),
+          run: (f) => void act(gitStage(status.root, [f.path])),
+        }}
+      />
       <FileGroup
         title={t('panel.staged')} files={groups.staged}
         actions={[{

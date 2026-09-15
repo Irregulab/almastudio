@@ -479,6 +479,13 @@ function WorkspaceSection() {
         <Toggle checked={s.panel.watch} onChange={(v) => patch('panel', { watch: v })} />
       </Field>
 
+      <Field label={t('settings.autoFetch')} hint={t('settings.autoFetchHint')}>
+        <NumberInput
+          value={s.panel.autoFetchMinutes} min={0} max={120} suffix={t('settings.autoFetchUnit')}
+          onChange={(v) => patch('panel', { autoFetchMinutes: v })}
+        />
+      </Field>
+
       <div className="settings__sep" />
 
       <Field label={t('settings.restoreTabs')} row>

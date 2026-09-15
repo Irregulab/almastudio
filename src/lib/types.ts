@@ -228,6 +228,8 @@ export interface Settings {
     watch: boolean
     diffView: 'unified' | 'split'
     contextLines: number
+    /** Fetch the repository in view every so many minutes; 0 turns it off. */
+    autoFetchMinutes: number
   }
   startup: {
     restoreTabs: boolean

@@ -184,7 +184,8 @@
     "pullDone": "Pulled",
     "pushDone": "Pushed",
     "showMore": "Show more",
-    "noCommits": "No commits yet"
+    "noCommits": "No commits yet",
+    "conflicts": "Merge conflicts"
   },
   "fs": {
     "newFile": "New file",
@@ -213,7 +214,17 @@
     "deletions": "{n} removed",
     "contextLines": "Context lines",
     "revealFile": "Reveal file",
-    "openAsFile": "Open file contents"
+    "openAsFile": "Open file contents",
+    "stageHunk": "Stage this hunk",
+    "unstageHunk": "Unstage this hunk",
+    "discardHunk": "Discard this hunk",
+    "stageLines": "Stage the {n} chosen lines",
+    "unstageLines": "Unstage the {n} chosen lines",
+    "discardLines": "Discard the {n} chosen lines",
+    "linesChosen": "{n} lines chosen",
+    "discardHunkConfirm": "Discard the changes in this hunk? This cannot be undone.",
+    "discardLinesConfirm": "Discard the {n} chosen lines? This cannot be undone.",
+    "pickLinesHint": "Click to choose this line, shift-click for a range"
   },
   "view": {
     "preview": "Preview",
@@ -311,7 +322,10 @@
     "resetConfirm": "Reset all settings to their defaults?",
     "argsHint": "One argument per line.",
     "confirmOnExit": "Ask before quitting",
-    "confirmOnExitHint": "Only asks when something is running or unsaved. Closing twice quickly always quits."
+    "confirmOnExitHint": "Only asks when something is running or unsaved. Closing twice quickly always quits.",
+    "autoFetch": "Fetch automatically",
+    "autoFetchHint": "Every so many minutes, for the repository in the panel. 0 turns it off.",
+    "autoFetchUnit": "min"
   },
   "update": {
     "checking": "Checking for updates…",
@@ -464,5 +478,13 @@
     "compare": "{base} → {target}",
     "compareHint": "⌘-click another commit to compare",
     "closeDetails": "Close details"
+  },
+  "conflicts": {
+    "acceptCurrent": "Accept Current Change",
+    "acceptIncoming": "Accept Incoming Change",
+    "acceptBoth": "Accept Both Changes",
+    "count": "{n} conflicts",
+    "markResolved": "Mark as resolved",
+    "resolved": "Marked as resolved"
   }
 }

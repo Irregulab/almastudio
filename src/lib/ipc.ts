@@ -170,6 +170,16 @@ export const gitCreateTag = (
 ) => invoke<string>('git_create_tag', { root, name, message, target })
 export const gitDeleteTag = (root: string, name: string) =>
   invoke<string>('git_delete_tag', { root, name })
+/**
+ * Stages, unstages or discards one hunk of a file's diff, or only its `lines`
+ * (indices into the hunk's lines as shown, with the same context).
+ */
+export const gitApplyHunk = (
+  root: string, path: string, contextLines: number, hunk: number,
+  action: 'stage' | 'unstage' | 'discard', lines?: number[],
+) => invoke<string>('git_apply_hunk', { root, path, contextLines, hunk, lines: lines ?? null, action })
+/** Marks a file whose conflicts are resolved, as `git add` does. */
+export const gitMarkResolved = (path: string) => invoke<string>('git_mark_resolved', { path })
 
 export type { ChangedFile }
 

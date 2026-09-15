@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import type { EditorView } from '@codemirror/view'
 
 import type { FileReveal } from '../lib/types'
+import type { ConflictLabels } from './conflictMarkers'
 
 /** CodeMirror 6, loaded on first use.
  *
@@ -19,6 +20,8 @@ interface Props {
   readOnly?: boolean
   /** A spot to select and scroll to, e.g. a search result's line. */
   reveal?: FileReveal
+  /** The buttons on merge conflicts; without labels, conflicts are not marked. */
+  conflictLabels?: ConflictLabels
 }
 
 /** Dynamic import of just the grammar this file needs. */
@@ -65,7 +68,9 @@ async function languageFor(path: string) {
   }
 }
 
-export function CodeEditor({ value, path, onChange, onSave, readOnly, reveal }: Props) {
+export function CodeEditor({
+  value, path, onChange, onSave, readOnly, reveal, conflictLabels,
+}: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
   // The callbacks are read through refs so the editor is built once per file
@@ -76,6 +81,8 @@ export function CodeEditor({ value, path, onChange, onSave, readOnly, reveal }: 
   onSaveRef.current = onSave
   const revealRef = useRef(reveal)
   revealRef.current = reveal
+  const conflictLabelsRef = useRef(conflictLabels)
+  conflictLabelsRef.current = conflictLabels
   /** The request last carried out, so a later re-render does not jump back. */
   const revealedRef = useRef<number | null>(null)
   /** CodeMirror's view class, loaded with the editor, for its scroll effect. */
@@ -112,6 +119,7 @@ export function CodeEditor({ value, path, onChange, onSave, readOnly, reveal }: 
         { searchKeymap, highlightSelectionMatches },
         { closeBrackets, closeBracketsKeymap, autocompletion, completionKeymap },
         { tags },
+        { conflictMarkers },
       ] = await Promise.all([
         import('@codemirror/state'),
         import('@codemirror/view'),
@@ -120,6 +128,7 @@ export function CodeEditor({ value, path, onChange, onSave, readOnly, reveal }: 
         import('@codemirror/search'),
         import('@codemirror/autocomplete'),
         import('@lezer/highlight'),
+        import('./conflictMarkers'),
       ])
       if (disposed) return
 
@@ -222,6 +231,7 @@ export function CodeEditor({ value, path, onChange, onSave, readOnly, reveal }: 
           syntaxHighlighting(highlight),
           theme,
           language ? [language] : [],
+          conflictLabelsRef.current ? conflictMarkers(conflictLabelsRef.current) : [],
           EditorState.readOnly.of(!!readOnly),
           EditorView.editable.of(!readOnly),
           // On Windows AltGr arrives as Ctrl+Alt, and CodeMirror looks a key up

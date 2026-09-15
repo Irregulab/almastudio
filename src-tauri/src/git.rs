@@ -540,6 +540,122 @@ pub fn git_compare_commits(
 }
 
 // ---------------------------------------------------------------------------
+// Partial staging
+// ---------------------------------------------------------------------------
+
+/// One hunk of a file's diff, or some of its lines, as a patch for `git apply`.
+///
+/// The diff is computed as `git_diff_file` shows it, with the same context, so
+/// `hunk` and `lines` index what the user was looking at. `reverse` is for a
+/// patch applied backwards (unstaging, discarding).
+pub(crate) fn hunk_patch(
+    root: &str,
+    path: &str,
+    side: DiffSide,
+    context_lines: u32,
+    hunk: usize,
+    lines: Option<&[usize]>,
+    reverse: bool,
+) -> Result<String, String> {
+    let repo = open(root)?;
+    let mut opts = DiffOptions::new();
+    opts.pathspec(path)
+        .context_lines(context_lines)
+        .include_untracked(true)
+        .recurse_untracked_dirs(true)
+        .show_untracked_content(true)
+        .include_typechange(true);
+    let head_tree = repo.head().ok().and_then(|h| h.peel_to_tree().ok());
+    let diff = match side {
+        DiffSide::Worktree => repo.diff_index_to_workdir(None, Some(&mut opts)),
+        DiffSide::Index => repo.diff_tree_to_index(head_tree.as_ref(), None, Some(&mut opts)),
+        DiffSide::Head => return Err("pick the working tree or staged view to change the index".into()),
+    }
+    .map_err(|e| e.to_string())?;
+    let mut patch = git2::Patch::from_diff(&diff, 0)
+        .map_err(|e| e.to_string())?
+        .ok_or("the file has no changes here any more; refresh the diff")?;
+    let buf = patch.to_buf().map_err(|e| e.to_string())?;
+    let text = buf
+        .as_str()
+        .map_err(|_| "only part of a UTF-8 text file can be staged".to_string())?;
+    select_hunk(text, hunk, lines, reverse)
+}
+
+/// The start lines and the rest of a hunk header, `@@ -12,7 +12,8 @@ fn x`.
+fn parse_hunk_header(line: &str) -> Result<(u32, u32, &str), String> {
+    let bad = || format!("unexpected hunk header: {}", line.trim_end());
+    let inner = line.strip_prefix("@@ -").ok_or_else(bad)?;
+    let (ranges, tail) = inner.split_once(" @@").ok_or_else(bad)?;
+    let (old, new) = ranges.split_once(" +").ok_or_else(bad)?;
+    let start = |range: &str| range.split(',').next().and_then(|n| n.parse().ok()).ok_or_else(bad);
+    Ok((start(old)?, start(new)?, tail))
+}
+
+/// Cuts one hunk out of a file's patch. With `lines` only those changed lines
+/// are kept, and the others become what the patch must still find: applied
+/// forwards an unchosen addition goes and an unchosen removal stays as
+/// context, backwards the other way round. The counts are worked out anew.
+fn select_hunk(patch: &str, hunk: usize, lines: Option<&[usize]>, reverse: bool) -> Result<String, String> {
+    let mut header = String::new();
+    let mut hunks: Vec<Vec<&str>> = Vec::new();
+    for line in patch.split_inclusive('\n') {
+        if line.starts_with("@@") {
+            hunks.push(vec![line]);
+        } else if let Some(current) = hunks.last_mut() {
+            current.push(line);
+        } else {
+            header.push_str(line);
+        }
+    }
+    let body = hunks.get(hunk).ok_or("that hunk is no longer in the diff; refresh it")?;
+    let (old_start, new_start, tail) = parse_hunk_header(body[0])?;
+
+    let mut out = String::new();
+    let (mut old_count, mut new_count) = (0u32, 0u32);
+    let mut index = 0;
+    let mut changed = false;
+    let mut kept_previous = true;
+    for line in &body[1..] {
+        // "\ No newline at end of file" belongs to the line before it.
+        if line.starts_with('\\') {
+            if kept_previous {
+                out.push_str(line);
+            }
+            continue;
+        }
+        let chosen = lines.is_none_or(|chosen| chosen.contains(&index));
+        index += 1;
+        let origin = line.as_bytes().first().copied().unwrap_or(b' ');
+        let kept = match origin {
+            b'+' | b'-' if chosen => {
+                changed = true;
+                Some(origin)
+            }
+            b'+' if !reverse => None,
+            b'-' if reverse => None,
+            _ => Some(b' '),
+        };
+        kept_previous = kept.is_some();
+        let Some(origin) = kept else { continue };
+        match origin {
+            b'+' => new_count += 1,
+            b'-' => old_count += 1,
+            _ => {
+                old_count += 1;
+                new_count += 1;
+            }
+        }
+        out.push(origin as char);
+        out.push_str(line.get(1..).unwrap_or(""));
+    }
+    if !changed {
+        return Err("none of the chosen lines is a change".into());
+    }
+    Ok(format!("{header}@@ -{old_start},{old_count} +{new_start},{new_count} @@{tail}{out}"))
+}
+
+// ---------------------------------------------------------------------------
 // Staging and discarding
 // ---------------------------------------------------------------------------
 
@@ -1065,5 +1181,40 @@ mod tests {
         assert_eq!(summaries(None).len(), 3);
         // HEAD stays in, so its commit does.
         assert_eq!(summaries(Some(vec!["refs/heads/feature".into()])), ["feature work", "root"]);
+    }
+
+    const PATCH: &str = "diff --git a/f b/f\nindex 1..2 100644\n--- a/f\n+++ b/f\n@@ -1,3 +1,4 @@ top\n a\n-b\n+B\n+C\n d\n@@ -10,2 +11,2 @@\n x\n-y\n+Y\n";
+
+    #[test]
+    fn a_hunk_becomes_a_patch_of_its_own() {
+        assert_eq!(
+            select_hunk(PATCH, 1, None, false).unwrap(),
+            "diff --git a/f b/f\nindex 1..2 100644\n--- a/f\n+++ b/f\n@@ -10,2 +11,2 @@\n x\n-y\n+Y\n",
+        );
+    }
+
+    #[test]
+    fn unchosen_lines_are_dropped_or_kept_as_context() {
+        // Staging only "+B": the removal stays as context and "+C" goes.
+        let staged = select_hunk(PATCH, 0, Some(&[2]), false).unwrap();
+        assert!(staged.ends_with("@@ -1,3 +1,4 @@ top\n a\n b\n+B\n d\n"), "{staged}");
+        // Unstaging only "-b": the additions stay as context.
+        let unstaged = select_hunk(PATCH, 0, Some(&[1]), true).unwrap();
+        assert!(unstaged.ends_with("@@ -1,5 +1,4 @@ top\n a\n-b\n B\n C\n d\n"), "{unstaged}");
+    }
+
+    #[test]
+    fn a_missing_newline_note_goes_with_its_line() {
+        let patch = "--- a/f\n+++ b/f\n@@ -1 +1 @@\n-old\n\\ No newline at end of file\n+new\n\\ No newline at end of file\n";
+        assert_eq!(
+            select_hunk(patch, 0, Some(&[0]), false).unwrap(),
+            "--- a/f\n+++ b/f\n@@ -1,1 +1,0 @@\n-old\n\\ No newline at end of file\n",
+        );
+    }
+
+    #[test]
+    fn nothing_to_apply_is_refused() {
+        assert!(select_hunk(PATCH, 0, Some(&[0]), false).is_err());
+        assert!(select_hunk(PATCH, 5, None, false).is_err());
     }
 }

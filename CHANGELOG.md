@@ -9,6 +9,19 @@ release cannot be cut without one — see `docs/UPDATES.md`.
 
 ## [Unreleased]
 
+### Added
+
+- Stage, unstage or discard a single hunk from a diff, or just the lines you
+  pick in it: click a changed line's numbers, shift-click for a range, then
+  use the buttons on the hunk's header. Discarding asks first.
+- Merge conflicts are resolved as in VS Code: a file with conflict markers
+  shows the current and incoming sides in their own colours, with Accept
+  Current Change, Accept Incoming Change and Accept Both Changes above each,
+  and Mark as Resolved once none are left. Changes lists conflicted files in
+  a group of their own, opening them in the editor.
+- Fetch automatically, in Settings → Workspace: every so many minutes for
+  the repository in the panel, off unless you set it.
+
 ## [1.5.0] - 2026-09-15
 
 ### Added

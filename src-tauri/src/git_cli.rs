@@ -435,6 +435,43 @@ fn delete_tag(root: &str, name: &str) -> Result<String, String> {
     run(root, &["tag", "--delete", name])
 }
 
+// ---------------------------------------------------------- partial changes ---
+
+/// Stages, unstages or discards one hunk of a file's diff, or some of its
+/// lines, by applying just that part as a patch.
+fn apply_hunk(
+    root: &str,
+    path: &str,
+    context_lines: u32,
+    hunk: usize,
+    lines: Option<&[usize]>,
+    action: &str,
+) -> Result<String, String> {
+    use crate::git::{hunk_patch, DiffSide};
+    let (side, reverse, args): (DiffSide, bool, &[&str]) = match action {
+        "stage" => (DiffSide::Worktree, false, &["apply", "--cached", "-"]),
+        "unstage" => (DiffSide::Index, true, &["apply", "--cached", "--reverse", "-"]),
+        "discard" => (DiffSide::Worktree, true, &["apply", "--reverse", "-"]),
+        other => return Err(format!("unknown hunk action {other}")),
+    };
+    let patch = hunk_patch(root, path, side, context_lines, hunk, lines, reverse)?;
+    // The patch names paths from the top of the work tree.
+    let workdir = open(root)?
+        .workdir()
+        .map(|dir| dir.to_string_lossy().into_owned())
+        .ok_or("a bare repository has no work tree")?;
+    run_with(&workdir, args, Some(&patch))
+}
+
+/// Marks a file whose conflicts were resolved as such, the way `git add` does.
+fn mark_resolved(path: &str) -> Result<String, String> {
+    let dir = std::path::Path::new(path)
+        .parent()
+        .and_then(|dir| dir.to_str())
+        .ok_or("the file has no folder")?;
+    run(dir, &["add", "--", path])
+}
+
 // --------------------------------------------------------------- commands ---
 
 async fn in_background(
@@ -594,6 +631,27 @@ pub async fn git_create_tag(
 #[tauri::command]
 pub async fn git_delete_tag(root: String, name: String) -> Result<String, String> {
     in_background(move || delete_tag(&root, &name)).await
+}
+
+/// `lines` index the hunk's lines as the diff view shows them.
+#[tauri::command]
+pub async fn git_apply_hunk(
+    root: String,
+    path: String,
+    context_lines: Option<u32>,
+    hunk: usize,
+    lines: Option<Vec<usize>>,
+    action: String,
+) -> Result<String, String> {
+    in_background(move || {
+        apply_hunk(&root, &path, context_lines.unwrap_or(3), hunk, lines.as_deref(), &action)
+    })
+    .await
+}
+
+#[tauri::command]
+pub async fn git_mark_resolved(path: String) -> Result<String, String> {
+    in_background(move || mark_resolved(&path)).await
 }
 
 #[cfg(test)]
@@ -889,6 +947,62 @@ mod tests {
         assert_eq!(head_message(&repo), "Base\n");
         assert_eq!(read(&repo, "a.txt").as_deref(), Some("base\n"));
         assert!(reset(&root, &base, "sideways").is_err());
+    }
+
+    #[test]
+    fn stages_unstages_and_discards_hunks_and_lines() {
+        let dir = tempfile::tempdir().unwrap();
+        let repo = repo_at(dir.path());
+        let root = root_of(&repo);
+        let original: String = (1..=20).map(|n| format!("line {n}\n")).collect();
+        write(&repo, "a.txt", &original);
+        commit(&root, "Base", true, false).unwrap();
+        // Changes far enough apart to make two hunks.
+        let changed = original
+            .replace("line 2\n", "line two\n")
+            .replace("line 18\n", "line eighteen\nline eighteen and a half\n");
+        write(&repo, "a.txt", &changed);
+        let staged = || run(&root, &["diff", "--cached"]).unwrap();
+
+        apply_hunk(&root, "a.txt", 3, 0, None, "stage").unwrap();
+        assert!(staged().contains("+line two") && !staged().contains("eighteen"), "{}", staged());
+        apply_hunk(&root, "a.txt", 3, 0, None, "unstage").unwrap();
+        assert!(staged().is_empty(), "{}", staged());
+
+        // The second hunk's lines: 15, 16, 17, -18, +eighteen, +half, 19, 20.
+        apply_hunk(&root, "a.txt", 3, 1, Some(&[3, 4]), "stage").unwrap();
+        let s = staged();
+        assert!(s.contains("+line eighteen\n") && s.contains("-line 18") && !s.contains("half"), "{s}");
+
+        // Discarding the first hunk puts line 2 back in the working tree alone.
+        apply_hunk(&root, "a.txt", 3, 0, None, "discard").unwrap();
+        let now = read(&repo, "a.txt").unwrap();
+        assert!(now.contains("line 2\n") && now.contains("half"), "{now}");
+        assert!(apply_hunk(&root, "a.txt", 3, 0, None, "fold").is_err());
+    }
+
+    #[test]
+    fn marks_a_resolved_conflict() {
+        let dir = tempfile::tempdir().unwrap();
+        let repo = repo_at(dir.path());
+        let root = root_of(&repo);
+        write(&repo, "a.txt", "base\n");
+        commit(&root, "Base", true, false).unwrap();
+        let main = current_branch(&repo);
+        create_branch(&root, "other", None, true).unwrap();
+        write(&repo, "a.txt", "theirs\n");
+        commit(&root, "Theirs", true, false).unwrap();
+        checkout(&root, &main, false).unwrap();
+        write(&repo, "a.txt", "ours\n");
+        commit(&root, "Ours", true, false).unwrap();
+        assert!(merge(&root, "other").is_err());
+
+        write(&repo, "a.txt", "both\n");
+        mark_resolved(&format!("{root}/a.txt")).unwrap();
+        let status = git_status(root.clone()).unwrap();
+        assert!(status.files.iter().all(|f| !f.conflicted), "{:?}", status.files);
+        continue_operation(&root).unwrap();
+        assert_eq!(git_status(root).unwrap().operation, None);
     }
 
     #[test]

@@ -74,6 +74,8 @@ export const DEFAULT_SETTINGS: Settings = {
     watch: true,
     diffView: 'unified',
     contextLines: 3,
+    // Off, as VS Code's git.autofetch is out of the box.
+    autoFetchMinutes: 0,
   },
   startup: {
     restoreTabs: true,

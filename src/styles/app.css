@@ -1459,3 +1459,26 @@ button.graph__ref:hover { filter: brightness(1.25); }
 .ggraph__files { flex: 1 1 50%; min-width: 0; overflow: auto; }
 .ggraph__details > .ggraph__files { flex: 1 1 auto; }
 .ggraph__stat { flex: 0 0 auto; font-size: 10.5px; }
+
+/* Staging a hunk, or the lines picked in it, from the diff. */
+.hunk__header { display: flex; align-items: center; gap: var(--sp-2); }
+.hunk__title { flex: 1 1 auto; min-width: 0; }
+.hunk__actions { display: flex; align-items: center; gap: 2px; flex: 0 0 auto; }
+.hunk__chosen { margin-right: 4px; color: var(--accent-strong); font-size: 10.5px; }
+.dl__num--pick { cursor: pointer; }
+.dl__num--pick:hover { color: var(--fg); }
+.dl--picked > td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+.dl--picked .dl__num { color: var(--fg); font-weight: 600; }
+
+/* Merge conflicts in the editor, coloured as VS Code colours them. */
+.editor .cm-line.cm-conflict-current { background: color-mix(in srgb, var(--green) 16%, transparent); }
+.editor .cm-line.cm-conflict-incoming { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.editor .cm-line.cm-conflict-base { background: color-mix(in srgb, var(--fg-subtle) 12%, transparent); }
+.editor .cm-line.cm-conflict-marker {
+  background: color-mix(in srgb, var(--fg-subtle) 10%, transparent);
+  color: var(--fg-subtle);
+  font-weight: 600;
+}
+.cm-conflict-actions { display: flex; gap: 12px; padding: 2px 6px; font-size: 11px; }
+.cm-conflict-actions button { color: var(--accent-strong); }
+.cm-conflict-actions button:hover { text-decoration: underline; }
