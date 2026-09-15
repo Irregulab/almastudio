@@ -9,6 +9,17 @@ release cannot be cut without one — see `docs/UPDATES.md`.
 
 ## [Unreleased]
 
+### Fixed
+
+- Claude Code and other terminal tabs no longer turn garbled — words
+  scattered across the screen, earlier screens drawn over the current one —
+  after switching to another project and back, or resizing the window.
+  Switching project threw its terminals away and rebuilt them by replaying
+  their output at the current width; they now stay as they were. A resize
+  reaches the program once the size settles rather than at every step, one
+  made while a tab was starting is no longer lost, and a tab in the
+  background starts when it is first shown, at its real size.
+
 ## [1.6.0] - 2026-09-15
 
 ### Added

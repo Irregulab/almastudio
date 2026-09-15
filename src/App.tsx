@@ -99,6 +99,17 @@ export default function App() {
   )
   const ws = activeProjectId ? workspaces[activeProjectId] : undefined
 
+  // A project's tabs stay mounted once it has been opened, hidden while
+  // another project is in front. Mounting them afresh meant new terminals
+  // replaying their programs' raw output at a single width, which garbles
+  // everything an agent drew at any other.
+  const [openedProjects, setOpenedProjects] = useState<string[]>([])
+  useEffect(() => {
+    if (activeProjectId && !openedProjects.includes(activeProjectId)) {
+      setOpenedProjects((ids) => [...ids, activeProjectId])
+    }
+  }, [activeProjectId, openedProjects])
+
   // Tabs can be opened anywhere, so the panel has two candidate folders: the
   // project's, and whatever the active tab is working in.
   const tabRoot = useMemo(() => {
@@ -187,9 +198,12 @@ export default function App() {
 
         <div className="app__work">
           <div className="app__tiles">
-            {project && ws ? (
-              <Workspace projectId={project.id} />
-            ) : (
+            {openedProjects
+              .filter((id) => workspaces[id] && projects.some((p) => p.id === id))
+              .map((id) => (
+                <Workspace key={id} projectId={id} active={!!ws && id === project?.id} />
+              ))}
+            {!(project && ws) && (
               <div className="empty">
                 <div style={{ fontWeight: 600 }}>{t('sidebar.noProjects')}</div>
                 <div className="subtle">{t('sidebar.noProjectsHint')}</div>

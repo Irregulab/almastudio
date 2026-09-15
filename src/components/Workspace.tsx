@@ -24,19 +24,20 @@ import { isTerminalTab } from '../lib/types'
 /**
  * A project's tabs: the strip across the top and, below it, the tab in front.
  * Every tab stays mounted — hidden, not unmounted — so terminals in the
- * background keep running and keep their scrollback.
+ * background keep running and keep their scrollback. The same goes for the
+ * project itself while another is `active` in front of it.
  */
-export function Workspace({ projectId }: { projectId: string }) {
+export function Workspace({ projectId, active }: { projectId: string; active: boolean }) {
   const ws = useWorkspace((s) => s.workspaces[projectId])
   if (!ws) return null
   return (
-    <div className="workspace">
+    <div className="workspace" hidden={!active}>
       <TabStrip ws={ws} />
       <div className="workspace__body">
         {ws.groups.length === 0 && <EmptyWorkspace />}
         {ws.groups.map((g) => (
           <div key={g.id} className="workspace__group" hidden={g.id !== ws.activeGroupId}>
-            <TileNode node={g.layout} group={g} visible={g.id === ws.activeGroupId} />
+            <TileNode node={g.layout} group={g} visible={active && g.id === ws.activeGroupId} />
           </div>
         ))}
       </div>

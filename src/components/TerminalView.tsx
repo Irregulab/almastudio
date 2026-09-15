@@ -56,6 +56,8 @@ export function TerminalView({ tab, visible, focused }: Props) {
   /** Highest stream offset already written, used to drop replayed batches. */
   const writtenTo = useRef(0)
   const spawning = useRef(false)
+  /** The size the pty was last told, as `colsxrows`; null when unknown. */
+  const ptySize = useRef<string | null>(null)
 
   const settings = useSettings((s) => s.settings)
   const isDark = useTheme()
@@ -74,6 +76,23 @@ export function TerminalView({ tab, visible, focused }: Props) {
   const commandLabel = harnessCommandLabel(tab.kind, settings)
   needsStartRef.current = needsStart
 
+  /**
+   * Tells the pty the terminal's size when it was last told another. A resize
+   * sent while the process is still starting fails, and a program left
+   * drawing for a width the terminal no longer has garbles all it draws.
+   */
+  const syncPtySize = useCallback(() => {
+    const term = termRef.current
+    if (!term) return
+    const size = `${term.cols}x${term.rows}`
+    if (ptySize.current === size) return
+    void ptyResize(tab.id, term.cols, term.rows)
+      .then(() => {
+        ptySize.current = size
+      })
+      .catch(() => {})
+  }, [tab.id])
+
   // -------------------------------------------------------------- spawn ---
   const spawn = useCallback(
     async (resume: boolean, keepScreen = false) => {
@@ -90,16 +109,20 @@ export function TerminalView({ tab, visible, focused }: Props) {
         // Which Claude conversation this tab is on, so it resumes its own.
         const claudeSession =
           tab.kind === 'claude' ? await claudeSessionFor(tab.id, resume) : undefined
+        const { cols, rows } = term
         const options = buildSpawnOptions({
           tab,
           project,
           settings,
-          cols: term.cols,
-          rows: term.rows,
+          cols,
+          rows,
           resume,
           claudeSession,
         })
         await ptySpawn(options)
+        ptySize.current = `${cols}x${rows}`
+        // The terminal may have been resized while the process started.
+        syncPtySize()
         setTabStatus(tab.id, 'running')
       } catch (err) {
         setTabStatus(tab.id, 'exited', -1)
@@ -112,7 +135,7 @@ export function TerminalView({ tab, visible, focused }: Props) {
         spawning.current = false
       }
     },
-    [project, settings, setTabStatus, tab],
+    [project, settings, setTabStatus, syncPtySize, tab],
   )
   spawnRef.current = spawn
 
@@ -183,6 +206,41 @@ export function TerminalView({ tab, visible, focused }: Props) {
     /** Resolves once everything written so far has been parsed. */
     const flushed = () => new Promise<void>((resolve) => term.write('', resolve))
 
+    /**
+     * Resolves once the terminal has been laid out at a real size. A hidden
+     * terminal is 80×24, and output replayed or a program started at that
+     * size is garbled once the terminal is shown at its own.
+     */
+    let markSized = () => {}
+    const sized = new Promise<void>((resolve) => {
+      markSized = resolve
+    })
+    let hasSize = false
+    let fitTimer: number | undefined
+    const fitNow = () => {
+      try {
+        fit.fit()
+      } catch {
+        /* mid-teardown */
+      }
+    }
+    const ro = new ResizeObserver(() => {
+      // Zero-sized while hidden; fitting then would corrupt the layout.
+      if (host.clientWidth === 0 || host.clientHeight === 0) return
+      if (!hasSize) {
+        hasSize = true
+        fitNow()
+        markSized()
+        return
+      }
+      // Once the size settles: dragging the window's edge otherwise sends the
+      // program a resize, and a full redraw, for every pixel on the way, each
+      // reflowing the screen under the redraw before it.
+      window.clearTimeout(fitTimer)
+      fitTimer = window.setTimeout(fitNow, 100)
+    })
+    ro.observe(host)
+
     const writeBatch = (bytes: Uint8Array, end: number) => {
       const start = end - bytes.length
       if (end <= writtenTo.current) return // already covered by the snapshot
@@ -192,6 +250,8 @@ export function TerminalView({ tab, visible, focused }: Props) {
     }
 
     void (async () => {
+      await sized
+      if (disposed) return
       // Subscribe before snapshotting so nothing emitted in between is lost;
       // the offsets then tell us exactly what to discard as duplicate.
       unlisteners.push(
@@ -243,6 +303,9 @@ export function TerminalView({ tab, visible, focused }: Props) {
 
       if (status.running && status.alive) {
         setTabStatus(tab.id, 'running')
+        // Whatever size it was last given, it is now this terminal's.
+        ptySize.current = null
+        syncPtySize()
         return
       }
       // Nothing is running. Opening a tab is already the instruction to start
@@ -285,25 +348,13 @@ export function TerminalView({ tab, visible, focused }: Props) {
       if (replaying) return
       void ptyWrite(tab.id, data).catch(() => {})
     })
-    const onResize = term.onResize(({ cols, rows }) => {
-      void ptyResize(tab.id, cols, rows).catch(() => {})
-    })
-
-    const ro = new ResizeObserver(() => {
-      // Zero-sized while hidden; fitting then would corrupt the layout.
-      if (host.clientWidth > 0 && host.clientHeight > 0) {
-        try {
-          fit.fit()
-        } catch {
-          /* mid-teardown */
-        }
-      }
-    })
-    ro.observe(host)
+    const onResize = term.onResize(() => syncPtySize())
 
     return () => {
       disposed = true
       ro.disconnect()
+      window.clearTimeout(fitTimer)
+      markSized()
       onData.dispose()
       onResize.dispose()
       searchResults.dispose()
