@@ -175,7 +175,16 @@
     "unpinRepo": "Unpin",
     "focusRepo": "Show only this repository",
     "backToProject": "Back to the project folder",
-    "search": "Search"
+    "search": "Search",
+    "fetch": "Fetch",
+    "pull": "Pull",
+    "push": "Push",
+    "publish": "Publish branch",
+    "fetchDone": "Fetched",
+    "pullDone": "Pulled",
+    "pushDone": "Pushed",
+    "showMore": "Show more",
+    "noCommits": "No commits yet"
   },
   "fs": {
     "newFile": "New file",

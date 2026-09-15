@@ -9,6 +9,15 @@ release cannot be cut without one — see `docs/UPDATES.md`.
 
 ## [Unreleased]
 
+### Added
+
+- Fetch, pull and push buttons in the Git panel, as in VS Code. They run
+  your own `git`, so its credentials, SSH keys and settings apply, and a
+  branch pushed for the first time is published with an upstream.
+- A commit graph in the Git panel in place of the plain history: every
+  local and remote branch in a coloured lane of its own, merges drawn where
+  they join, and branch and tag labels on their commits.
+
 ## [1.2.1] - 2026-09-14
 
 ### Added

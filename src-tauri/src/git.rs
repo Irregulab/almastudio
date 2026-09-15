@@ -1,9 +1,11 @@
 //! Local git operations backing the right-hand panel: status, diffs, staging
-//! and a small history view. Everything runs against libgit2 in-process, so a
+//! and the commit graph. Everything runs against libgit2 in-process, so a
 //! refresh costs no process spawns; refreshes are driven by the filesystem
-//! watcher rather than a timer.
+//! watcher rather than a timer. Fetch, pull and push, which need the network,
+//! are in `git_remote`.
 
 use std::cell::{Cell, RefCell};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use git2::{Delta, DiffOptions, Repository, Status, StatusOptions, StatusShow};
@@ -478,38 +480,115 @@ pub fn git_commit(root: String, message: String, stage_all: bool) -> Result<Stri
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct CommitInfo {
+pub struct RefLabel {
+    pub name: String,
+    /// "branch", "remote", "tag", or "head" for a detached HEAD.
+    pub kind: &'static str,
+    /// The branch checked out, or a detached HEAD.
+    pub current: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GraphCommit {
     pub id: String,
     pub short_id: String,
+    pub parents: Vec<String>,
     pub summary: String,
     pub author: String,
     pub email: String,
     /// Unix seconds.
     pub time: i64,
+    /// Branches and tags pointing at this commit.
+    pub refs: Vec<RefLabel>,
 }
 
+/// History across every local and remote branch and tag, for the commit
+/// graph: each commit listed before its parents, newest first otherwise, with
+/// the refs that point at it.
 #[tauri::command]
-pub fn git_log(root: String, limit: Option<usize>) -> Result<Vec<CommitInfo>, String> {
+pub fn git_graph(root: String, limit: Option<usize>) -> Result<Vec<GraphCommit>, String> {
     let repo = open(&root)?;
-    let limit = limit.unwrap_or(50).min(500);
+    let limit = limit.unwrap_or(200).min(5000);
     let mut walk = repo.revwalk().map_err(|e| e.to_string())?;
-    if walk.push_head().is_err() {
+    walk.set_sorting(git2::Sort::TOPOLOGICAL | git2::Sort::TIME)
+        .map_err(|e| e.to_string())?;
+
+    let head = repo.head().ok();
+    let head_branch = head
+        .as_ref()
+        .filter(|h| h.is_branch())
+        .and_then(|h| h.name().ok())
+        .map(String::from);
+    let mut labels: HashMap<git2::Oid, Vec<RefLabel>> = HashMap::new();
+    let mut tips = 0;
+
+    for reference in repo.references().map_err(|e| e.to_string())?.flatten() {
+        let Ok(name) = reference.name() else { continue };
+        let (kind, short) = if let Some(short) = name.strip_prefix("refs/heads/") {
+            ("branch", short)
+        } else if let Some(short) = name.strip_prefix("refs/remotes/") {
+            // origin/HEAD only repeats which branch the remote considers main.
+            if short.ends_with("/HEAD") {
+                continue;
+            }
+            ("remote", short)
+        } else if let Some(short) = name.strip_prefix("refs/tags/") {
+            ("tag", short)
+        } else {
+            continue;
+        };
+        let Ok(commit) = reference.peel_to_commit() else { continue };
+        if walk.push(commit.id()).is_ok() {
+            tips += 1;
+        }
+        labels.entry(commit.id()).or_default().push(RefLabel {
+            name: short.to_string(),
+            kind,
+            current: head_branch.as_deref() == Some(name),
+        });
+    }
+    if let Some(commit) = head.as_ref().and_then(|h| h.peel_to_commit().ok()) {
+        if walk.push(commit.id()).is_ok() {
+            tips += 1;
+        }
+        if head_branch.is_none() {
+            labels.entry(commit.id()).or_default().push(RefLabel {
+                name: "HEAD".into(),
+                kind: "head",
+                current: true,
+            });
+        }
+    }
+    if tips == 0 {
         return Ok(vec![]);
     }
-    walk.set_sorting(git2::Sort::TIME).map_err(|e| e.to_string())?;
 
-    let mut out = Vec::with_capacity(limit);
+    let rank = |kind: &str| match kind {
+        "head" => 0,
+        "branch" => 1,
+        "remote" => 2,
+        _ => 3,
+    };
+    let mut out = Vec::new();
     for oid in walk.take(limit) {
         let Ok(oid) = oid else { continue };
         let Ok(c) = repo.find_commit(oid) else { continue };
+        let mut refs = labels.remove(&oid).unwrap_or_default();
+        // The checked-out branch first, then branches, remote ones, tags.
+        refs.sort_by(|a, b| {
+            (!a.current, rank(a.kind), &a.name).cmp(&(!b.current, rank(b.kind), &b.name))
+        });
         let id = oid.to_string();
-        out.push(CommitInfo {
+        out.push(GraphCommit {
             short_id: id.chars().take(7).collect(),
-            id,
+            parents: c.parent_ids().map(|p| p.to_string()).collect(),
             summary: c.summary().ok().flatten().unwrap_or("").to_string(),
             author: c.author().name().unwrap_or("").to_string(),
             email: c.author().email().unwrap_or("").to_string(),
             time: c.time().seconds(),
+            refs,
+            id,
         });
     }
     Ok(out)
@@ -662,4 +741,60 @@ pub fn find_git_repos(root: String, max_depth: Option<usize>) -> Result<Vec<Repo
         });
     }
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use git2::{Oid, Signature};
+
+    fn commit_on(repo: &Repository, refname: &str, message: &str, parents: &[Oid]) -> Oid {
+        let sig = Signature::now("Test", "test@example.com").unwrap();
+        let tree = repo.find_tree(repo.index().unwrap().write_tree().unwrap()).unwrap();
+        let parents: Vec<git2::Commit> =
+            parents.iter().map(|id| repo.find_commit(*id).unwrap()).collect();
+        let parents: Vec<&git2::Commit> = parents.iter().collect();
+        repo.commit(Some(refname), &sig, &sig, message, &tree, &parents).unwrap()
+    }
+
+    #[test]
+    fn graph_lists_every_branch_children_first_with_labels() {
+        let dir = tempfile::tempdir().unwrap();
+        let repo = Repository::init(dir.path()).unwrap();
+        let root = commit_on(&repo, "HEAD", "root", &[]);
+        let branch = repo.head().unwrap().shorthand().unwrap().to_string();
+        let main_work = commit_on(&repo, "HEAD", "main work", &[root]);
+        let feature = commit_on(&repo, "refs/heads/feature", "feature work", &[root]);
+        let merge = commit_on(&repo, "HEAD", "merge feature", &[main_work, feature]);
+        commit_on(&repo, "refs/heads/side", "side work", &[merge]);
+        repo.tag_lightweight("v1", &repo.find_object(root, None).unwrap(), false).unwrap();
+
+        let graph = git_graph(dir.path().to_string_lossy().into_owned(), None).unwrap();
+        assert_eq!(graph.len(), 5);
+        let at = |summary: &str| graph.iter().position(|c| c.summary == summary).unwrap();
+        assert!(at("side work") < at("merge feature"));
+        assert!(at("merge feature") < at("main work") && at("merge feature") < at("feature work"));
+        assert!(at("main work") < at("root") && at("feature work") < at("root"));
+        assert_eq!(graph[at("merge feature")].parents, [main_work.to_string(), feature.to_string()]);
+
+        let labels = |summary: &str| -> Vec<String> {
+            graph[at(summary)]
+                .refs
+                .iter()
+                .map(|r| format!("{}:{}{}", r.kind, r.name, if r.current { "*" } else { "" }))
+                .collect()
+        };
+        assert_eq!(labels("merge feature"), [format!("branch:{branch}*")]);
+        assert_eq!(labels("side work"), ["branch:side"]);
+        assert_eq!(labels("feature work"), ["branch:feature"]);
+        assert_eq!(labels("root"), ["tag:v1"]);
+        assert!(labels("main work").is_empty());
+    }
+
+    #[test]
+    fn graph_of_a_repository_without_commits_is_empty() {
+        let dir = tempfile::tempdir().unwrap();
+        Repository::init(dir.path()).unwrap();
+        assert!(git_graph(dir.path().to_string_lossy().into_owned(), None).unwrap().is_empty());
+    }
 }

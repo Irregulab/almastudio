@@ -2,6 +2,7 @@ mod browser;
 mod editors;
 mod fsx;
 mod git;
+mod git_remote;
 mod menu;
 mod pty;
 mod search;
@@ -308,7 +309,10 @@ pub fn run() {
             git::git_unstage,
             git::git_discard,
             git::git_commit,
-            git::git_log,
+            git::git_graph,
+            git_remote::git_fetch,
+            git_remote::git_pull,
+            git_remote::git_push,
             git::git_branches,
             git::git_checkout,
             git::find_git_repos,

@@ -1,24 +1,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { revealItemInDir } from '@tauri-apps/plugin-opener'
 import {
-  ArrowLeft, Check, ChevronDown, ChevronRight, Eye, EyeOff, FileDiff, FilePlus2,
-  FolderPlus, GitBranch, GitCommitHorizontal, History, ListTree, Maximize2,
-  Minus, Pencil, Pin, Plus, RefreshCw, Search, Trash2, Undo2, X,
+  ArrowDownToLine, ArrowLeft, ArrowUpFromLine, Check, ChevronDown, ChevronRight, CloudUpload, Eye,
+  EyeOff, FileDiff, FilePlus2, FolderPlus, GitBranch, GitCommitHorizontal, History, ListTree,
+  Loader2, Maximize2, Minus, Pencil, Pin, Plus, RefreshCcw, RefreshCw, Search, Trash2, Undo2, X,
 } from 'lucide-react'
 
 import {
   createDir, createFile, findFiles, findGitRepos, gitBranches, gitCheckout,
-  gitCommit, gitDiscard, gitLog, gitStage, gitStatus, gitUnstage, listDir,
-  onFsChange, renamePath, trashPath, watchStart, watchStop, type RepoEntry,
+  gitCommit, gitDiscard, gitFetch, gitGraph, gitPull, gitPush, gitStage, gitStatus, gitUnstage,
+  listDir, onFsChange, renamePath, trashPath, watchStart, watchStop, type RepoEntry,
 } from '../lib/ipc'
 import { useSettings } from '../store/settings'
 import { useWorkspace } from '../store/workspace'
 import { useT } from '../i18n'
 import { ConfirmDialog, MenuItem, MenuSeparator, Popover, PromptDialog } from './ui'
+import { CommitGraph } from './CommitGraph'
 import { DirIcon, FileIcon } from './FileIcon'
 import { SearchView } from './SearchView'
 import type {
-  BranchInfo, ChangedFile, CommitInfo, DirEntryInfo, PanelView, RepoStatus,
+  BranchInfo, ChangedFile, DirEntryInfo, GraphCommit, PanelView, RepoStatus,
 } from '../lib/types'
 
 interface Props {
@@ -896,6 +897,36 @@ function TreeNode({
 
 // ------------------------------------------------------------------- git ---
 
+type SyncOp = 'fetch' | 'pull' | 'push'
+const SYNC: Record<SyncOp, (root: string) => Promise<string>> = {
+  fetch: gitFetch,
+  pull: gitPull,
+  push: gitPush,
+}
+/** Commits loaded into the graph at a time. */
+const GRAPH_PAGE = 200
+
+function SyncButton({
+  op, syncing, disabled, label, onClick, children,
+}: {
+  op: SyncOp
+  syncing: SyncOp | null
+  disabled?: boolean
+  label: string
+  onClick: (op: SyncOp) => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      className="icon-btn" title={label} aria-label={label}
+      disabled={disabled || syncing !== null}
+      onClick={() => onClick(op)}
+    >
+      {syncing === op ? <Loader2 size={13} className="spin" /> : children}
+    </button>
+  )
+}
+
 /** One repository's git panel inside an accordion section. */
 function RepoGit({
   projectId, root, revision, onChanged,
@@ -918,16 +949,19 @@ function GitView({
 }) {
   const t = useT()
   const [message, setMessage] = useState('')
-  const [commits, setCommits] = useState<CommitInfo[]>([])
+  const [commits, setCommits] = useState<GraphCommit[] | null>(null)
+  const [limit, setLimit] = useState(GRAPH_PAGE)
   const [branches, setBranches] = useState<BranchInfo[]>([])
   const [busy, setBusy] = useState(false)
+  const [syncing, setSyncing] = useState<SyncOp | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!status?.isRepo) return
-    void gitLog(root, 40).then(setCommits).catch(() => setCommits([]))
+    void gitGraph(root, limit).then(setCommits).catch(() => setCommits([]))
     void gitBranches(root).then(setBranches).catch(() => setBranches([]))
-  }, [root, status])
+  }, [root, status, limit])
 
   if (!status?.isRepo) {
     return (
@@ -945,6 +979,23 @@ function GitView({
   }
 
   const stagedCount = status.files.filter((f) => f.staged).length
+
+  const sync = async (op: SyncOp) => {
+    setSyncing(op)
+    setError(null)
+    setNotice(null)
+    try {
+      await SYNC[op](root)
+      setNotice(t(`panel.${op}Done`))
+      window.setTimeout(() => setNotice(null), 2500)
+    } catch (e) {
+      setError(String(e))
+    } finally {
+      setSyncing(null)
+      // Ahead and behind, branches and the graph all move with the remote.
+      onChanged()
+    }
+  }
 
   const commit = async (all: boolean) => {
     setBusy(true)
@@ -967,6 +1018,30 @@ function GitView({
         <span className="truncate">{status.branch ?? 'HEAD'}</span>
         {status.ahead > 0 && <span className="chip">↑{status.ahead}</span>}
         {status.behind > 0 && <span className="chip">↓{status.behind}</span>}
+        {notice && <span className="chip chip--ok git__notice">{notice}</span>}
+        <div className="git__sync">
+          <SyncButton op="fetch" syncing={syncing} label={t('panel.fetch')} onClick={sync}>
+            <RefreshCcw size={13} />
+          </SyncButton>
+          <SyncButton
+            op="pull" syncing={syncing} disabled={status.detached || !status.upstream}
+            label={status.behind > 0 ? `${t('panel.pull')} (↓${status.behind})` : t('panel.pull')}
+            onClick={sync}
+          >
+            <ArrowDownToLine size={13} />
+          </SyncButton>
+          <SyncButton
+            op="push" syncing={syncing} disabled={status.detached}
+            label={
+              !status.upstream
+                ? t('panel.publish')
+                : status.ahead > 0 ? `${t('panel.push')} (↑${status.ahead})` : t('panel.push')
+            }
+            onClick={sync}
+          >
+            {status.upstream ? <ArrowUpFromLine size={13} /> : <CloudUpload size={13} />}
+          </SyncButton>
+        </div>
       </div>
 
       <div className="git__commit">
@@ -998,15 +1073,18 @@ function GitView({
         <header className="group__head">
           <span className="group__toggle"><History size={12} /> {t('panel.history')}</span>
         </header>
-        <ul className="commits">
-          {commits.map((c) => (
-            <li key={c.id} className="commit" title={`${c.author} <${c.email}>`}>
-              <span className="commit__id mono">{c.shortId}</span>
-              <span className="commit__summary truncate">{c.summary}</span>
-              <span className="commit__time subtle">{relativeTime(c.time)}</span>
-            </li>
-          ))}
-        </ul>
+        {commits && commits.length === 0 && (
+          <div className="repo__loading subtle">{t('panel.noCommits')}</div>
+        )}
+        {commits && commits.length > 0 && <CommitGraph commits={commits} />}
+        {commits && commits.length >= limit && (
+          <button
+            className="btn btn--sm graph__more"
+            onClick={() => setLimit((n) => n + GRAPH_PAGE)}
+          >
+            {t('panel.showMore')}
+          </button>
+        )}
       </section>
 
       <section className="group">
@@ -1034,18 +1112,3 @@ function GitView({
   )
 }
 
-function relativeTime(unixSeconds: number): string {
-  const diff = Date.now() / 1000 - unixSeconds
-  const units: Array<[number, Intl.RelativeTimeFormatUnit]> = [
-    [60, 'second'], [3600, 'minute'], [86400, 'hour'],
-    [86400 * 30, 'day'], [86400 * 365, 'month'], [Infinity, 'year'],
-  ]
-  const divisors = [1, 60, 3600, 86400, 86400 * 30, 86400 * 365]
-  const rtf = new Intl.RelativeTimeFormat(document.documentElement.lang || 'en', {
-    numeric: 'auto',
-  })
-  for (let i = 0; i < units.length; i++) {
-    if (diff < units[i][0]) return rtf.format(-Math.round(diff / divisors[i]), units[i][1])
-  }
-  return ''
-}

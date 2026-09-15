@@ -3,8 +3,8 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import type {
-  AppInfo, BranchInfo, ChangedFile, CommitInfo, DiffSide, DirEntryInfo,
-  FileContent, FileDiff, RepoStatus,
+  AppInfo, BranchInfo, ChangedFile, DiffSide, DirEntryInfo,
+  FileContent, FileDiff, GraphCommit, RepoStatus,
 } from './types'
 
 // ------------------------------------------------------------------ app ----
@@ -99,8 +99,13 @@ export const gitDiscard = (root: string, paths: string[]) =>
   invoke<void>('git_discard', { root, paths })
 export const gitCommit = (root: string, message: string, stageAll: boolean) =>
   invoke<string>('git_commit', { root, message, stageAll })
-export const gitLog = (root: string, limit?: number) =>
-  invoke<CommitInfo[]>('git_log', { root, limit })
+export const gitGraph = (root: string, limit?: number) =>
+  invoke<GraphCommit[]>('git_graph', { root, limit })
+/** Remote operations run the user's own `git`; they resolve to what it printed. */
+export const gitFetch = (root: string) => invoke<string>('git_fetch', { root })
+export const gitPull = (root: string) => invoke<string>('git_pull', { root })
+/** Publishes the branch with an upstream when it has none yet. */
+export const gitPush = (root: string) => invoke<string>('git_push', { root })
 export const gitBranches = (root: string) => invoke<BranchInfo[]>('git_branches', { root })
 export const gitCheckout = (root: string, name: string) =>
   invoke<void>('git_checkout', { root, name })

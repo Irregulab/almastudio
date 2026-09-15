@@ -278,13 +278,23 @@ export interface FileDiff {
   hunks: DiffHunk[]
 }
 
-export interface CommitInfo {
+export interface RefLabel {
+  name: string
+  kind: 'branch' | 'remote' | 'tag' | 'head'
+  /** The branch checked out, or a detached HEAD. */
+  current: boolean
+}
+
+/** A commit in the graph: every branch's history, children before parents. */
+export interface GraphCommit {
   id: string
   shortId: string
+  parents: string[]
   summary: string
   author: string
   email: string
   time: number
+  refs: RefLabel[]
 }
 
 export interface BranchInfo {
