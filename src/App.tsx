@@ -107,7 +107,7 @@ export default function App() {
     const active = pane ? tabs[pane.tabId] : undefined
     if (!active) return null
     if (isTerminalTab(active)) return active.cwd
-    if (active.kind === 'diff' || active.kind === 'file') return active.root
+    if (active.kind === 'diff' || active.kind === 'file' || active.kind === 'graph') return active.root
     return null
   }, [tabs, ws])
 

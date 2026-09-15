@@ -288,12 +288,28 @@ fn delta_label(d: Delta) -> String {
     .to_string()
 }
 
+fn commit_of<'r>(repo: &'r Repository, rev: &str) -> Result<git2::Commit<'r>, String> {
+    repo.revparse_single(rev)
+        .and_then(|object| object.peel_to_commit())
+        .map_err(|e| format!("unknown commit {rev}: {e}"))
+}
+
+fn tree_of<'r>(repo: &'r Repository, rev: &str) -> Result<git2::Tree<'r>, String> {
+    commit_of(repo, rev)?.tree().map_err(|e| e.to_string())
+}
+
+/// One file's diff: the working tree's or the index's, per `side` — or, with
+/// `target`, the change that commit made, against `base` or its first
+/// parent. `old_path` pairs a renamed file with what it was called before.
 #[tauri::command]
 pub fn git_diff_file(
     root: String,
     path: String,
     side: DiffSide,
     context_lines: Option<u32>,
+    old_path: Option<String>,
+    base: Option<String>,
+    target: Option<String>,
 ) -> Result<FileDiff, String> {
     let repo = open(&root)?;
 
@@ -304,18 +320,37 @@ pub fn git_diff_file(
         .recurse_untracked_dirs(true)
         .show_untracked_content(true)
         .include_typechange(true);
+    if let Some(old_path) = old_path.as_deref() {
+        opts.pathspec(old_path);
+    }
 
     let head_tree = repo
         .head()
         .ok()
         .and_then(|h| h.peel_to_tree().ok());
 
-    let diff = match side {
-        DiffSide::Worktree => repo.diff_index_to_workdir(None, Some(&mut opts)),
-        DiffSide::Index => repo.diff_tree_to_index(head_tree.as_ref(), None, Some(&mut opts)),
-        DiffSide::Head => repo.diff_tree_to_workdir_with_index(head_tree.as_ref(), Some(&mut opts)),
-    }
-    .map_err(|e| e.to_string())?;
+    let diff = match target.as_deref() {
+        Some(target) => {
+            let new = tree_of(&repo, target)?;
+            let old = match base.as_deref() {
+                Some(base) => Some(tree_of(&repo, base)?),
+                None => commit_of(&repo, target)?.parent(0).ok().and_then(|p| p.tree().ok()),
+            };
+            let mut diff = repo
+                .diff_tree_to_tree(old.as_ref(), Some(&new), Some(&mut opts))
+                .map_err(|e| e.to_string())?;
+            diff.find_similar(None).map_err(|e| e.to_string())?;
+            diff
+        }
+        None => match side {
+            DiffSide::Worktree => repo.diff_index_to_workdir(None, Some(&mut opts)),
+            DiffSide::Index => repo.diff_tree_to_index(head_tree.as_ref(), None, Some(&mut opts)),
+            DiffSide::Head => {
+                repo.diff_tree_to_workdir_with_index(head_tree.as_ref(), Some(&mut opts))
+            }
+        }
+        .map_err(|e| e.to_string())?,
+    };
 
     // libgit2 hands each callback its own `&mut` closure, so the accumulator
     // needs interior mutability to be shared between them.
@@ -393,7 +428,119 @@ pub fn git_diff_file(
 }
 
 // ---------------------------------------------------------------------------
-// Staging / discarding / committing
+// Commit details
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommitFile {
+    pub path: String,
+    /// The name before a rename.
+    pub old_path: Option<String>,
+    pub status: String,
+    pub additions: u32,
+    pub deletions: u32,
+    pub binary: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommitDetails {
+    pub id: String,
+    pub short_id: String,
+    pub parents: Vec<String>,
+    /// The whole message, subject and body.
+    pub message: String,
+    pub author: String,
+    pub email: String,
+    /// Unix seconds.
+    pub author_time: i64,
+    pub committer: String,
+    pub committer_email: String,
+    pub commit_time: i64,
+    /// What changed against the first parent; everything, for a root commit.
+    pub files: Vec<CommitFile>,
+}
+
+/// The files that differ between two trees, with renames found the way
+/// `git log --stat` finds them.
+fn changed_files(
+    repo: &Repository,
+    old: Option<&git2::Tree>,
+    new: Option<&git2::Tree>,
+) -> Result<Vec<CommitFile>, String> {
+    let mut opts = DiffOptions::new();
+    opts.include_typechange(true);
+    let mut diff = repo
+        .diff_tree_to_tree(old, new, Some(&mut opts))
+        .map_err(|e| e.to_string())?;
+    diff.find_similar(None).map_err(|e| e.to_string())?;
+
+    let mut files = Vec::new();
+    for (index, delta) in diff.deltas().enumerate() {
+        let path_of = |file: git2::DiffFile| file.path().map(|p| p.to_string_lossy().into_owned());
+        let path = path_of(delta.new_file()).or_else(|| path_of(delta.old_file())).unwrap_or_default();
+        let old_path = path_of(delta.old_file()).filter(|old| *old != path);
+        // Counting lines needs the patch; a binary file has none to count.
+        let (additions, deletions, binary) = match git2::Patch::from_diff(&diff, index) {
+            Ok(Some(patch)) => {
+                let binary = patch.delta().new_file().is_binary() || patch.delta().old_file().is_binary();
+                let (_, added, removed) = patch.line_stats().unwrap_or((0, 0, 0));
+                (added as u32, removed as u32, binary)
+            }
+            _ => (0, 0, true),
+        };
+        files.push(CommitFile {
+            status: delta_label(delta.status()),
+            path,
+            old_path,
+            additions,
+            deletions,
+            binary,
+        });
+    }
+    files.sort_by(|a, b| a.path.cmp(&b.path));
+    Ok(files)
+}
+
+#[tauri::command]
+pub fn git_commit_details(root: String, id: String) -> Result<CommitDetails, String> {
+    let repo = open(&root)?;
+    let commit = commit_of(&repo, &id)?;
+    let tree = commit.tree().map_err(|e| e.to_string())?;
+    let parent_tree = commit.parent(0).ok().and_then(|p| p.tree().ok());
+    let files = changed_files(&repo, parent_tree.as_ref(), Some(&tree))?;
+    let (author, committer) = (commit.author(), commit.committer());
+    let full = commit.id().to_string();
+    Ok(CommitDetails {
+        short_id: full.chars().take(7).collect(),
+        parents: commit.parent_ids().map(|p| p.to_string()).collect(),
+        message: commit.message().unwrap_or("").trim_end().to_string(),
+        author: author.name().unwrap_or("").to_string(),
+        email: author.email().unwrap_or("").to_string(),
+        author_time: author.when().seconds(),
+        committer: committer.name().unwrap_or("").to_string(),
+        committer_email: committer.email().unwrap_or("").to_string(),
+        commit_time: committer.when().seconds(),
+        files,
+        id: full,
+    })
+}
+
+/// What changed from `base` to `target`.
+#[tauri::command]
+pub fn git_compare_commits(
+    root: String,
+    base: String,
+    target: String,
+) -> Result<Vec<CommitFile>, String> {
+    let repo = open(&root)?;
+    let (old, new) = (tree_of(&repo, &base)?, tree_of(&repo, &target)?);
+    changed_files(&repo, Some(&old), Some(&new))
+}
+
+// ---------------------------------------------------------------------------
+// Staging and discarding
 // ---------------------------------------------------------------------------
 
 #[tauri::command]
@@ -494,9 +641,14 @@ pub struct GraphCommit {
 
 /// History across every local and remote branch and tag, for the commit
 /// graph: each commit listed before its parents, newest first otherwise, with
-/// the refs that point at it.
+/// the refs that point at it. `refs`, full ref names, limits the history to
+/// those branches and HEAD; every label is shown either way.
 #[tauri::command]
-pub fn git_graph(root: String, limit: Option<usize>) -> Result<Vec<GraphCommit>, String> {
+pub fn git_graph(
+    root: String,
+    limit: Option<usize>,
+    refs: Option<Vec<String>>,
+) -> Result<Vec<GraphCommit>, String> {
     let repo = open(&root)?;
     let limit = limit.unwrap_or(200).min(5000);
     let mut walk = repo.revwalk().map_err(|e| e.to_string())?;
@@ -528,7 +680,8 @@ pub fn git_graph(root: String, limit: Option<usize>) -> Result<Vec<GraphCommit>,
             continue;
         };
         let Ok(commit) = reference.peel_to_commit() else { continue };
-        if walk.push(commit.id()).is_ok() {
+        let wanted = refs.as_ref().is_none_or(|wanted| wanted.iter().any(|r| r == name));
+        if wanted && walk.push(commit.id()).is_ok() {
             tips += 1;
         }
         labels.entry(commit.id()).or_default().push(RefLabel {
@@ -804,7 +957,7 @@ mod tests {
         commit_on(&repo, "refs/heads/side", "side work", &[merge]);
         repo.tag_lightweight("v1", &repo.find_object(root, None).unwrap(), false).unwrap();
 
-        let graph = git_graph(dir.path().to_string_lossy().into_owned(), None).unwrap();
+        let graph = git_graph(dir.path().to_string_lossy().into_owned(), None, None).unwrap();
         assert_eq!(graph.len(), 5);
         let at = |summary: &str| graph.iter().position(|c| c.summary == summary).unwrap();
         assert!(at("side work") < at("merge feature"));
@@ -830,6 +983,87 @@ mod tests {
     fn graph_of_a_repository_without_commits_is_empty() {
         let dir = tempfile::tempdir().unwrap();
         Repository::init(dir.path()).unwrap();
-        assert!(git_graph(dir.path().to_string_lossy().into_owned(), None).unwrap().is_empty());
+        assert!(git_graph(dir.path().to_string_lossy().into_owned(), None, None).unwrap().is_empty());
+    }
+
+    fn commit_change(repo: &Repository, message: &str, write: &[(&str, &str)], remove: &[&str]) -> Oid {
+        let workdir = repo.workdir().unwrap().to_path_buf();
+        let mut index = repo.index().unwrap();
+        for (path, body) in write {
+            std::fs::write(workdir.join(path), body).unwrap();
+            index.add_path(Path::new(path)).unwrap();
+        }
+        for path in remove {
+            std::fs::remove_file(workdir.join(path)).unwrap();
+            index.remove_path(Path::new(path)).unwrap();
+        }
+        index.write().unwrap();
+        let tree = repo.find_tree(index.write_tree().unwrap()).unwrap();
+        let sig = Signature::now("Test", "test@example.com").unwrap();
+        let parent = repo.head().ok().and_then(|h| h.peel_to_commit().ok());
+        let parents: Vec<&git2::Commit> = parent.iter().collect();
+        repo.commit(Some("HEAD"), &sig, &sig, message, &tree, &parents).unwrap()
+    }
+
+    #[test]
+    fn commit_details_list_what_each_commit_changed() {
+        let dir = tempfile::tempdir().unwrap();
+        let repo = Repository::init(dir.path()).unwrap();
+        let root = dir.path().to_string_lossy().into_owned();
+        let moved = "the same text\nkept across a rename\n";
+        let first = commit_change(&repo, "First\n\nBody text", &[("a.txt", "one\ntwo\n"), ("old.txt", moved)], &[]);
+        let second = commit_change(&repo, "Second", &[("a.txt", "one\n2\nthree\n"), ("new.txt", moved)], &["old.txt"]);
+
+        let details = git_commit_details(root.clone(), first.to_string()).unwrap();
+        assert_eq!(details.message, "First\n\nBody text");
+        assert!(details.parents.is_empty());
+        let files: Vec<String> = details
+            .files
+            .iter()
+            .map(|f| format!("{} {} +{} -{}", f.status, f.path, f.additions, f.deletions))
+            .collect();
+        assert_eq!(files, ["added a.txt +2 -0", "added old.txt +2 -0"]);
+
+        let details = git_commit_details(root.clone(), second.to_string()).unwrap();
+        assert_eq!(details.parents, [first.to_string()]);
+        let files: Vec<String> = details
+            .files
+            .iter()
+            .map(|f| format!("{} {} {:?} +{} -{}", f.status, f.path, f.old_path, f.additions, f.deletions))
+            .collect();
+        assert_eq!(files, ["modified a.txt None +2 -1", "renamed new.txt Some(\"old.txt\") +0 -0"]);
+
+        assert_eq!(git_compare_commits(root.clone(), first.to_string(), second.to_string()).unwrap().len(), 2);
+
+        let diff = git_diff_file(root.clone(), "a.txt".into(), DiffSide::Head, None, None, None, Some(second.to_string())).unwrap();
+        assert_eq!((diff.additions, diff.deletions), (2, 1));
+        let diff = git_diff_file(
+            root.clone(), "new.txt".into(), DiffSide::Head, None, Some("old.txt".into()), None, Some(second.to_string()),
+        )
+        .unwrap();
+        assert_eq!(diff.status, "renamed");
+        assert_eq!(diff.old_path.as_deref(), Some("old.txt"));
+        // Against an explicit base: the first commit added a.txt from nothing.
+        let diff = git_diff_file(root, "a.txt".into(), DiffSide::Head, None, None, None, Some(first.to_string())).unwrap();
+        assert_eq!((diff.additions, diff.deletions), (2, 0));
+    }
+
+    #[test]
+    fn graph_can_be_limited_to_some_branches() {
+        let dir = tempfile::tempdir().unwrap();
+        let repo = Repository::init(dir.path()).unwrap();
+        let root = commit_on(&repo, "HEAD", "root", &[]);
+        commit_on(&repo, "refs/heads/feature", "feature work", &[root]);
+        commit_on(&repo, "refs/heads/other", "other work", &[root]);
+        let summaries = |refs: Option<Vec<String>>| -> Vec<String> {
+            git_graph(dir.path().to_string_lossy().into_owned(), None, refs)
+                .unwrap()
+                .into_iter()
+                .map(|c| c.summary)
+                .collect()
+        };
+        assert_eq!(summaries(None).len(), 3);
+        // HEAD stays in, so its commit does.
+        assert_eq!(summaries(Some(vec!["refs/heads/feature".into()])), ["feature work", "root"]);
     }
 }

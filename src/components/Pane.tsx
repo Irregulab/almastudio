@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import {
-  Bot, ChevronDown, Columns2, FileDiff, FileText, FolderOpen, Globe, Loader2,
+  Bot, ChevronDown, Columns2, FileDiff, FileText, FolderOpen, GitGraph, Globe, Loader2,
   PanelsTopLeft, RotateCw, Rows2, Sparkles, Square, SquareCode, Terminal, X,
 } from 'lucide-react'
 
@@ -17,6 +17,7 @@ import { TerminalView } from './TerminalView'
 import { BrowserView } from './BrowserView'
 import { DiffView } from './DiffView'
 import { FileView } from './FileView'
+import { GitGraphView } from './GitGraphView'
 import { ConfirmDialog, MenuItem, MenuSeparator, Popover } from './ui'
 import type { HarnessKind, LeafNode, Tab, TabGroup, TerminalStatus } from '../lib/types'
 import { isTerminalTab } from '../lib/types'
@@ -30,6 +31,7 @@ export function tabIcon(kind: Tab['kind'], size = 13) {
     case 'diff': return <FileDiff size={size} />
     case 'file': return <FileText size={size} />
     case 'browser': return <Globe size={size} />
+    case 'graph': return <GitGraph size={size} />
   }
 }
 
@@ -73,6 +75,7 @@ function TabContent({
   }
   if (tab.kind === 'diff') return <DiffView tab={tab} visible={visible} />
   if (tab.kind === 'browser') return <BrowserView tab={tab} visible={visible} />
+  if (tab.kind === 'graph') return <GitGraphView tab={tab} visible={visible} />
   return <FileView tab={tab} visible={visible} />
 }
 
@@ -274,6 +277,7 @@ export function TabStatus({ status, busy }: { status: TerminalStatus; busy: bool
 function autoTitle(tab: Tab, projectRoot: string | undefined): string {
   if (isTerminalTab(tab)) return defaultTabTitle(tab.cwd, projectRoot, KIND_LABEL[tab.kind])
   if (tab.kind === 'browser') return hostOf(tab.url)
+  if (tab.kind === 'graph') return `Git Graph · ${tab.root.split(/[/\\]/).filter(Boolean).pop() ?? tab.root}`
   return tab.path.split('/').pop() ?? tab.path
 }
 
@@ -283,7 +287,8 @@ export const sessionLabel = (tab: Tab, projectRoot: string | undefined) =>
 
 export function tabTooltip(tab: Tab): string {
   if (isTerminalTab(tab)) return tab.cwd
-  return tab.kind === 'browser' ? tab.url : tab.path
+  if (tab.kind === 'browser') return tab.url
+  return tab.kind === 'graph' ? tab.root : tab.path
 }
 
 function hostOf(url: string): string {

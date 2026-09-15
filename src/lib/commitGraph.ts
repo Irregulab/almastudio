@@ -79,3 +79,16 @@ export function layoutGraph(commits: GraphCommit[]): GraphRow[] {
     return { commit, lane, color, segments, width }
   })
 }
+
+/** Whether a commit matches a search: its subject, author, hash or a ref's name. */
+export function matchesCommit(commit: GraphCommit, query: string): boolean {
+  const q = query.trim().toLowerCase()
+  if (!q) return false
+  return (
+    commit.summary.toLowerCase().includes(q) ||
+    commit.author.toLowerCase().includes(q) ||
+    commit.email.toLowerCase().includes(q) ||
+    commit.id.startsWith(q) ||
+    commit.refs.some((ref) => ref.name.toLowerCase().includes(q))
+  )
+}

@@ -27,7 +27,10 @@ export function DiffView({ tab, visible }: { tab: DiffTab; visible: boolean }) {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const d = await gitDiffFile(tab.root, tab.path, side, settings.panel.contextLines)
+      const commits = tab.target
+        ? { base: tab.base, target: tab.target, oldPath: tab.oldPath }
+        : undefined
+      const d = await gitDiffFile(tab.root, tab.path, side, settings.panel.contextLines, commits)
       setDiff(d)
       setError(null)
     } catch (e) {
@@ -36,7 +39,7 @@ export function DiffView({ tab, visible }: { tab: DiffTab; visible: boolean }) {
     } finally {
       setLoading(false)
     }
-  }, [side, settings.panel.contextLines, tab.path, tab.root])
+  }, [side, settings.panel.contextLines, tab.base, tab.oldPath, tab.path, tab.root, tab.target])
 
   // Only fetch while on screen: a diff tab in a background pane costs nothing.
   useEffect(() => {
@@ -56,15 +59,22 @@ export function DiffView({ tab, visible }: { tab: DiffTab; visible: boolean }) {
           </span>
         )}
         <span className="spacer" />
-        <Segmented
-          value={side}
-          onChange={setSide}
-          options={[
-            { value: 'worktree', label: t('diff.worktree') },
-            { value: 'index', label: t('diff.index') },
-            { value: 'head', label: t('diff.head') },
-          ]}
-        />
+        {tab.target ? (
+          // A commit's change has no working tree or index to switch between.
+          <span className="chip mono" title={tab.base ? `${tab.base} → ${tab.target}` : tab.target}>
+            {tab.base ? `${tab.base.slice(0, 7)} → ` : ''}{tab.target.slice(0, 7)}
+          </span>
+        ) : (
+          <Segmented
+            value={side}
+            onChange={setSide}
+            options={[
+              { value: 'worktree', label: t('diff.worktree') },
+              { value: 'index', label: t('diff.index') },
+              { value: 'head', label: t('diff.head') },
+            ]}
+          />
+        )}
         <Segmented
           value={layout}
           onChange={setLayout}

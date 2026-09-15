@@ -1,22 +1,23 @@
 import { useEffect, useState } from 'react'
 import {
   Archive, ArchiveRestore, ArrowDownToLine, ArrowUpFromLine, ChevronDown, ChevronRight,
-  CloudUpload, Ellipsis, GitBranch, GitBranchPlus, GitMerge, History, Loader2, Pencil,
-  RefreshCcw, RefreshCw, Tag, Trash2, TriangleAlert, Undo2,
+  CloudUpload, Ellipsis, GitBranch, GitBranchPlus, GitCompareArrows, GitGraph, GitMerge, History,
+  Loader2, Pencil, RefreshCcw, RefreshCw, Tag, Trash2, TriangleAlert, Undo2,
 } from 'lucide-react'
 
 import {
-  gitAbort, gitBranches, gitCheckout, gitContinue, gitCreateBranch, gitCreateTag,
-  gitDeleteBranch, gitDeleteRemoteBranch, gitDeleteTag, gitFetch, gitGraph, gitMerge, gitPull,
-  gitPush, gitPushTags, gitRebase, gitRenameBranch, gitStash, gitStashApply, gitStashDrop,
-  gitStashPop, gitStashes, gitSync, gitTags, gitUndoCommit,
+  gitAbort, gitBranches, gitCheckout, gitContinue, gitFetch, gitGraph, gitMerge, gitPull, gitPush,
+  gitPushTags, gitRebase, gitStash, gitStashApply, gitStashPop, gitStashes, gitSync, gitTags,
+  gitUndoCommit,
 } from '../lib/ipc'
 import { relativeTime } from '../lib/time'
+import { useWorkspace } from '../store/workspace'
 import { useT } from '../i18n'
 import { CommitBox, setCommitMessage } from './CommitBox'
 import { CommitGraph } from './CommitGraph'
 import { RepoAccordion, useRepoStatus } from './RepoAccordion'
-import { ConfirmDialog, MenuItem, MenuSeparator, Popover, PromptDialog } from './ui'
+import { useGitActions, type GitDialog } from './gitActions'
+import { MenuItem, MenuSeparator, Popover } from './ui'
 import type { BranchInfo, GraphCommit, RepoStatus, StashInfo, TagInfo } from '../lib/types'
 
 /** Commits loaded into the graph at a time. */
@@ -29,15 +30,6 @@ const OPERATION_LABELS: Record<NonNullable<RepoStatus['operation']>, string> = {
   revert: 'git.opRevert',
   bisect: 'git.opBisect',
 }
-
-type Dialog =
-  | { kind: 'new-branch' }
-  | { kind: 'rename-branch'; name: string }
-  | { kind: 'delete-branch'; name: string; force: boolean }
-  | { kind: 'delete-remote-branch'; name: string }
-  | { kind: 'new-tag' }
-  | { kind: 'delete-tag'; name: string }
-  | { kind: 'drop-stash'; stash: StashInfo }
 
 type Menu =
   | { kind: 'more'; anchor: HTMLElement }
@@ -70,17 +62,14 @@ export function GitView({
   revision?: number
 }) {
   const t = useT()
+  const openGraphTab = useWorkspace((s) => s.openGraphTab)
   const [commits, setCommits] = useState<GraphCommit[] | null>(null)
   const [limit, setLimit] = useState(GRAPH_PAGE)
   const [branches, setBranches] = useState<BranchInfo[]>([])
   const [stashes, setStashes] = useState<StashInfo[]>([])
   const [tags, setTags] = useState<TagInfo[]>([])
-  /** The operation running, so its button can spin and the rest wait. */
-  const [running, setRunning] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const [menu, setMenu] = useState<Menu | null>(null)
-  const [dialog, setDialog] = useState<Dialog | null>(null)
+  const actions = useGitActions(status?.root ?? root, onChanged)
 
   useEffect(() => {
     if (!status?.isRepo) return
@@ -107,44 +96,26 @@ export function GitView({
 
   const repo = status.root
   const current = status.branch ?? 'HEAD'
-  const busy = running !== null
+  const { busy, running } = actions
   const conflicts = status.files.filter((f) => f.conflicted).length
   const local = branches.filter((b) => !b.isRemote)
   const remote = branches.filter((b) => b.isRemote && !b.name.endsWith('/HEAD'))
 
-  /** Runs one git operation: its failure shown, the panel refreshed after. */
-  const run = async (name: string, op: () => Promise<unknown>, done?: string) => {
+  /** Runs an operation from a menu, closing the menu first. */
+  const act = (name: string, op: () => Promise<unknown>, done?: string) => {
     setMenu(null)
-    setRunning(name)
-    setError(null)
-    setNotice(null)
-    try {
-      await op()
-      if (done) {
-        setNotice(done)
-        window.setTimeout(() => setNotice(null), 2500)
-      }
-    } catch (e) {
-      setError(String(e))
-    } finally {
-      setRunning(null)
-      onChanged()
-    }
+    return actions.run(name, op, done)
   }
-
-  // An unmerged branch is only deleted once the user has confirmed twice.
-  const deleteBranch = (name: string, force: boolean) =>
-    run('delete-branch', async () => {
-      try {
-        await gitDeleteBranch(repo, name, force)
-      } catch (e) {
-        if (force || !/not fully merged/i.test(String(e))) throw e
-        setDialog({ kind: 'delete-branch', name, force: true })
-      }
-    })
-
+  const ask = (dialog: GitDialog) => {
+    setMenu(null)
+    actions.ask(dialog)
+  }
   const openMenu = (next: Menu) => {
     if (!busy) setMenu(next)
+  }
+  const openGraph = () => {
+    setMenu(null)
+    openGraphTab({ projectId, root: repo })
   }
 
   return (
@@ -154,18 +125,18 @@ export function GitView({
         <span className="truncate">{current}</span>
         {status.ahead > 0 && <span className="chip">↑{status.ahead}</span>}
         {status.behind > 0 && <span className="chip">↓{status.behind}</span>}
-        {notice && <span className="chip chip--ok git__notice">{notice}</span>}
+        {actions.notice && <span className="chip chip--ok git__notice">{actions.notice}</span>}
         <div className="git__sync">
           <OpButton
             name="fetch" running={running} label={t('panel.fetch')}
-            onClick={() => void run('fetch', () => gitFetch(repo), t('panel.fetchDone'))}
+            onClick={() => void act('fetch', () => gitFetch(repo), t('panel.fetchDone'))}
           >
             <RefreshCcw size={13} />
           </OpButton>
           <OpButton
             name="pull" running={running} disabled={status.detached || !status.upstream}
             label={status.behind > 0 ? `${t('panel.pull')} (↓${status.behind})` : t('panel.pull')}
-            onClick={() => void run('pull', () => gitPull(repo), t('panel.pullDone'))}
+            onClick={() => void act('pull', () => gitPull(repo), t('panel.pullDone'))}
           >
             <ArrowDownToLine size={13} />
           </OpButton>
@@ -176,7 +147,7 @@ export function GitView({
                 ? t('panel.publish')
                 : status.ahead > 0 ? `${t('panel.push')} (↑${status.ahead})` : t('panel.push')
             }
-            onClick={() => void run('push', () => gitPush(repo), t('panel.pushDone'))}
+            onClick={() => void act('push', () => gitPush(repo), t('panel.pushDone'))}
           >
             {status.upstream ? <ArrowUpFromLine size={13} /> : <CloudUpload size={13} />}
           </OpButton>
@@ -202,14 +173,14 @@ export function GitView({
             {status.operation !== 'bisect' && (
               <button
                 className="btn btn--sm btn--primary" disabled={busy || conflicts > 0}
-                onClick={() => void run('continue', () => gitContinue(repo))}
+                onClick={() => void act('continue', () => gitContinue(repo))}
               >
                 {t('git.continue')}
               </button>
             )}
             <button
               className="btn btn--sm" disabled={busy}
-              onClick={() => void run('abort', () => gitAbort(repo))}
+              onClick={() => void act('abort', () => gitAbort(repo))}
             >
               {t('git.abort')}
             </button>
@@ -217,7 +188,7 @@ export function GitView({
         </div>
       )}
 
-      {error && <div className="git__error git__error--block">{error}</div>}
+      {actions.error && <div className="git__error git__error--block">{actions.error}</div>}
 
       <CommitBox root={repo} status={status} onChanged={onChanged} />
 
@@ -225,7 +196,7 @@ export function GitView({
         icon={<GitBranch size={12} />} title={t('git.branches')} count={local.length}
         action={{
           icon: <GitBranchPlus size={12} />, label: t('git.newBranch'),
-          run: () => setDialog({ kind: 'new-branch' }),
+          run: () => ask({ kind: 'new-branch', base: current }),
         }}
       >
         <ul className="filelist">
@@ -234,7 +205,7 @@ export function GitView({
               key={b.name} branch={b} label={t('git.more')}
               title={b.isHead ? undefined : t('panel.switchBranch')}
               onOpen={() => {
-                if (!b.isHead && !busy) void run('checkout', () => gitCheckout(repo, b.name))
+                if (!b.isHead && !busy) void act('checkout', () => gitCheckout(repo, b.name))
               }}
               onMenu={(anchor) => openMenu({ kind: 'branch', anchor, branch: b })}
             />
@@ -252,7 +223,7 @@ export function GitView({
               <BranchRow
                 key={b.name} branch={b} label={t('git.more')} title={t('git.checkout')}
                 onOpen={() => {
-                  if (!busy) void run('checkout', () => gitCheckout(repo, b.name, true))
+                  if (!busy) void act('checkout', () => gitCheckout(repo, b.name, true))
                 }}
                 onMenu={(anchor) => openMenu({ kind: 'branch', anchor, branch: b })}
               />
@@ -292,7 +263,10 @@ export function GitView({
       {tags.length > 0 && (
         <Section
           icon={<Tag size={12} />} title={t('git.tags')} count={tags.length} defaultOpen={false}
-          action={{ icon: <Tag size={12} />, label: t('git.newTag'), run: () => setDialog({ kind: 'new-tag' }) }}
+          action={{
+            icon: <Tag size={12} />, label: t('git.newTag'),
+            run: () => ask({ kind: 'new-tag', base: current }),
+          }}
         >
           <ul className="filelist">
             {tags.map((tag) => (
@@ -304,7 +278,7 @@ export function GitView({
                   <button
                     className="icon-btn icon-btn--tiny" title={t('git.deleteTag')}
                     aria-label={t('git.deleteTag')} disabled={busy}
-                    onClick={() => setDialog({ kind: 'delete-tag', name: tag.name })}
+                    onClick={() => ask({ kind: 'delete-tag', name: tag.name })}
                   >
                     <Trash2 size={12} />
                   </button>
@@ -315,7 +289,10 @@ export function GitView({
         </Section>
       )}
 
-      <Section icon={<History size={12} />} title={t('panel.history')}>
+      <Section
+        icon={<History size={12} />} title={t('panel.history')}
+        action={{ icon: <GitGraph size={12} />, label: t('graph.open'), run: openGraph }}
+      >
         {commits && commits.length === 0 && (
           <div className="repo__loading subtle">{t('panel.noCommits')}</div>
         )}
@@ -336,42 +313,43 @@ export function GitView({
             <MenuItem
               icon={<RefreshCw size={13} />} label={t('git.sync')}
               disabled={!status.upstream || status.detached}
-              onClick={() => void run('sync', () => gitSync(repo), t('git.syncDone'))}
+              onClick={() => void act('sync', () => gitSync(repo), t('git.syncDone'))}
             />
             <MenuItem
               icon={<ArrowDownToLine size={13} />} label={t('git.pullRebase')}
               disabled={!status.upstream || status.detached}
-              onClick={() => void run('pull', () => gitPull(repo, true), t('panel.pullDone'))}
+              onClick={() => void act('pull', () => gitPull(repo, true), t('panel.pullDone'))}
             />
             <MenuSeparator />
             <MenuItem
               icon={<Undo2 size={13} />} label={t('git.undoCommit')} disabled={!commits?.length}
               onClick={() =>
-                void run('undo', async () => setCommitMessage(repo, await gitUndoCommit(repo)), t('git.undoDone'))
+                void act('undo', async () => setCommitMessage(repo, await gitUndoCommit(repo)), t('git.undoDone'))
               }
             />
+            <MenuItem icon={<GitGraph size={13} />} label={t('graph.open')} onClick={openGraph} />
             <MenuSeparator />
             <MenuItem
               icon={<GitBranchPlus size={13} />} label={t('git.newBranch')}
-              onClick={() => { setMenu(null); setDialog({ kind: 'new-branch' }) }}
+              onClick={() => ask({ kind: 'new-branch', base: current })}
             />
             <MenuItem
               icon={<Archive size={13} />} label={t('git.stash')} disabled={status.files.length === 0}
-              onClick={() => void run('stash', () => gitStash(repo, false))}
+              onClick={() => void act('stash', () => gitStash(repo, false))}
             />
             <MenuItem
               icon={<Archive size={13} />} label={t('git.stashUntracked')}
               disabled={status.files.length === 0}
-              onClick={() => void run('stash', () => gitStash(repo, true))}
+              onClick={() => void act('stash', () => gitStash(repo, true))}
             />
             <MenuSeparator />
             <MenuItem
               icon={<Tag size={13} />} label={t('git.newTag')} disabled={!commits?.length}
-              onClick={() => { setMenu(null); setDialog({ kind: 'new-tag' }) }}
+              onClick={() => ask({ kind: 'new-tag', base: current })}
             />
             <MenuItem
               icon={<CloudUpload size={13} />} label={t('git.pushTags')} disabled={tags.length === 0}
-              onClick={() => void run('push-tags', () => gitPushTags(repo), t('panel.pushDone'))}
+              onClick={() => void act('push-tags', () => gitPushTags(repo), t('panel.pushDone'))}
             />
           </>
         )}
@@ -380,29 +358,26 @@ export function GitView({
           <>
             <MenuItem
               icon={<GitBranch size={13} />} label={t('git.checkout')} disabled={menu.branch.isHead}
-              onClick={() => void run('checkout', () => gitCheckout(repo, menu.branch.name))}
+              onClick={() => void act('checkout', () => gitCheckout(repo, menu.branch.name))}
             />
             <MenuItem
               icon={<GitMerge size={13} />} label={t('git.merge', { current })}
               disabled={menu.branch.isHead || status.detached}
-              onClick={() => void run('merge', () => gitMerge(repo, menu.branch.name))}
+              onClick={() => void act('merge', () => gitMerge(repo, menu.branch.name))}
             />
             <MenuItem
-              icon={<GitMerge size={13} />} label={t('git.rebase', { current })}
+              icon={<GitCompareArrows size={13} />} label={t('git.rebase', { current })}
               disabled={menu.branch.isHead || status.detached}
-              onClick={() => void run('rebase', () => gitRebase(repo, menu.branch.name))}
+              onClick={() => void act('rebase', () => gitRebase(repo, menu.branch.name))}
             />
             <MenuSeparator />
             <MenuItem
               icon={<Pencil size={13} />} label={t('git.rename')}
-              onClick={() => { setMenu(null); setDialog({ kind: 'rename-branch', name: menu.branch.name }) }}
+              onClick={() => ask({ kind: 'rename-branch', name: menu.branch.name })}
             />
             <MenuItem
               icon={<Trash2 size={13} />} label={t('git.delete')} danger disabled={menu.branch.isHead}
-              onClick={() => {
-                setMenu(null)
-                setDialog({ kind: 'delete-branch', name: menu.branch.name, force: false })
-              }}
+              onClick={() => ask({ kind: 'delete-branch', name: menu.branch.name, force: false })}
             />
           </>
         )}
@@ -411,19 +386,16 @@ export function GitView({
           <>
             <MenuItem
               icon={<GitBranch size={13} />} label={t('git.checkout')}
-              onClick={() => void run('checkout', () => gitCheckout(repo, menu.branch.name, true))}
+              onClick={() => void act('checkout', () => gitCheckout(repo, menu.branch.name, true))}
             />
             <MenuItem
               icon={<GitMerge size={13} />} label={t('git.merge', { current })} disabled={status.detached}
-              onClick={() => void run('merge', () => gitMerge(repo, menu.branch.name))}
+              onClick={() => void act('merge', () => gitMerge(repo, menu.branch.name))}
             />
             <MenuSeparator />
             <MenuItem
               icon={<Trash2 size={13} />} label={t('git.deleteRemoteBranch')} danger
-              onClick={() => {
-                setMenu(null)
-                setDialog({ kind: 'delete-remote-branch', name: menu.branch.name })
-              }}
+              onClick={() => ask({ kind: 'delete-remote-branch', name: menu.branch.name })}
             />
           </>
         )}
@@ -432,110 +404,22 @@ export function GitView({
           <>
             <MenuItem
               icon={<ArchiveRestore size={13} />} label={t('git.stashApply')}
-              onClick={() => void run('stash-apply', () => gitStashApply(repo, menu.stash.index))}
+              onClick={() => void act('stash-apply', () => gitStashApply(repo, menu.stash.index))}
             />
             <MenuItem
               icon={<ArchiveRestore size={13} />} label={t('git.stashPop')}
-              onClick={() => void run('stash-pop', () => gitStashPop(repo, menu.stash.index))}
+              onClick={() => void act('stash-pop', () => gitStashPop(repo, menu.stash.index))}
             />
             <MenuSeparator />
             <MenuItem
               icon={<Trash2 size={13} />} label={t('git.stashDrop')} danger
-              onClick={() => { setMenu(null); setDialog({ kind: 'drop-stash', stash: menu.stash }) }}
+              onClick={() => ask({ kind: 'drop-stash', stash: menu.stash })}
             />
           </>
         )}
       </Popover>
 
-      {dialog?.kind === 'new-branch' && (
-        <PromptDialog
-          title={t('git.newBranchTitle', { base: current })} label={t('git.branchName')}
-          confirmLabel={t('git.create')}
-          onCancel={() => setDialog(null)}
-          onConfirm={(name) => {
-            setDialog(null)
-            void run('new-branch', () => gitCreateBranch(repo, name, null, true))
-          }}
-        />
-      )}
-      {dialog?.kind === 'rename-branch' && (
-        <PromptDialog
-          title={t('git.renameTitle', { name: dialog.name })} label={t('git.branchName')}
-          initial={dialog.name} confirmLabel={t('common.save')}
-          onCancel={() => setDialog(null)}
-          onConfirm={(name) => {
-            const from = dialog.name
-            setDialog(null)
-            if (name !== from) void run('rename', () => gitRenameBranch(repo, from, name))
-          }}
-        />
-      )}
-      {dialog?.kind === 'delete-branch' && (
-        <ConfirmDialog
-          title={t('git.deleteBranchTitle')}
-          message={
-            dialog.force
-              ? t('git.forceDeleteConfirm', { name: dialog.name })
-              : t('git.deleteBranchConfirm', { name: dialog.name })
-          }
-          confirmLabel={t('common.delete')} danger
-          onCancel={() => setDialog(null)}
-          onConfirm={() => {
-            const { name, force } = dialog
-            setDialog(null)
-            void deleteBranch(name, force)
-          }}
-        />
-      )}
-      {dialog?.kind === 'delete-remote-branch' && (
-        <ConfirmDialog
-          title={t('git.deleteRemoteBranch')}
-          message={t('git.deleteRemoteConfirm', { name: dialog.name })}
-          confirmLabel={t('common.delete')} danger
-          onCancel={() => setDialog(null)}
-          onConfirm={() => {
-            const { name } = dialog
-            setDialog(null)
-            void run('delete-remote', () => gitDeleteRemoteBranch(repo, name))
-          }}
-        />
-      )}
-      {dialog?.kind === 'new-tag' && (
-        <PromptDialog
-          title={t('git.newTagTitle', { base: current })} label={t('git.tagName')}
-          confirmLabel={t('git.create')}
-          onCancel={() => setDialog(null)}
-          onConfirm={(name) => {
-            setDialog(null)
-            void run('new-tag', () => gitCreateTag(repo, name, null, null))
-          }}
-        />
-      )}
-      {dialog?.kind === 'delete-tag' && (
-        <ConfirmDialog
-          title={t('git.deleteTag')} message={t('git.deleteTagConfirm', { name: dialog.name })}
-          confirmLabel={t('common.delete')} danger
-          onCancel={() => setDialog(null)}
-          onConfirm={() => {
-            const { name } = dialog
-            setDialog(null)
-            void run('delete-tag', () => gitDeleteTag(repo, name))
-          }}
-        />
-      )}
-      {dialog?.kind === 'drop-stash' && (
-        <ConfirmDialog
-          title={t('git.stashDrop')}
-          message={t('git.stashDropConfirm', { name: dialog.stash.message })}
-          confirmLabel={t('common.delete')} danger
-          onCancel={() => setDialog(null)}
-          onConfirm={() => {
-            const { index } = dialog.stash
-            setDialog(null)
-            void run('stash-drop', () => gitStashDrop(repo, index))
-          }}
-        />
-      )}
+      {actions.dialogs}
     </div>
   )
 }

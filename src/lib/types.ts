@@ -1,7 +1,7 @@
 /** Shared domain types. Mirrors the serde structs in src-tauri. */
 
 export type HarnessKind = 'claude' | 'codex' | 'opencode' | 'shell'
-export type TabKind = HarnessKind | 'diff' | 'file' | 'browser'
+export type TabKind = HarnessKind | 'diff' | 'file' | 'browser' | 'graph'
 export type DiffSide = 'worktree' | 'index' | 'head'
 export type PanelView = 'changes' | 'files' | 'git' | 'search'
 export type ThemeMode = 'system' | 'dark' | 'light'
@@ -67,6 +67,12 @@ export interface DiffTab extends TabBase {
   /** Repo-relative path. */
   path: string
   side: DiffSide
+  /** A commit whose change to the file is shown, instead of the working tree's. */
+  target?: string
+  /** Compared with this commit rather than `target`'s first parent. */
+  base?: string
+  /** The file's name before a rename in that change. */
+  oldPath?: string
 }
 
 /** Where a file tab puts the cursor, when opened from a search result. */
@@ -93,7 +99,13 @@ export interface BrowserTab extends TabBase {
   url: string
 }
 
-export type Tab = TerminalTab | DiffTab | FileTab | BrowserTab
+/** A repository's commit graph, as a tab of its own. */
+export interface GraphTab extends TabBase {
+  kind: 'graph'
+  root: string
+}
+
+export type Tab = TerminalTab | DiffTab | FileTab | BrowserTab | GraphTab
 
 export const isTerminalTab = (t: Tab): t is TerminalTab =>
   t.kind === 'claude' || t.kind === 'codex' || t.kind === 'opencode' || t.kind === 'shell'
@@ -265,6 +277,32 @@ export interface TagInfo {
   name: string
   /** The commit it points at, abbreviated. */
   target: string
+}
+
+export interface CommitFile {
+  path: string
+  /** The name before a rename. */
+  oldPath: string | null
+  status: string
+  additions: number
+  deletions: number
+  binary: boolean
+}
+
+export interface CommitDetails {
+  id: string
+  shortId: string
+  parents: string[]
+  /** The whole message, subject and body. */
+  message: string
+  author: string
+  email: string
+  authorTime: number
+  committer: string
+  committerEmail: string
+  commitTime: number
+  /** What changed against the first parent. */
+  files: CommitFile[]
 }
 
 export interface DiffLine {

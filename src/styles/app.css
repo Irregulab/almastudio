@@ -1342,3 +1342,120 @@ img, a { -webkit-user-drag: none; }
 }
 .git__operation > svg { flex: 0 0 auto; color: var(--yellow); }
 .git__operation-text { display: flex; flex-direction: column; gap: 2px; flex: 1 1 12em; min-width: 0; }
+
+/* Git Graph: a repository's history as a tab of its own. */
+.graph__hole { fill: var(--graph-hole, var(--bg-panel)); }
+.ggraph {
+  --graph-hole: var(--bg);
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  background: var(--bg);
+}
+.ggraph__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 6px var(--sp-3);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel);
+}
+.ggraph__repo { max-width: 18em; font-weight: 600; }
+.ggraph__search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 12em;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-inset);
+}
+.ggraph__search input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: none;
+  color: inherit;
+  font-size: 12px;
+}
+.ggraph__count { font-size: 10.5px; white-space: nowrap; }
+.ggraph__head,
+.ggraph__row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-width: 0;
+  padding: 0 var(--sp-3);
+}
+.ggraph__head {
+  flex: 0 0 auto;
+  height: 24px;
+  border-bottom: 1px solid var(--border);
+  color: var(--fg-subtle);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.ggraph__body { flex: 1 1 auto; min-height: 0; overflow: auto; }
+.ggraph__row { height: 22px; font-size: 12px; }
+.ggraph__row:hover { background: var(--bg-hover); }
+.ggraph__row.is-selected { background: var(--bg-selected); }
+.ggraph__row.is-compared { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.ggraph__row.is-match .ggraph__subject { color: var(--accent-strong); }
+.ggraph__row.is-current-match { box-shadow: inset 2px 0 0 var(--accent); }
+.ggraph__row.is-uncommitted .ggraph__subject { color: var(--fg-muted); font-style: italic; }
+.ggraph__graph { display: flex; flex: 0 0 auto; align-self: stretch; }
+.ggraph__desc { display: flex; align-items: center; gap: 5px; flex: 1 1 auto; min-width: 0; }
+.ggraph__subject { flex: 1 1 auto; min-width: 0; }
+.ggraph__date { flex: 0 0 10em; overflow: hidden; font-size: 11px; white-space: nowrap; }
+.ggraph__author { flex: 0 0 10em; font-size: 11.5px; }
+.ggraph__hash { flex: 0 0 5em; font-size: 11px; }
+button.graph__ref { cursor: pointer; }
+button.graph__ref:hover { filter: brightness(1.25); }
+.ggraph__details {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 40%;
+  min-height: 160px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-panel);
+}
+.ggraph__details-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 4px var(--sp-3);
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.ggraph__details-body { display: flex; flex: 1 1 auto; min-height: 0; overflow: hidden; }
+.ggraph__summary {
+  flex: 1 1 50%;
+  min-width: 0;
+  overflow: auto;
+  padding: var(--sp-3) var(--sp-4);
+  border-right: 1px solid var(--border);
+}
+.ggraph__message {
+  margin: 0 0 var(--sp-3);
+  font-family: inherit;
+  font-size: 12.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+.ggraph__message::first-line { font-weight: 600; }
+.ggraph__meta { display: grid; grid-template-columns: auto 1fr; gap: 3px var(--sp-3); margin: 0; font-size: 11.5px; }
+.ggraph__meta dt { color: var(--fg-subtle); }
+.ggraph__meta dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }
+.ggraph__link { margin-right: 6px; color: var(--accent-strong); }
+.ggraph__link:hover { text-decoration: underline; }
+.ggraph__files { flex: 1 1 50%; min-width: 0; overflow: auto; }
+.ggraph__details > .ggraph__files { flex: 1 1 auto; }
+.ggraph__stat { flex: 0 0 auto; font-size: 10.5px; }

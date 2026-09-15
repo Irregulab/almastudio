@@ -9,6 +9,20 @@ release cannot be cut without one — see `docs/UPDATES.md`.
 
 ## [Unreleased]
 
+### Added
+
+- Git Graph, as in the VS Code extension: a repository's history in a tab of
+  its own, opened from the Git panel. Columns for the graph, description,
+  date, author and commit; a branch filter; a search that steps through the
+  matching commits; and a row for uncommitted changes above HEAD. Clicking a
+  commit shows its full message and the files it changed, each opening its
+  diff; ⌘-clicking a second commit compares the two.
+- Right-click a commit in Git Graph to check it out, create a branch or tag
+  on it, merge it or rebase onto it, cherry-pick or revert it, reset the
+  current branch to it (soft, mixed or hard, always confirmed first), or
+  copy its hash or subject. Branch and tag labels have menus of their own:
+  check out, merge, rebase, rename, delete, delete on the remote, push a tag.
+
 ## [1.4.0] - 2026-09-15
 
 ### Added

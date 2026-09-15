@@ -26,7 +26,8 @@ of blocked threads — no Electron, no per-tab browser process.
 - **Right panel** — four views: changed files, the full file tree, git
   (what VS Code's Source Control does — commit, amend, undo, sync, fetch /
   pull / push, branches, merge and rebase, stashes, tags — through your own
-  `git`, and a commit graph of every branch), and text search across
+  `git`, and a commit graph of every branch — also a Git Graph tab with
+  commit details, comparisons and menus on every commit), and text search across
   the folder as in VS Code — case, whole word, regular expressions, files to
   include and exclude, ⇧⌘F — with results opening at their line. Clicking a changed file
   opens its diff as a tab in the main area. Point a project at a folder full of

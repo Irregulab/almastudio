@@ -197,16 +197,20 @@ fn publish_target(root: &str) -> Result<Option<(String, String)>, String> {
     if branch.upstream().is_ok() {
         return Ok(None);
     }
+    Ok(Some((default_remote(&repo)?, name)))
+}
+
+/// `origin` if there is one, otherwise the first remote.
+fn default_remote(repo: &Repository) -> Result<String, String> {
     let remotes = repo.remotes().map_err(|e| e.to_string())?;
-    let remote = remotes
+    remotes
         .iter()
         .flatten()
         .flatten()
         .find(|remote| *remote == "origin")
         .or_else(|| remotes.iter().flatten().flatten().next())
-        .ok_or("this repository has no remote to push to")?
-        .to_string();
-    Ok(Some((remote, name)))
+        .map(str::to_string)
+        .ok_or_else(|| "this repository has no remote to push to".to_string())
 }
 
 /// Pushes the checked-out branch, publishing it with an upstream on its first
@@ -227,6 +231,11 @@ fn sync(root: &str) -> Result<String, String> {
 
 fn push_tags(root: &str) -> Result<String, String> {
     run(root, &["push", "--tags"])
+}
+
+fn push_tag(root: &str, name: &str) -> Result<String, String> {
+    let remote = default_remote(&open(root)?)?;
+    run(root, &["push", &remote, &format!("refs/tags/{name}")])
 }
 
 // ----------------------------------------------------------------- commit ---
@@ -311,6 +320,46 @@ fn merge(root: &str, name: &str) -> Result<String, String> {
 
 fn rebase(root: &str, onto: &str) -> Result<String, String> {
     run(root, &["rebase", onto])
+}
+
+/// A merge commit is picked or reverted against its first parent.
+fn mainline(root: &str, id: &str) -> Result<Option<&'static str>, String> {
+    let commit_parents = open(root)?
+        .revparse_single(id)
+        .and_then(|object| object.peel_to_commit())
+        .map(|commit| commit.parent_count())
+        .map_err(|e| format!("unknown commit {id}: {e}"))?;
+    Ok((commit_parents > 1).then_some("1"))
+}
+
+fn cherry_pick(root: &str, id: &str) -> Result<String, String> {
+    let mut args = vec!["cherry-pick"];
+    if let Some(parent) = mainline(root, id)? {
+        args.extend(["-m", parent]);
+    }
+    args.push(id);
+    run(root, &args)
+}
+
+fn revert(root: &str, id: &str) -> Result<String, String> {
+    let mut args = vec!["revert", "--no-edit"];
+    if let Some(parent) = mainline(root, id)? {
+        args.extend(["-m", parent]);
+    }
+    args.push(id);
+    run(root, &args)
+}
+
+/// Moves the current branch to `id`: `soft` keeps the changes after it
+/// staged, `mixed` in the working tree, and `hard` throws them away.
+fn reset(root: &str, id: &str, mode: &str) -> Result<String, String> {
+    let flag = match mode {
+        "soft" => "--soft",
+        "mixed" => "--mixed",
+        "hard" => "--hard",
+        other => return Err(format!("unknown reset mode {other}")),
+    };
+    run(root, &["reset", flag, id])
 }
 
 /// The git command that continues or aborts the operation under way.
@@ -476,6 +525,26 @@ pub async fn git_merge(root: String, name: String) -> Result<String, String> {
 #[tauri::command]
 pub async fn git_rebase(root: String, onto: String) -> Result<String, String> {
     in_background(move || rebase(&root, &onto)).await
+}
+
+#[tauri::command]
+pub async fn git_cherry_pick(root: String, id: String) -> Result<String, String> {
+    in_background(move || cherry_pick(&root, &id)).await
+}
+
+#[tauri::command]
+pub async fn git_revert(root: String, id: String) -> Result<String, String> {
+    in_background(move || revert(&root, &id)).await
+}
+
+#[tauri::command]
+pub async fn git_reset(root: String, id: String, mode: String) -> Result<String, String> {
+    in_background(move || reset(&root, &id, &mode)).await
+}
+
+#[tauri::command]
+pub async fn git_push_tag(root: String, name: String) -> Result<String, String> {
+    in_background(move || push_tag(&root, &name)).await
 }
 
 #[tauri::command]
@@ -757,6 +826,9 @@ mod tests {
         create_tag(&a_root, "v1", None, None).unwrap();
         push_tags(&a_root).unwrap();
         assert!(bare.find_reference("refs/tags/v1").is_ok());
+        create_tag(&a_root, "v2", None, None).unwrap();
+        push_tag(&a_root, "v2").unwrap();
+        assert!(bare.find_reference("refs/tags/v2").is_ok());
 
         delete_remote_branch(&b_root, "origin/feature").unwrap();
         assert!(bare.find_reference("refs/heads/feature").is_err());
@@ -775,6 +847,48 @@ mod tests {
         assert!(err.contains("no remote"), "{err}");
         let err = pull(&root, false).unwrap_err();
         assert!(!err.is_empty() && !err.contains("hint:"), "{err}");
+    }
+
+    #[test]
+    fn cherry_picks_reverts_and_resets() {
+        let dir = tempfile::tempdir().unwrap();
+        let repo = repo_at(dir.path());
+        let root = root_of(&repo);
+        write(&repo, "a.txt", "base\n");
+        commit(&root, "Base", true, false).unwrap();
+        let main = current_branch(&repo);
+        let base = repo.head().unwrap().target().unwrap().to_string();
+        create_branch(&root, "side", None, true).unwrap();
+        write(&repo, "side.txt", "side\n");
+        commit(&root, "Side work", true, false).unwrap();
+        let side = repo.head().unwrap().target().unwrap().to_string();
+        checkout(&root, &main, false).unwrap();
+
+        cherry_pick(&root, &side).unwrap();
+        assert_eq!(head_message(&repo), "Side work\n");
+        assert!(read(&repo, "side.txt").is_some());
+
+        // Soft keeps the changes after the commit staged…
+        reset(&root, &base, "soft").unwrap();
+        assert_eq!(head_message(&repo), "Base\n");
+        assert!(repo.status_file(Path::new("side.txt")).unwrap().contains(git2::Status::INDEX_NEW));
+        commit(&root, "Side again", false, false).unwrap();
+
+        // …mixed leaves them in the working tree…
+        reset(&root, &base, "mixed").unwrap();
+        assert!(repo.status_file(Path::new("side.txt")).unwrap().contains(git2::Status::WT_NEW));
+        commit(&root, "Side third", true, false).unwrap();
+
+        revert(&root, "HEAD").unwrap();
+        assert!(head_message(&repo).starts_with("Revert \"Side third\""), "{}", head_message(&repo));
+        assert_eq!(read(&repo, "side.txt"), None);
+
+        // …and hard throws them away, uncommitted ones too.
+        write(&repo, "a.txt", "dirty\n");
+        reset(&root, &base, "hard").unwrap();
+        assert_eq!(head_message(&repo), "Base\n");
+        assert_eq!(read(&repo, "a.txt").as_deref(), Some("base\n"));
+        assert!(reset(&root, &base, "sideways").is_err());
     }
 
     #[test]

@@ -3,7 +3,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import type {
-  AppInfo, BranchInfo, ChangedFile, DiffSide, DirEntryInfo,
+  AppInfo, BranchInfo, ChangedFile, CommitDetails, CommitFile, DiffSide, DirEntryInfo,
   FileContent, FileDiff, GraphCommit, RepoStatus, StashInfo, TagInfo,
 } from './types'
 
@@ -90,8 +90,17 @@ export const scrollbackForget = (id: string) => invoke<void>('scrollback_forget'
 // ------------------------------------------------------------------ git ----
 
 export const gitStatus = (root: string) => invoke<RepoStatus>('git_status', { root })
-export const gitDiffFile = (root: string, path: string, side: DiffSide, contextLines?: number) =>
-  invoke<FileDiff>('git_diff_file', { root, path, side, contextLines })
+/** With `commits`, the change a commit made (against `base`, or its first parent). */
+export const gitDiffFile = (
+  root: string, path: string, side: DiffSide, contextLines?: number,
+  commits?: { base?: string; target: string; oldPath?: string },
+) =>
+  invoke<FileDiff>('git_diff_file', {
+    root, path, side, contextLines,
+    base: commits?.base ?? null,
+    target: commits?.target ?? null,
+    oldPath: commits?.oldPath ?? null,
+  })
 export const gitStage = (root: string, paths: string[]) => invoke<void>('git_stage', { root, paths })
 export const gitUnstage = (root: string, paths: string[]) =>
   invoke<void>('git_unstage', { root, paths })
@@ -102,8 +111,13 @@ export const gitCommit = (root: string, message: string, stageAll: boolean, amen
   invoke<string>('git_commit', { root, message, stageAll, amend })
 /** Resolves to the undone commit's message. */
 export const gitUndoCommit = (root: string) => invoke<string>('git_undo_commit', { root })
-export const gitGraph = (root: string, limit?: number) =>
-  invoke<GraphCommit[]>('git_graph', { root, limit })
+/** `refs`, full ref names, limits the history to those branches and HEAD. */
+export const gitGraph = (root: string, limit?: number, refs?: string[]) =>
+  invoke<GraphCommit[]>('git_graph', { root, limit, refs: refs ?? null })
+export const gitCommitDetails = (root: string, id: string) =>
+  invoke<CommitDetails>('git_commit_details', { root, id })
+export const gitCompareCommits = (root: string, base: string, target: string) =>
+  invoke<CommitFile[]>('git_compare_commits', { root, base, target })
 /** Remote operations run the user's own `git`; they resolve to what it printed. */
 export const gitFetch = (root: string) => invoke<string>('git_fetch', { root })
 export const gitPull = (root: string, rebase = false) =>
@@ -113,6 +127,8 @@ export const gitPush = (root: string) => invoke<string>('git_push', { root })
 /** VS Code's Sync Changes: pull, then push. */
 export const gitSync = (root: string) => invoke<string>('git_sync', { root })
 export const gitPushTags = (root: string) => invoke<string>('git_push_tags', { root })
+export const gitPushTag = (root: string, name: string) =>
+  invoke<string>('git_push_tag', { root, name })
 export const gitBranches = (root: string) => invoke<BranchInfo[]>('git_branches', { root })
 /** A remote branch is checked out as the local branch tracking it. */
 export const gitCheckout = (root: string, name: string, remote = false) =>
@@ -129,6 +145,12 @@ export const gitDeleteRemoteBranch = (root: string, name: string) =>
   invoke<string>('git_delete_remote_branch', { root, name })
 export const gitMerge = (root: string, name: string) => invoke<string>('git_merge', { root, name })
 export const gitRebase = (root: string, onto: string) => invoke<string>('git_rebase', { root, onto })
+/** A merge commit is picked or reverted against its first parent. */
+export const gitCherryPick = (root: string, id: string) =>
+  invoke<string>('git_cherry_pick', { root, id })
+export const gitRevert = (root: string, id: string) => invoke<string>('git_revert', { root, id })
+export const gitReset = (root: string, id: string, mode: 'soft' | 'mixed' | 'hard') =>
+  invoke<string>('git_reset', { root, id, mode })
 /** Continues or aborts the merge, rebase, cherry-pick or revert under way. */
 export const gitContinue = (root: string) => invoke<string>('git_continue', { root })
 export const gitAbort = (root: string) => invoke<string>('git_abort', { root })

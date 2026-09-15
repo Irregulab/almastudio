@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { layoutGraph } from './commitGraph'
+import { layoutGraph, matchesCommit } from './commitGraph'
 import type { GraphCommit } from './types'
 
 const commit = (id: string, ...parents: string[]): GraphCommit => ({
@@ -62,5 +62,36 @@ describe('layoutGraph', () => {
 
   it('carries on a lane whose parent is beyond the commits loaded', () => {
     expect(shape([commit('b', 'a')])).toEqual(['b@0: out0-0'])
+  })
+})
+
+describe('uncommitted changes above HEAD', () => {
+  it('join the lane of the commit they sit on', () => {
+    expect(shape([commit('*uncommitted*', 'H'), commit('H', 'G'), commit('G')])).toEqual([
+      '*uncommitted*@0: out0-0',
+      'H@0: in0-0 out0-0',
+      'G@0: in0-0',
+    ])
+  })
+})
+
+describe('matchesCommit', () => {
+  const c: GraphCommit = {
+    ...commit('4f2a9c1e0b', 'p'),
+    summary: 'Fix the login form',
+    author: 'Ada Lovelace',
+    email: 'ada@example.com',
+    refs: [{ name: 'feature/login', kind: 'branch', current: false }],
+  }
+
+  it('matches the subject, author, email, hash prefix and ref names, ignoring case', () => {
+    for (const q of ['login FORM', 'lovelace', 'example.com', '4f2a9', 'feature/']) {
+      expect(matchesCommit(c, q)).toBe(true)
+    }
+  })
+
+  it('matches nothing for an empty search or a hash from the middle', () => {
+    expect(matchesCommit(c, '  ')).toBe(false)
+    expect(matchesCommit(c, '2a9c')).toBe(false)
   })
 })

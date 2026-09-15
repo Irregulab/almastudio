@@ -75,7 +75,13 @@ interface WorkspaceStore extends WorkspaceState {
   addTerminalTab: (opts: {
     projectId: string; kind: HarnessKind; cwd: string; title?: string; splitFrom?: SplitFrom
   }) => TerminalTab
-  openDiffTab: (opts: { projectId: string; root: string; path: string; side: DiffSide }) => Tab
+  /** With `target` (and `base`), the change a commit made rather than the working tree's. */
+  openDiffTab: (opts: {
+    projectId: string; root: string; path: string; side: DiffSide
+    base?: string; target?: string; oldPath?: string
+  }) => Tab
+  /** A repository's commit graph, in a tab of its own; one per repository. */
+  openGraphTab: (opts: { projectId: string; root: string }) => Tab
   /** With `line` (and `column`, `length`), the file opens with that spot selected. */
   openFileTab: (opts: {
     projectId: string; root: string; path: string; line?: number; column?: number; length?: number
@@ -332,10 +338,41 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
     return tab
   },
 
-  openDiffTab: ({ projectId, root, path, side }) => {
-    // Re-use an existing diff tab for the same file instead of stacking them up.
+  openDiffTab: ({ projectId, root, path, side, base, target, oldPath }) => {
+    // Re-use an existing diff tab for the same file and commits instead of
+    // stacking them up.
     const existing = Object.values(get().tabs).find(
-      (t) => t.kind === 'diff' && t.projectId === projectId && t.path === path && t.root === root,
+      (t) =>
+        t.kind === 'diff' && t.projectId === projectId && t.path === path && t.root === root &&
+        t.target === target && t.base === base,
+    )
+    if (existing) {
+      get().focusTab(existing.id)
+      return existing
+    }
+    const name = path.split('/').pop() ?? path
+    const tab: Tab = {
+      id: uid('tab'),
+      projectId,
+      kind: 'diff',
+      title: target ? `${name} @ ${target.slice(0, 7)}` : name,
+      root,
+      path,
+      side,
+      base,
+      target,
+      oldPath,
+    }
+    set((s) => ({
+      tabs: { ...s.tabs, [tab.id]: tab },
+      ...withWorkspace(s, projectId, (w) => place(w, tab.id)),
+    }))
+    return tab
+  },
+
+  openGraphTab: ({ projectId, root }) => {
+    const existing = Object.values(get().tabs).find(
+      (t) => t.kind === 'graph' && t.projectId === projectId && t.root === root,
     )
     if (existing) {
       get().focusTab(existing.id)
@@ -344,11 +381,9 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
     const tab: Tab = {
       id: uid('tab'),
       projectId,
-      kind: 'diff',
-      title: path.split('/').pop() ?? path,
+      kind: 'graph',
+      title: `Git Graph · ${root.split(/[/\\]/).filter(Boolean).pop() ?? root}`,
       root,
-      path,
-      side,
     }
     set((s) => ({
       tabs: { ...s.tabs, [tab.id]: tab },

@@ -1,15 +1,17 @@
 import { useMemo } from 'react'
 import { Tag } from 'lucide-react'
 
-import { layoutGraph, type GraphSegment } from '../lib/commitGraph'
+import { layoutGraph, type GraphRow, type GraphSegment } from '../lib/commitGraph'
 import { relativeTime } from '../lib/time'
 import type { GraphCommit } from '../lib/types'
 
 /** Row height and the width of one lane, in pixels. */
-const ROW = 22
-const LANE = 12
+export const ROW = 22
+export const LANE = 12
 /** Beyond this many lanes the graph is clipped rather than crowding the text. */
-const MAX_LANES = 10
+export const MAX_LANES = 10
+/** The id of the row standing for uncommitted changes, drawn above HEAD. */
+export const UNCOMMITTED = '*uncommitted*'
 /** Lanes cycle through these colours. */
 const COLORS = ['var(--accent)', 'var(--green)', 'var(--purple)', 'var(--yellow)', 'var(--red)']
 
@@ -31,6 +33,31 @@ function pathOf({ kind, from, to }: GraphSegment): string {
   }
 }
 
+/** One row's lanes: the lines passing through it and the commit's dot. */
+export function GraphLanes({ row, lanes }: { row: GraphRow; lanes: number }) {
+  const { commit, lane, color, segments } = row
+  const uncommitted = commit.id === UNCOMMITTED
+  // A merge, and the changes not yet committed, get a ring instead of a dot.
+  const ring = uncommitted || commit.parents.length > 1
+  return (
+    <svg className="graph__lanes" width={lanes * LANE} height={ROW} aria-hidden>
+      {segments.map((s, i) => (
+        <path
+          key={i} d={pathOf(s)} stroke={colorOf(s.color)}
+          strokeDasharray={uncommitted && s.kind === 'out' ? '2 2' : undefined}
+        />
+      ))}
+      <circle
+        className={ring ? 'graph__hole' : undefined}
+        cx={x(lane)} cy={ROW / 2} r={ring ? 3 : 3.5}
+        fill={ring ? undefined : colorOf(color)}
+        stroke={colorOf(color)} strokeWidth={ring ? 2 : 0}
+        strokeDasharray={uncommitted ? '2 1.5' : undefined}
+      />
+    </svg>
+  )
+}
+
 /**
  * The commit graph: the history of every branch, each line of work in a lane
  * of its own, merges drawn where they join, and branches and tags labelled on
@@ -42,8 +69,8 @@ export function CommitGraph({ commits }: { commits: GraphCommit[] }) {
 
   return (
     <ul className="graph">
-      {rows.map(({ commit, lane, color, segments }) => {
-        const merge = commit.parents.length > 1
+      {rows.map((row) => {
+        const { commit } = row
         const date = new Date(commit.time * 1000).toLocaleString()
         return (
           <li
@@ -51,16 +78,7 @@ export function CommitGraph({ commits }: { commits: GraphCommit[] }) {
             className="graph__row"
             title={`${commit.shortId} · ${commit.author} <${commit.email}> · ${date}\n\n${commit.summary}`}
           >
-            <svg className="graph__lanes" width={lanes * LANE} height={ROW} aria-hidden>
-              {segments.map((s, i) => (
-                <path key={i} d={pathOf(s)} stroke={colorOf(s.color)} />
-              ))}
-              <circle
-                cx={x(lane)} cy={ROW / 2} r={merge ? 3 : 3.5}
-                fill={merge ? 'var(--bg-panel)' : colorOf(color)}
-                stroke={colorOf(color)} strokeWidth={merge ? 2 : 0}
-              />
-            </svg>
+            <GraphLanes row={row} lanes={lanes} />
             {commit.refs.map((ref) => (
               <span
                 key={`${ref.kind}:${ref.name}`}
