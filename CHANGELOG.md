@@ -9,6 +9,8 @@ release cannot be cut without one — see `docs/UPDATES.md`.
 
 ## [Unreleased]
 
+## [1.6.1] - 2026-09-15
+
 ### Fixed
 
 - Claude Code and other terminal tabs no longer turn garbled — words
@@ -293,7 +295,8 @@ First release.
 - English and Italian.
 - Over-the-air updates.
 
-[Unreleased]: https://github.com/Irregulab/almastudio/compare/v1.6.0...HEAD
+[Unreleased]: https://github.com/Irregulab/almastudio/compare/v1.6.1...HEAD
+[1.6.1]: https://github.com/Irregulab/almastudio/compare/v1.6.0...v1.6.1
 [1.6.0]: https://github.com/Irregulab/almastudio/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/Irregulab/almastudio/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/Irregulab/almastudio/compare/v1.3.0...v1.4.0
