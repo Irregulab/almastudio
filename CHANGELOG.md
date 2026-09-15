@@ -9,6 +9,8 @@ release cannot be cut without one — see `docs/UPDATES.md`.
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-09-15
+
 ### Added
 
 - Fetch, pull and push buttons in the Git panel, as in VS Code. They run
@@ -223,7 +225,8 @@ First release.
 - English and Italian.
 - Over-the-air updates.
 
-[Unreleased]: https://github.com/Irregulab/almastudio/compare/v1.2.1...HEAD
+[Unreleased]: https://github.com/Irregulab/almastudio/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/Irregulab/almastudio/compare/v1.2.1...v1.3.0
 [1.2.1]: https://github.com/Irregulab/almastudio/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/Irregulab/almastudio/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/Irregulab/almastudio/compare/v1.1.0...v1.1.1
