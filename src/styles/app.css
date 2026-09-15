@@ -1307,3 +1307,38 @@ img, a { -webkit-user-drag: none; }
 .graph__summary { flex: 1 1 auto; min-width: 0; }
 .graph__time { flex: 0 0 auto; font-size: 10.5px; }
 .graph__more { margin: var(--sp-2) var(--sp-4); }
+
+/* The commit box: Commit with the other ways to commit beside it, as in VS Code. */
+.git__commit { border-bottom: 1px solid var(--border); }
+.commitbtn { display: flex; }
+.commitbtn__main {
+  flex: 1 1 auto;
+  justify-content: center;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.commitbtn__more {
+  flex: 0 0 auto;
+  padding: 0 6px;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-left-color: color-mix(in srgb, var(--accent-fg) 35%, transparent);
+}
+.git__syncbtn { justify-content: center; }
+.git__error { white-space: pre-wrap; }
+.git__error--block { margin: var(--sp-3) var(--sp-4) 0; }
+.git__meta { flex: 0 0 auto; font-size: 10.5px; }
+
+/* A merge, rebase, cherry-pick or revert waiting on the user. */
+.git__operation {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2) var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--yellow) 12%, transparent);
+  font-size: 12px;
+}
+.git__operation > svg { flex: 0 0 auto; color: var(--yellow); }
+.git__operation-text { display: flex; flex-direction: column; gap: 2px; flex: 1 1 12em; min-width: 0; }

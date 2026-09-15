@@ -249,6 +249,22 @@ export interface RepoStatus {
   behind: number
   detached: boolean
   files: ChangedFile[]
+  /** An operation under way, waiting on conflicts or a decision. */
+  operation: 'merge' | 'rebase' | 'cherry-pick' | 'revert' | 'bisect' | null
+}
+
+export interface StashInfo {
+  /** Position in the stash list: `stash@{index}`. */
+  index: number
+  message: string
+  id: string
+  time: number
+}
+
+export interface TagInfo {
+  name: string
+  /** The commit it points at, abbreviated. */
+  target: string
 }
 
 export interface DiffLine {

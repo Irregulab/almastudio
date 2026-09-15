@@ -4,7 +4,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import type {
   AppInfo, BranchInfo, ChangedFile, DiffSide, DirEntryInfo,
-  FileContent, FileDiff, GraphCommit, RepoStatus,
+  FileContent, FileDiff, GraphCommit, RepoStatus, StashInfo, TagInfo,
 } from './types'
 
 // ------------------------------------------------------------------ app ----
@@ -97,18 +97,57 @@ export const gitUnstage = (root: string, paths: string[]) =>
   invoke<void>('git_unstage', { root, paths })
 export const gitDiscard = (root: string, paths: string[]) =>
   invoke<void>('git_discard', { root, paths })
-export const gitCommit = (root: string, message: string, stageAll: boolean) =>
-  invoke<string>('git_commit', { root, message, stageAll })
+/** Through the user's own `git`, so hooks run and signing applies. */
+export const gitCommit = (root: string, message: string, stageAll: boolean, amend = false) =>
+  invoke<string>('git_commit', { root, message, stageAll, amend })
+/** Resolves to the undone commit's message. */
+export const gitUndoCommit = (root: string) => invoke<string>('git_undo_commit', { root })
 export const gitGraph = (root: string, limit?: number) =>
   invoke<GraphCommit[]>('git_graph', { root, limit })
 /** Remote operations run the user's own `git`; they resolve to what it printed. */
 export const gitFetch = (root: string) => invoke<string>('git_fetch', { root })
-export const gitPull = (root: string) => invoke<string>('git_pull', { root })
+export const gitPull = (root: string, rebase = false) =>
+  invoke<string>('git_pull', { root, rebase })
 /** Publishes the branch with an upstream when it has none yet. */
 export const gitPush = (root: string) => invoke<string>('git_push', { root })
+/** VS Code's Sync Changes: pull, then push. */
+export const gitSync = (root: string) => invoke<string>('git_sync', { root })
+export const gitPushTags = (root: string) => invoke<string>('git_push_tags', { root })
 export const gitBranches = (root: string) => invoke<BranchInfo[]>('git_branches', { root })
-export const gitCheckout = (root: string, name: string) =>
-  invoke<void>('git_checkout', { root, name })
+/** A remote branch is checked out as the local branch tracking it. */
+export const gitCheckout = (root: string, name: string, remote = false) =>
+  invoke<string>('git_checkout', { root, name, remote })
+export const gitCreateBranch = (
+  root: string, name: string, startPoint: string | null, checkout: boolean,
+) => invoke<string>('git_create_branch', { root, name, startPoint, checkout })
+export const gitRenameBranch = (root: string, from: string, to: string) =>
+  invoke<string>('git_rename_branch', { root, from, to })
+/** Without `force`, a branch merged nowhere is refused ("not fully merged"). */
+export const gitDeleteBranch = (root: string, name: string, force: boolean) =>
+  invoke<string>('git_delete_branch', { root, name, force })
+export const gitDeleteRemoteBranch = (root: string, name: string) =>
+  invoke<string>('git_delete_remote_branch', { root, name })
+export const gitMerge = (root: string, name: string) => invoke<string>('git_merge', { root, name })
+export const gitRebase = (root: string, onto: string) => invoke<string>('git_rebase', { root, onto })
+/** Continues or aborts the merge, rebase, cherry-pick or revert under way. */
+export const gitContinue = (root: string) => invoke<string>('git_continue', { root })
+export const gitAbort = (root: string) => invoke<string>('git_abort', { root })
+export const gitStashes = (root: string) => invoke<StashInfo[]>('git_stashes', { root })
+export const gitStash = (root: string, includeUntracked: boolean, message?: string) =>
+  invoke<string>('git_stash', { root, includeUntracked, message: message ?? null })
+export const gitStashApply = (root: string, index: number) =>
+  invoke<string>('git_stash_apply', { root, index })
+export const gitStashPop = (root: string, index: number) =>
+  invoke<string>('git_stash_pop', { root, index })
+export const gitStashDrop = (root: string, index: number) =>
+  invoke<string>('git_stash_drop', { root, index })
+export const gitTags = (root: string) => invoke<TagInfo[]>('git_tags', { root })
+/** Annotated with a message, lightweight without; on HEAD unless `target`. */
+export const gitCreateTag = (
+  root: string, name: string, message: string | null, target: string | null,
+) => invoke<string>('git_create_tag', { root, name, message, target })
+export const gitDeleteTag = (root: string, name: string) =>
+  invoke<string>('git_delete_tag', { root, name })
 
 export type { ChangedFile }
 

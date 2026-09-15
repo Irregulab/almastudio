@@ -2,7 +2,7 @@ mod browser;
 mod editors;
 mod fsx;
 mod git;
-mod git_remote;
+mod git_cli;
 mod menu;
 mod pty;
 mod search;
@@ -308,13 +308,32 @@ pub fn run() {
             git::git_stage,
             git::git_unstage,
             git::git_discard,
-            git::git_commit,
             git::git_graph,
-            git_remote::git_fetch,
-            git_remote::git_pull,
-            git_remote::git_push,
             git::git_branches,
-            git::git_checkout,
+            git::git_stashes,
+            git::git_tags,
+            git_cli::git_fetch,
+            git_cli::git_pull,
+            git_cli::git_push,
+            git_cli::git_sync,
+            git_cli::git_push_tags,
+            git_cli::git_commit,
+            git_cli::git_undo_commit,
+            git_cli::git_checkout,
+            git_cli::git_create_branch,
+            git_cli::git_rename_branch,
+            git_cli::git_delete_branch,
+            git_cli::git_delete_remote_branch,
+            git_cli::git_merge,
+            git_cli::git_rebase,
+            git_cli::git_continue,
+            git_cli::git_abort,
+            git_cli::git_stash,
+            git_cli::git_stash_apply,
+            git_cli::git_stash_pop,
+            git_cli::git_stash_drop,
+            git_cli::git_create_tag,
+            git_cli::git_delete_tag,
             git::find_git_repos,
             fsx::list_dir,
             fsx::read_text_file,

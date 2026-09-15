@@ -9,6 +9,30 @@ release cannot be cut without one — see `docs/UPDATES.md`.
 
 ## [Unreleased]
 
+### Added
+
+- The Git panel does what VS Code's Source Control does. The commit box is
+  at the top of Changes too; ⌘Enter commits, and with nothing staged every
+  change is committed. Beside Commit are Commit All, Commit (Amend), Commit
+  & Push and Commit & Sync, and Sync Changes shows while the branch is
+  ahead of or behind its upstream.
+- Undo Last Commit, which keeps the changes staged and puts the message
+  back in the box.
+- Branches: create, rename, delete (asking again before losing unmerged
+  commits), merge into the current one, rebase onto; remote branches checked
+  out as a local branch tracking them, or deleted on the remote. A merge or
+  rebase that stops on conflicts gets a banner to continue or abort it.
+- Stashes, with untracked files if wanted, to apply, pop or drop; tags to
+  create, delete and push; Pull (Rebase).
+- Discard All Changes and Delete All Untracked Files in Changes.
+
+### Changed
+
+- Commits and every other change to a repository run through your own
+  `git`, so commit hooks run and commits are signed when you sign them.
+  `git` runs with your login shell's PATH, which hooks and credential
+  helpers such as `gh` need.
+
 ## [1.3.0] - 2026-09-15
 
 ### Added

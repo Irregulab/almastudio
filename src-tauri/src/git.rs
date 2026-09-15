@@ -1,8 +1,9 @@
-//! Local git operations backing the right-hand panel: status, diffs, staging
-//! and the commit graph. Everything runs against libgit2 in-process, so a
-//! refresh costs no process spawns; refreshes are driven by the filesystem
-//! watcher rather than a timer. Fetch, pull and push, which need the network,
-//! are in `git_remote`.
+//! Git reads backing the right-hand panel — status, diffs, the commit graph,
+//! branches, stashes and tags — and staging, which is instant here. They run
+//! against libgit2 in-process, so a refresh costs no process spawns;
+//! refreshes are driven by the filesystem watcher rather than a timer.
+//! Everything else that changes a repository, and everything that talks to a
+//! remote, runs through the git command line in `git_cli`.
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
@@ -48,6 +49,9 @@ pub struct RepoStatus {
     pub behind: usize,
     pub detached: bool,
     pub files: Vec<ChangedFile>,
+    /// "merge", "rebase", "cherry-pick", "revert" or "bisect" while one is
+    /// under way, waiting on conflicts or a decision.
+    pub operation: Option<&'static str>,
 }
 
 fn status_code(s: Status) -> String {
@@ -86,6 +90,19 @@ fn status_code(s: Status) -> String {
     format!("{index}{work}")
 }
 
+fn operation_of(repo: &Repository) -> Option<&'static str> {
+    use git2::RepositoryState as State;
+    Some(match repo.state() {
+        State::Clean => return None,
+        State::Merge => "merge",
+        State::Revert | State::RevertSequence => "revert",
+        State::CherryPick | State::CherryPickSequence => "cherry-pick",
+        State::Bisect => "bisect",
+        // Every flavour of rebase, and `git am`, which continues the same way.
+        _ => "rebase",
+    })
+}
+
 #[tauri::command]
 pub fn git_status(root: String) -> Result<RepoStatus, String> {
     let repo = match open(&root) {
@@ -100,6 +117,7 @@ pub fn git_status(root: String) -> Result<RepoStatus, String> {
                 behind: 0,
                 detached: false,
                 files: vec![],
+                operation: None,
             })
         }
     };
@@ -202,6 +220,7 @@ pub fn git_status(root: String) -> Result<RepoStatus, String> {
         behind,
         detached,
         files,
+        operation: operation_of(&repo),
     })
 }
 
@@ -444,36 +463,6 @@ pub fn git_discard(root: String, paths: Vec<String>) -> Result<(), String> {
     repo.checkout_head(Some(&mut co)).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
-pub fn git_commit(root: String, message: String, stage_all: bool) -> Result<String, String> {
-    if message.trim().is_empty() {
-        return Err("empty commit message".into());
-    }
-    let repo = open(&root)?;
-    let mut index = repo.index().map_err(|e| e.to_string())?;
-
-    if stage_all {
-        index
-            .add_all(["*"].iter(), git2::IndexAddOption::DEFAULT, None)
-            .map_err(|e| e.to_string())?;
-        index.write().map_err(|e| e.to_string())?;
-    }
-
-    let tree_oid = index.write_tree().map_err(|e| e.to_string())?;
-    let tree = repo.find_tree(tree_oid).map_err(|e| e.to_string())?;
-    let sig = repo
-        .signature()
-        .map_err(|_| "git user.name / user.email are not configured".to_string())?;
-
-    let parent = repo.head().ok().and_then(|h| h.peel_to_commit().ok());
-    let parents: Vec<&git2::Commit> = parent.iter().collect();
-
-    let oid = repo
-        .commit(Some("HEAD"), &sig, &sig, &message, &tree, &parents)
-        .map_err(|e| e.to_string())?;
-    Ok(oid.to_string())
-}
-
 // ---------------------------------------------------------------------------
 // History and branches
 // ---------------------------------------------------------------------------
@@ -621,18 +610,64 @@ pub fn git_branches(root: String) -> Result<Vec<BranchInfo>, String> {
     Ok(out)
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StashInfo {
+    /// Position in the stash list: `stash@{index}`.
+    pub index: usize,
+    pub message: String,
+    pub id: String,
+    /// Unix seconds.
+    pub time: i64,
+}
+
 #[tauri::command]
-pub fn git_checkout(root: String, name: String) -> Result<(), String> {
+pub fn git_stashes(root: String) -> Result<Vec<StashInfo>, String> {
+    let mut repo = open(&root)?;
+    let mut found = Vec::new();
+    repo.stash_foreach(|index, message, id| {
+        found.push((index, message.to_string(), *id));
+        true
+    })
+    .map_err(|e| e.to_string())?;
+    Ok(found
+        .into_iter()
+        .map(|(index, message, id)| StashInfo {
+            time: repo.find_commit(id).map(|c| c.time().seconds()).unwrap_or(0),
+            id: id.to_string(),
+            index,
+            message,
+        })
+        .collect())
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TagInfo {
+    pub name: String,
+    /// The commit it points at, abbreviated.
+    pub target: String,
+}
+
+#[tauri::command]
+pub fn git_tags(root: String) -> Result<Vec<TagInfo>, String> {
     let repo = open(&root)?;
-    let (object, reference) = repo
-        .revparse_ext(&name)
-        .map_err(|e| format!("unknown revision {name}: {e}"))?;
-    repo.checkout_tree(&object, None).map_err(|e| e.to_string())?;
-    let refname = reference.and_then(|r| r.name().ok().map(String::from));
-    match refname {
-        Some(refname) => repo.set_head(&refname).map_err(|e| e.to_string()),
-        None => repo.set_head_detached(object.id()).map_err(|e| e.to_string()),
-    }
+    let names = repo.tag_names(None).map_err(|e| e.to_string())?;
+    let mut tags: Vec<TagInfo> = names
+        .iter()
+        .flatten()
+        .flatten()
+        .map(|name| TagInfo {
+            target: repo
+                .revparse_single(&format!("refs/tags/{name}"))
+                .and_then(|object| object.peel_to_commit())
+                .map(|commit| commit.id().to_string().chars().take(7).collect())
+                .unwrap_or_default(),
+            name: name.to_string(),
+        })
+        .collect();
+    tags.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(tags)
 }
 
 // ------------------------------------------------------- repo discovery ----

@@ -24,8 +24,9 @@ of blocked threads — no Electron, no per-tab browser process.
   horizontally or vertically — the split belongs to that tab, so every other
   tab stays full screen — and drag a tab onto a pane's edge to put it beside it.
 - **Right panel** — four views: changed files, the full file tree, git
-  (branch, staging, commit, fetch / pull / push through your own `git`, a
-  commit graph of every branch, branch switching), and text search across
+  (what VS Code's Source Control does — commit, amend, undo, sync, fetch /
+  pull / push, branches, merge and rebase, stashes, tags — through your own
+  `git`, and a commit graph of every branch), and text search across
   the folder as in VS Code — case, whole word, regular expressions, files to
   include and exclude, ⇧⌘F — with results opening at their line. Clicking a changed file
   opens its diff as a tab in the main area. Point a project at a folder full of

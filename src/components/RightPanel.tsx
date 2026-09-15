@@ -1,26 +1,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { revealItemInDir } from '@tauri-apps/plugin-opener'
 import {
-  ArrowDownToLine, ArrowLeft, ArrowUpFromLine, Check, ChevronDown, ChevronRight, CloudUpload, Eye,
-  EyeOff, FileDiff, FilePlus2, FolderPlus, GitBranch, GitCommitHorizontal, History, ListTree,
-  Loader2, Maximize2, Minus, Pencil, Pin, Plus, RefreshCcw, RefreshCw, Search, Trash2, Undo2, X,
+  ArrowLeft, Check, ChevronDown, ChevronRight, Eye, EyeOff, FileDiff, FilePlus2, FolderPlus,
+  GitBranch, ListTree, Minus, Pencil, Plus, RefreshCw, Search, Trash2, Undo2, X,
 } from 'lucide-react'
 
 import {
-  createDir, createFile, findFiles, findGitRepos, gitBranches, gitCheckout,
-  gitCommit, gitDiscard, gitFetch, gitGraph, gitPull, gitPush, gitStage, gitStatus, gitUnstage,
-  listDir, onFsChange, renamePath, trashPath, watchStart, watchStop, type RepoEntry,
+  createDir, createFile, findFiles, gitDiscard, gitStage, gitStatus, gitUnstage, listDir,
+  onFsChange, renamePath, trashPath, watchStart, watchStop,
 } from '../lib/ipc'
 import { useSettings } from '../store/settings'
 import { useWorkspace } from '../store/workspace'
 import { useT } from '../i18n'
 import { ConfirmDialog, MenuItem, MenuSeparator, Popover, PromptDialog } from './ui'
-import { CommitGraph } from './CommitGraph'
+import { CommitBox } from './CommitBox'
 import { DirIcon, FileIcon } from './FileIcon'
+import { GitView } from './GitView'
+import { RepoAccordion, useRepoStatus } from './RepoAccordion'
 import { SearchView } from './SearchView'
-import type {
-  BranchInfo, ChangedFile, DirEntryInfo, GraphCommit, PanelView, RepoStatus,
-} from '../lib/types'
+import type { ChangedFile, DirEntryInfo, PanelView, RepoStatus } from '../lib/types'
 
 interface Props {
   projectId: string
@@ -146,147 +144,6 @@ export function RightPanel({
       </div>
     </aside>
   )
-}
-
-/**
- * Shown instead of a bare "not a git repository": a folder full of projects is
- * a reasonable thing to point AlmaStudio at, and the repositories underneath
- * it are what the user actually meant.
- *
- * They are listed as an accordion rather than as a menu that swaps the panel
- * over to one of them. Drilling in was a one-way door — nothing on screen said
- * how to get back out — and with several repositories the useful view is all
- * of them at once, not one at a time.
- */
-function RepoAccordion({
-  projectId, root, render, onFocus,
-}: {
-  /** Whose pinned repositories are listed first. */
-  projectId: string
-  root: string
-  /** Body for one repository, rendered only while its section is open. */
-  render: (repo: RepoEntry) => React.ReactNode
-  onFocus: (path: string) => void
-}) {
-  const t = useT()
-  const [repos, setRepos] = useState<RepoEntry[] | null>(null)
-  const [open, setOpen] = useState<Set<string>>(new Set())
-  const autoExpanded = useRef('')
-  const pinned = useWorkspace((s) => s.projects.find((p) => p.id === projectId)?.pinnedRepos)
-  const togglePinnedRepo = useWorkspace((s) => s.togglePinnedRepo)
-
-  useEffect(() => {
-    let cancelled = false
-    setRepos(null)
-    void findGitRepos(root, 3)
-      .then((r) => !cancelled && setRepos(r))
-      .catch(() => !cancelled && setRepos([]))
-    return () => {
-      cancelled = true
-    }
-  }, [root])
-
-  // Open the repositories that have something to show, once per folder — the
-  // ones with changes are why the panel is being looked at.
-  useEffect(() => {
-    if (!repos || autoExpanded.current === root) return
-    autoExpanded.current = root
-    const dirty = repos.filter((r) => r.dirty > 0).map((r) => r.path)
-    setOpen(new Set(dirty.length ? dirty.slice(0, 4) : repos.slice(0, 1).map((r) => r.path)))
-  }, [repos, root])
-
-  const toggle = (path: string) =>
-    setOpen((prev) => {
-      const next = new Set(prev)
-      if (next.has(path)) next.delete(path)
-      else next.add(path)
-      return next
-    })
-
-  // Pinned repositories first; each part keeps the order they were found in.
-  const ordered = useMemo(() => {
-    const list = repos ?? []
-    if (!pinned?.length) return list
-    return [
-      ...list.filter((r) => pinned.includes(r.path)),
-      ...list.filter((r) => !pinned.includes(r.path)),
-    ]
-  }, [repos, pinned])
-
-  if (repos === null) {
-    return (
-      <div className="empty">
-        <GitBranch size={22} />
-        <div>{t('common.loading')}</div>
-      </div>
-    )
-  }
-
-  if (repos.length === 0) {
-    return (
-      <div className="empty">
-        <GitBranch size={22} />
-        <div>{t('panel.noRepo')}</div>
-        <div className="subtle">{t('panel.noRepoHint', { folder: root })}</div>
-      </div>
-    )
-  }
-
-  return (
-    <>
-      <p className="discovery__hint">
-        {t('panel.reposHint', { n: repos.length })}
-      </p>
-      {ordered.map((repo) => {
-        const isOpen = open.has(repo.path)
-        const isPinned = pinned?.includes(repo.path) ?? false
-        return (
-          <section key={repo.path} className="group repo">
-            <header className="group__head">
-              <button className="group__toggle" onClick={() => toggle(repo.path)}>
-                {isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                <GitBranch size={12} />
-                <span className="repo__name truncate">{repo.name}</span>
-                {repo.branch && <span className="chip">{repo.branch}</span>}
-                {repo.dirty > 0 && <span className="chip chip--dirty">{repo.dirty}</span>}
-              </button>
-              <button
-                className={`icon-btn icon-btn--tiny${isPinned ? ' repo__pin--on' : ''}`}
-                title={isPinned ? t('panel.unpinRepo') : t('panel.pinRepo')}
-                aria-pressed={isPinned}
-                onClick={() => togglePinnedRepo(projectId, repo.path)}
-              >
-                <Pin size={12} fill={isPinned ? 'currentColor' : 'none'} />
-              </button>
-              <button
-                className="icon-btn icon-btn--tiny"
-                title={t('panel.focusRepo')}
-                onClick={() => onFocus(repo.path)}
-              >
-                <Maximize2 size={12} />
-              </button>
-            </header>
-            {isOpen && <div className="repo__body">{render(repo)}</div>}
-          </section>
-        )
-      })}
-    </>
-  )
-}
-
-/** Fetches one repository's status for a section that is actually open. */
-function useRepoStatus(root: string, revision: number) {
-  const [status, setStatus] = useState<RepoStatus | null>(null)
-  useEffect(() => {
-    let cancelled = false
-    void gitStatus(root)
-      .then((s) => !cancelled && setStatus(s))
-      .catch(() => !cancelled && setStatus(null))
-    return () => {
-      cancelled = true
-    }
-  }, [root, revision])
-  return status
 }
 
 /**
@@ -421,7 +278,8 @@ function ChangesView({
 }) {
   const t = useT()
   const openDiffTab = useWorkspace((s) => s.openDiffTab)
-  const [confirm, setConfirm] = useState<ChangedFile | null>(null)
+  /** Files about to be discarded; `untracked` ones are deleted instead. */
+  const [confirm, setConfirm] = useState<{ files: ChangedFile[]; untracked: boolean } | null>(null)
 
   const groups = useMemo(() => {
     const files = status?.files ?? []
@@ -448,15 +306,6 @@ function ChangesView({
       />
     )
   }
-  if (status.files.length === 0) {
-    return (
-      <div className="empty">
-        <div>{t('panel.noChanges')}</div>
-        <div className="subtle">{t('panel.noChangesHint')}</div>
-      </div>
-    )
-  }
-
   const open = (f: ChangedFile, staged: boolean) =>
     openDiffTab({
       projectId,
@@ -473,14 +322,28 @@ function ChangesView({
     }
   }
 
+  const confirmMessage = (c: { files: ChangedFile[]; untracked: boolean }) =>
+    c.files.length === 1
+      ? t('panel.discardConfirm', { path: c.files[0].path })
+      : c.untracked
+        ? t('git.deleteUntrackedConfirm', { n: c.files.length })
+        : t('git.discardAllConfirm', { n: c.files.length })
+
   return (
     <>
+      <CommitBox root={status.root} status={status} onChanged={onChanged} />
+      {status.files.length === 0 && (
+        <div className="empty">
+          <div>{t('panel.noChanges')}</div>
+          <div className="subtle">{t('panel.noChangesHint')}</div>
+        </div>
+      )}
       <FileGroup
         title={t('panel.staged')} files={groups.staged}
-        action={{
+        actions={[{
           icon: <Minus size={12} />, label: t('panel.unstageAll'),
           run: () => void act(gitUnstage(status.root, groups.staged.map((f) => f.path))),
-        }}
+        }]}
         onOpen={(f) => open(f, true)}
         rowAction={{
           icon: <Minus size={12} />, label: t('panel.unstage'),
@@ -489,40 +352,52 @@ function ChangesView({
       />
       <FileGroup
         title={t('panel.unstaged')} files={groups.changes}
-        action={{
-          icon: <Plus size={12} />, label: t('panel.stageAll'),
-          run: () => void act(gitStage(status.root, groups.changes.map((f) => f.path))),
-        }}
+        actions={[
+          {
+            icon: <Undo2 size={12} />, label: t('git.discardAll'),
+            run: () => setConfirm({ files: groups.changes, untracked: false }),
+          },
+          {
+            icon: <Plus size={12} />, label: t('panel.stageAll'),
+            run: () => void act(gitStage(status.root, groups.changes.map((f) => f.path))),
+          },
+        ]}
         onOpen={(f) => open(f, false)}
         rowAction={{
           icon: <Plus size={12} />, label: t('panel.stage'),
           run: (f) => void act(gitStage(status.root, [f.path])),
         }}
-        onDiscard={setConfirm}
+        onDiscard={(f) => setConfirm({ files: [f], untracked: false })}
       />
       <FileGroup
         title={t('panel.untracked')} files={groups.untracked}
-        action={{
-          icon: <Plus size={12} />, label: t('panel.stageAll'),
-          run: () => void act(gitStage(status.root, groups.untracked.map((f) => f.path))),
-        }}
+        actions={[
+          {
+            icon: <Trash2 size={12} />, label: t('git.deleteUntracked'),
+            run: () => setConfirm({ files: groups.untracked, untracked: true }),
+          },
+          {
+            icon: <Plus size={12} />, label: t('panel.stageAll'),
+            run: () => void act(gitStage(status.root, groups.untracked.map((f) => f.path))),
+          },
+        ]}
         onOpen={(f) => open(f, false)}
         rowAction={{
           icon: <Plus size={12} />, label: t('panel.stage'),
           run: (f) => void act(gitStage(status.root, [f.path])),
         }}
-        onDiscard={setConfirm}
+        onDiscard={(f) => setConfirm({ files: [f], untracked: true })}
       />
 
       {confirm && (
         <ConfirmDialog
-          title={t('panel.discard')}
-          message={t('panel.discardConfirm', { path: confirm.path })}
+          title={confirm.files.length === 1 ? t('panel.discard') : confirm.untracked ? t('git.deleteUntracked') : t('git.discardAll')}
+          message={confirmMessage(confirm)}
           confirmLabel={t('panel.discard')}
           danger
           onCancel={() => setConfirm(null)}
           onConfirm={() => {
-            void act(gitDiscard(status.root, [confirm.path]))
+            void act(gitDiscard(status.root, confirm.files.map((f) => f.path)))
             setConfirm(null)
           }}
         />
@@ -532,11 +407,11 @@ function ChangesView({
 }
 
 function FileGroup({
-  title, files, action, onOpen, rowAction, onDiscard,
+  title, files, actions, onOpen, rowAction, onDiscard,
 }: {
   title: string
   files: ChangedFile[]
-  action: { icon: React.ReactNode; label: string; run: () => void }
+  actions: Array<{ icon: React.ReactNode; label: string; run: () => void }>
   onOpen: (f: ChangedFile) => void
   rowAction: { icon: React.ReactNode; label: string; run: (f: ChangedFile) => void }
   onDiscard?: (f: ChangedFile) => void
@@ -552,9 +427,14 @@ function FileGroup({
           <span>{title}</span>
           <span className="group__count">{files.length}</span>
         </button>
-        <button className="icon-btn icon-btn--tiny" title={action.label} onClick={action.run}>
-          {action.icon}
-        </button>
+        {actions.map((a) => (
+          <button
+            key={a.label} className="icon-btn icon-btn--tiny" title={a.label} aria-label={a.label}
+            onClick={a.run}
+          >
+            {a.icon}
+          </button>
+        ))}
       </header>
       {open && (
         <ul className="filelist">
@@ -894,221 +774,3 @@ function TreeNode({
     </>
   )
 }
-
-// ------------------------------------------------------------------- git ---
-
-type SyncOp = 'fetch' | 'pull' | 'push'
-const SYNC: Record<SyncOp, (root: string) => Promise<string>> = {
-  fetch: gitFetch,
-  pull: gitPull,
-  push: gitPush,
-}
-/** Commits loaded into the graph at a time. */
-const GRAPH_PAGE = 200
-
-function SyncButton({
-  op, syncing, disabled, label, onClick, children,
-}: {
-  op: SyncOp
-  syncing: SyncOp | null
-  disabled?: boolean
-  label: string
-  onClick: (op: SyncOp) => void
-  children: React.ReactNode
-}) {
-  return (
-    <button
-      className="icon-btn" title={label} aria-label={label}
-      disabled={disabled || syncing !== null}
-      onClick={() => onClick(op)}
-    >
-      {syncing === op ? <Loader2 size={13} className="spin" /> : children}
-    </button>
-  )
-}
-
-/** One repository's git panel inside an accordion section. */
-function RepoGit({
-  projectId, root, revision, onChanged,
-}: { projectId: string; root: string; revision: number; onChanged: () => void }) {
-  const t = useT()
-  const status = useRepoStatus(root, revision)
-  if (!status) return <div className="repo__loading subtle">{t('common.loading')}</div>
-  return <GitView projectId={projectId} root={root} status={status} onChanged={onChanged} />
-}
-
-function GitView({
-  projectId, root, status, onChanged, onPickRepo, revision,
-}: {
-  projectId: string
-  root: string
-  status: RepoStatus | null
-  onChanged: () => void
-  onPickRepo?: (path: string) => void
-  revision?: number
-}) {
-  const t = useT()
-  const [message, setMessage] = useState('')
-  const [commits, setCommits] = useState<GraphCommit[] | null>(null)
-  const [limit, setLimit] = useState(GRAPH_PAGE)
-  const [branches, setBranches] = useState<BranchInfo[]>([])
-  const [busy, setBusy] = useState(false)
-  const [syncing, setSyncing] = useState<SyncOp | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!status?.isRepo) return
-    void gitGraph(root, limit).then(setCommits).catch(() => setCommits([]))
-    void gitBranches(root).then(setBranches).catch(() => setBranches([]))
-  }, [root, status, limit])
-
-  if (!status?.isRepo) {
-    return (
-      <RepoAccordion
-        projectId={projectId}
-        root={root}
-        onFocus={onPickRepo ?? (() => {})}
-        render={(repo) => (
-          <RepoGit
-            projectId={projectId} root={repo.path} revision={revision ?? 0} onChanged={onChanged}
-          />
-        )}
-      />
-    )
-  }
-
-  const stagedCount = status.files.filter((f) => f.staged).length
-
-  const sync = async (op: SyncOp) => {
-    setSyncing(op)
-    setError(null)
-    setNotice(null)
-    try {
-      await SYNC[op](root)
-      setNotice(t(`panel.${op}Done`))
-      window.setTimeout(() => setNotice(null), 2500)
-    } catch (e) {
-      setError(String(e))
-    } finally {
-      setSyncing(null)
-      // Ahead and behind, branches and the graph all move with the remote.
-      onChanged()
-    }
-  }
-
-  const commit = async (all: boolean) => {
-    setBusy(true)
-    setError(null)
-    try {
-      await gitCommit(root, message, all)
-      setMessage('')
-      onChanged()
-    } catch (e) {
-      setError(String(e))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <div className="git">
-      <div className="git__branch">
-        <GitBranch size={13} />
-        <span className="truncate">{status.branch ?? 'HEAD'}</span>
-        {status.ahead > 0 && <span className="chip">↑{status.ahead}</span>}
-        {status.behind > 0 && <span className="chip">↓{status.behind}</span>}
-        {notice && <span className="chip chip--ok git__notice">{notice}</span>}
-        <div className="git__sync">
-          <SyncButton op="fetch" syncing={syncing} label={t('panel.fetch')} onClick={sync}>
-            <RefreshCcw size={13} />
-          </SyncButton>
-          <SyncButton
-            op="pull" syncing={syncing} disabled={status.detached || !status.upstream}
-            label={status.behind > 0 ? `${t('panel.pull')} (↓${status.behind})` : t('panel.pull')}
-            onClick={sync}
-          >
-            <ArrowDownToLine size={13} />
-          </SyncButton>
-          <SyncButton
-            op="push" syncing={syncing} disabled={status.detached}
-            label={
-              !status.upstream
-                ? t('panel.publish')
-                : status.ahead > 0 ? `${t('panel.push')} (↑${status.ahead})` : t('panel.push')
-            }
-            onClick={sync}
-          >
-            {status.upstream ? <ArrowUpFromLine size={13} /> : <CloudUpload size={13} />}
-          </SyncButton>
-        </div>
-      </div>
-
-      <div className="git__commit">
-        <textarea
-          className="textarea" rows={3} value={message}
-          placeholder={t('panel.commitMessage')}
-          onChange={(e) => setMessage(e.target.value)}
-        />
-        <div className="row">
-          <button
-            className="btn btn--primary btn--sm"
-            disabled={busy || !message.trim() || stagedCount === 0}
-            onClick={() => void commit(false)}
-          >
-            <GitCommitHorizontal size={13} /> {t('panel.commit')}
-            {stagedCount > 0 ? ` (${stagedCount})` : ''}
-          </button>
-          <button
-            className="btn btn--sm" disabled={busy || !message.trim()}
-            onClick={() => void commit(true)}
-          >
-            {t('panel.commitAll')}
-          </button>
-        </div>
-        {error && <div className="git__error">{error}</div>}
-      </div>
-
-      <section className="group">
-        <header className="group__head">
-          <span className="group__toggle"><History size={12} /> {t('panel.history')}</span>
-        </header>
-        {commits && commits.length === 0 && (
-          <div className="repo__loading subtle">{t('panel.noCommits')}</div>
-        )}
-        {commits && commits.length > 0 && <CommitGraph commits={commits} />}
-        {commits && commits.length >= limit && (
-          <button
-            className="btn btn--sm graph__more"
-            onClick={() => setLimit((n) => n + GRAPH_PAGE)}
-          >
-            {t('panel.showMore')}
-          </button>
-        )}
-      </section>
-
-      <section className="group">
-        <header className="group__head">
-          <span className="group__toggle"><GitBranch size={12} /> {t('panel.branches')}</span>
-        </header>
-        <ul className="filelist">
-          {branches.filter((b) => !b.isRemote).map((b) => (
-            <li
-              key={b.name}
-              className={`filerow${b.isHead ? ' filerow--current' : ''}`}
-              onClick={() => {
-                if (b.isHead) return
-                void gitCheckout(root, b.name).then(onChanged).catch((e) => setError(String(e)))
-              }}
-              title={t('panel.switchBranch')}
-            >
-              <GitBranch size={12} className="subtle" />
-              <span className="filerow__name truncate">{b.name}</span>
-            </li>
-          ))}
-        </ul>
-      </section>
-    </div>
-  )
-}
-
