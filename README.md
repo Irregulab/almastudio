@@ -9,11 +9,12 @@ of blocked threads — no Electron, no per-tab browser process.
 
 ## Screenshots
 
-![Main window — Markdown preview, file tree and side panel](docs/screenshots/main-window.png)
+<p align="center">
+  <img src="docs/screenshots/main-window.png" alt="Main window — Markdown preview, file tree and side panel" width="800" />
+</p>
 
-<p>
+<p align="center">
   <img src="docs/screenshots/new-tab-menu.png" alt="Choosing a harness for a new tab: Claude Code, Codex, OpenCode, Terminal or Browser" width="260" />
-  <img src="docs/screenshots/git-history.png" alt="Git panel — branches, tags and commit history" width="260" />
 </p>
 
 ## Features
