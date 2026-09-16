@@ -9,6 +9,17 @@ release cannot be cut without one — see `docs/UPDATES.md`.
 
 ## [Unreleased]
 
+### Fixed
+
+- A crash anywhere in the interface no longer leaves the whole window blank:
+  it now shows a message with a Reload button, and the error is written to a
+  log file in the app's data folder so it can be diagnosed after the fact.
+- A hidden terminal — of a project other than the one in front, now that
+  opened projects stay mounted in the background — no longer keeps its WebGL
+  context alive. Every terminal ever opened in a session used to hold one
+  regardless of visibility, which could exhaust the platform's budget and
+  blank the window; now only the terminal on screen holds one.
+
 ## [1.6.2] - 2026-09-16
 
 ### Added

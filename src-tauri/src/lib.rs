@@ -133,12 +133,32 @@ fn fit_main_webview<R: tauri::Runtime>(window: &tauri::Window<R>) {
     }
 }
 
-/// Surfaces uncaught frontend errors on stderr, where `tauri dev` shows them.
-/// The webview's own console is otherwise invisible unless devtools are open,
-/// which makes a boot-time exception look like a blank window.
+/// Surfaces uncaught frontend errors on stderr, where `tauri dev` shows them,
+/// and appends them to a log file in the app's data directory. A shipped
+/// build's stderr goes nowhere the user can read, so without the file a crash
+/// there leaves no trace at all beyond "the window went blank".
 #[tauri::command]
-fn log_frontend(level: String, message: String) {
+fn log_frontend(app: tauri::AppHandle, level: String, message: String) {
     eprintln!("almastudio[web/{level}] {message}");
+    use std::io::Write as _;
+
+    let Ok(dir) = app.path().app_data_dir() else { return };
+    let logs = dir.join("logs");
+    if std::fs::create_dir_all(&logs).is_err() {
+        return;
+    }
+    let epoch = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let line = format!("[{epoch}] [{level}] {message}\n");
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(logs.join("frontend.log"))
+    {
+        let _ = f.write_all(line.as_bytes());
+    }
 }
 
 /// Default shell for the platform, shown in Settings as the placeholder.

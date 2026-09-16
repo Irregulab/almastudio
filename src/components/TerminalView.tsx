@@ -178,16 +178,6 @@ export function TerminalView({ tab, visible, focused }: Props) {
     )
     term.open(host)
 
-    // WebGL keeps large redraws off the main thread; software rendering is a
-    // fine fallback on machines where the context cannot be created.
-    try {
-      const webgl = new WebglAddon()
-      webgl.onContextLoss(() => webgl.dispose())
-      term.loadAddon(webgl)
-    } catch {
-      /* canvas renderer */
-    }
-
     termRef.current = term
     fitRef.current = fit
     searchRef.current = search
@@ -368,6 +358,29 @@ export function TerminalView({ tab, visible, focused }: Props) {
     // changes are applied imperatively below rather than by re-creating it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab.id])
+
+  // WebGL keeps large redraws off the main thread, but the context it holds
+  // is a limited platform resource, not a free one. Every opened project's
+  // terminals used to be unmounted — and their contexts released — the
+  // moment another project came to front; now they stay mounted hidden, so
+  // holding a context per tab regardless of visibility would grow one per
+  // terminal ever opened in the session, and eventually exhaust the budget
+  // and blank the whole window. So the context is only held while this tab
+  // is actually the one on screen; xterm's own canvas renderer is a fine
+  // substitute while hidden, same as on a machine where WebGL never works.
+  useEffect(() => {
+    const term = termRef.current
+    if (!term || !visible) return
+    let webgl: WebglAddon | undefined
+    try {
+      webgl = new WebglAddon()
+      webgl.onContextLoss(() => webgl?.dispose())
+      term.loadAddon(webgl)
+    } catch {
+      /* canvas renderer */
+    }
+    return () => webgl?.dispose()
+  }, [visible])
 
   // --------------------------------------------------- live settings apply --
   useEffect(() => {
