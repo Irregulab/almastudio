@@ -585,6 +585,10 @@
   position: fixed;
   z-index: 200;
   min-width: 190px;
+  /* A list as long as a busy repository's branches scrolls rather than
+     running off the screen. */
+  max-height: min(60vh, 420px);
+  overflow: auto;
   padding: 4px;
   border-radius: var(--radius);
   background: var(--bg-raised);
@@ -1483,3 +1487,31 @@ button.graph__ref:hover { filter: brightness(1.25); }
 .cm-conflict-actions { display: flex; gap: 12px; padding: 2px 6px; font-size: 11px; }
 .cm-conflict-actions button { color: var(--accent-strong); }
 .cm-conflict-actions button:hover { text-decoration: underline; }
+
+/* Narrowing a long list inside a popover, as the branch filter needs. */
+.popover__search {
+  display: flex;
+  align-items: center;
+  /* Stays in view while the list below it scrolls. */
+  position: sticky;
+  top: -4px;
+  z-index: 1;
+  gap: 6px;
+  height: 24px;
+  margin: 2px 2px 4px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  box-shadow: 0 0 0 4px var(--bg-raised);
+}
+.popover__search input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: none;
+  color: inherit;
+  font-size: 12px;
+}
+.popover__empty { padding: 6px 8px; font-size: 12px; }

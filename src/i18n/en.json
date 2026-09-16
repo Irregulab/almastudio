@@ -185,7 +185,9 @@
     "pushDone": "Pushed",
     "showMore": "Show more",
     "noCommits": "No commits yet",
-    "conflicts": "Merge conflicts"
+    "conflicts": "Merge conflicts",
+    "expandAll": "Expand all",
+    "collapseAll": "Collapse all"
   },
   "fs": {
     "newFile": "New file",
@@ -478,7 +480,9 @@
     "files": "{n} files changed",
     "compare": "{base} → {target}",
     "compareHint": "⌘-click another commit to compare",
-    "closeDetails": "Close details"
+    "closeDetails": "Close details",
+    "filterBranches": "Filter branches",
+    "noBranches": "No branch matches"
   },
   "conflicts": {
     "acceptCurrent": "Accept Current Change",

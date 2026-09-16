@@ -9,6 +9,24 @@ release cannot be cut without one — see `docs/UPDATES.md`.
 
 ## [Unreleased]
 
+### Added
+
+- Expand or collapse everything at once, from a button in the Files panel and
+  in the Git panel: every folder of the tree, and every section of the Git
+  panel. A folder opened after Expand All unfolds with the rest.
+- The Git Graph's branch filter has a search box, so picking one branch out
+  of a hundred no longer means scrolling the list.
+
+### Changed
+
+- Only the AI harnesses you have installed are offered, the way Visual
+  Studio Code and IntelliJ IDEA already are. Claude Code, Codex and OpenCode
+  each appear in the + menu, in the File menu — with their shortcut — in the
+  empty workspace and in a project's default harness only when their command
+  is found, looked up on the PATH your tabs are started with. Settings still
+  lists all three, noting the ones not installed, since that is where their
+  command is set.
+
 ## [1.6.1] - 2026-09-15
 
 ### Fixed

@@ -185,7 +185,9 @@
     "pushDone": "Push eseguito",
     "showMore": "Mostra altri",
     "noCommits": "Ancora nessun commit",
-    "conflicts": "Conflitti di merge"
+    "conflicts": "Conflitti di merge",
+    "expandAll": "Espandi tutto",
+    "collapseAll": "Comprimi tutto"
   },
   "fs": {
     "newFile": "Nuovo file",
@@ -478,7 +480,9 @@
     "files": "{n} file modificati",
     "compare": "{base} → {target}",
     "compareHint": "⌘-clic su un altro commit per confrontarli",
-    "closeDetails": "Chiudi i dettagli"
+    "closeDetails": "Chiudi i dettagli",
+    "filterBranches": "Filtra i rami",
+    "noBranches": "Nessun ramo corrisponde"
   },
   "conflicts": {
     "acceptCurrent": "Accetta la modifica corrente",

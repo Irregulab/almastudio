@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Archive, ArchiveRestore, ArrowDownToLine, ArrowUpFromLine, ChevronDown, ChevronRight,
-  CloudUpload, Ellipsis, GitBranch, GitBranchPlus, GitCompareArrows, GitGraph, GitMerge, History,
-  Loader2, Pencil, RefreshCcw, RefreshCw, Tag, Trash2, TriangleAlert, Undo2,
+  ChevronsDownUp, ChevronsUpDown, CloudUpload, Ellipsis, GitBranch, GitBranchPlus,
+  GitCompareArrows, GitGraph, GitMerge, History, Loader2, Pencil, RefreshCcw, RefreshCw, Tag,
+  Trash2, TriangleAlert, Undo2,
 } from 'lucide-react'
 
 import {
@@ -101,6 +102,10 @@ export function GitView({
   const local = branches.filter((b) => !b.isRemote)
   const remote = branches.filter((b) => b.isRemote && !b.name.endsWith('/HEAD'))
 
+  /** The last "expand/collapse all"; every section follows it, see Section. */
+  const [sections, setSections] = useState<{ open: boolean; nonce: number } | null>(null)
+  const sectionsOpen = sections?.open ?? true
+
   /** Runs an operation from a menu, closing the menu first. */
   const act = (name: string, op: () => Promise<unknown>, done?: string) => {
     setMenu(null)
@@ -152,6 +157,16 @@ export function GitView({
             {status.upstream ? <ArrowUpFromLine size={13} /> : <CloudUpload size={13} />}
           </OpButton>
           <button
+            className="icon-btn"
+            title={sectionsOpen ? t('panel.collapseAll') : t('panel.expandAll')}
+            aria-label={sectionsOpen ? t('panel.collapseAll') : t('panel.expandAll')}
+            onClick={() =>
+              setSections({ open: !sectionsOpen, nonce: (sections?.nonce ?? 0) + 1 })
+            }
+          >
+            {sectionsOpen ? <ChevronsDownUp size={13} /> : <ChevronsUpDown size={13} />}
+          </button>
+          <button
             className="icon-btn" title={t('git.more')} aria-label={t('git.more')} disabled={busy}
             onClick={(e) => openMenu({ kind: 'more', anchor: e.currentTarget })}
           >
@@ -193,6 +208,7 @@ export function GitView({
       <CommitBox root={repo} status={status} onChanged={onChanged} />
 
       <Section
+        command={sections}
         icon={<GitBranch size={12} />} title={t('git.branches')} count={local.length}
         action={{
           icon: <GitBranchPlus size={12} />, label: t('git.newBranch'),
@@ -215,6 +231,7 @@ export function GitView({
 
       {remote.length > 0 && (
         <Section
+        command={sections}
           icon={<CloudUpload size={12} />} title={t('git.remoteBranches')} count={remote.length}
           defaultOpen={false}
         >
@@ -233,7 +250,10 @@ export function GitView({
       )}
 
       {stashes.length > 0 && (
-        <Section icon={<Archive size={12} />} title={t('git.stashes')} count={stashes.length}>
+        <Section
+          command={sections} icon={<Archive size={12} />}
+          title={t('git.stashes')} count={stashes.length}
+        >
           <ul className="filelist">
             {stashes.map((s) => (
               <li
@@ -262,6 +282,7 @@ export function GitView({
 
       {tags.length > 0 && (
         <Section
+        command={sections}
           icon={<Tag size={12} />} title={t('git.tags')} count={tags.length} defaultOpen={false}
           action={{
             icon: <Tag size={12} />, label: t('git.newTag'),
@@ -290,6 +311,7 @@ export function GitView({
       )}
 
       <Section
+        command={sections}
         icon={<History size={12} />} title={t('panel.history')}
         action={{ icon: <GitGraph size={12} />, label: t('graph.open'), run: openGraph }}
       >
@@ -445,16 +467,25 @@ function OpButton({
 }
 
 function Section({
-  icon, title, count, action, defaultOpen = true, children,
+  icon, title, count, action, defaultOpen = true, command, children,
 }: {
   icon: React.ReactNode
   title: string
   count?: number
   action?: { icon: React.ReactNode; label: string; run: () => void }
   defaultOpen?: boolean
+  /** Expand or collapse every section; `nonce` makes a repeat count again. */
+  command?: { open: boolean; nonce: number } | null
   children: React.ReactNode
 }) {
   const [open, setOpen] = useState(defaultOpen)
+  const applied = useRef(0)
+
+  useEffect(() => {
+    if (!command || command.nonce === applied.current) return
+    applied.current = command.nonce
+    setOpen(command.open)
+  }, [command])
   return (
     <section className="group">
       <header className="group__head">

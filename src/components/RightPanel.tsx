@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { revealItemInDir } from '@tauri-apps/plugin-opener'
 import {
-  ArrowLeft, Check, ChevronDown, ChevronRight, Eye, EyeOff, FileDiff, FilePlus2, FolderPlus,
-  GitBranch, ListTree, Minus, Pencil, Plus, RefreshCw, Search, Trash2, Undo2, X,
+  ArrowLeft, Check, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Eye, EyeOff,
+  FileDiff, FilePlus2, FolderPlus, GitBranch, ListTree, Minus, Pencil, Plus, RefreshCw, Search,
+  Trash2, Undo2, X,
 } from 'lucide-react'
 
 import {
@@ -521,6 +522,8 @@ function FilesView({
   const patch = useSettings((s) => s.patch)
   const openFileTab = useWorkspace((s) => s.openFileTab)
   const [filter, setFilter] = useState('')
+  /** The last "expand/collapse all"; every folder follows it, see TreeNode. */
+  const [treeCommand, setTreeCommand] = useState<{ open: boolean; nonce: number } | null>(null)
   const [results, setResults] = useState<DirEntryInfo[] | null>(null)
   const [menu, setMenu] = useState<{ anchor: HTMLElement; target: FsTarget } | null>(null)
   const [dialog, setDialog] = useState<FsDialog | null>(null)
@@ -566,6 +569,16 @@ function FilesView({
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
         />
+        <button
+          className="icon-btn"
+          title={treeCommand?.open ? t('panel.collapseAll') : t('panel.expandAll')}
+          aria-label={treeCommand?.open ? t('panel.collapseAll') : t('panel.expandAll')}
+          onClick={() =>
+            setTreeCommand((c) => ({ open: !c?.open, nonce: (c?.nonce ?? 0) + 1 }))
+          }
+        >
+          {treeCommand?.open ? <ChevronsDownUp size={13} /> : <ChevronsUpDown size={13} />}
+        </button>
         <button
           className="icon-btn" title={t('fs.newFile')}
           onClick={() => setDialog({ kind: 'new-file', dir: root })}
@@ -617,7 +630,7 @@ function FilesView({
         ) : (
           <TreeNode
             projectId={projectId} root={root} dir={root} depth={0}
-            revision={revision} defaultOpen
+            revision={revision} defaultOpen command={treeCommand}
             onContext={(target, anchor) => setMenu({ anchor, target })}
           />
         )}
@@ -727,10 +740,12 @@ function FilesView({
 }
 
 function TreeNode({
-  projectId, root, dir, depth, name, defaultOpen, revision, onContext,
+  projectId, root, dir, depth, name, defaultOpen, revision, command, onContext,
 }: {
   projectId: string; root: string; dir: string; depth: number
   name?: string; defaultOpen?: boolean; revision: number
+  /** Expand or collapse every folder; `nonce` makes the same command count again. */
+  command?: { open: boolean; nonce: number } | null
   onContext: (target: FsTarget, anchor: HTMLElement) => void
 }) {
   const settings = useSettings((s) => s.settings)
@@ -738,6 +753,17 @@ function TreeNode({
   const [open, setOpen] = useState(!!defaultOpen)
   const [entries, setEntries] = useState<DirEntryInfo[] | null>(null)
   const loadedFor = useRef('')
+  /** The last command carried out, so it is not carried out twice. */
+  const applied = useRef(0)
+
+  // A folder that appears after "expand all" follows it too: that is what
+  // unfolds the whole tree as each listing arrives.
+  useEffect(() => {
+    if (!command || command.nonce === applied.current) return
+    applied.current = command.nonce
+    // The root has no row of its own to open again from.
+    if (name !== undefined) setOpen(command.open)
+  }, [command, name])
 
   useEffect(() => {
     if (!open) return
@@ -774,7 +800,8 @@ function TreeNode({
           e.isDir ? (
             <TreeNode
               key={e.path} projectId={projectId} root={root} dir={e.path}
-              depth={childDepth} name={e.name} revision={revision} onContext={onContext}
+              depth={childDepth} name={e.name} revision={revision} command={command}
+              onContext={onContext}
             />
           ) : (
             <button

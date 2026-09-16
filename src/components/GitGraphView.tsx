@@ -60,6 +60,8 @@ export function GitGraphView({ tab, visible }: { tab: GraphTab; visible: boolean
   const [status, setStatus] = useState<RepoStatus | null>(null)
   const [commits, setCommits] = useState<GraphCommit[] | null>(null)
   const [branches, setBranches] = useState<BranchInfo[]>([])
+  /** Narrows the branch filter's list, which a busy repository makes long. */
+  const [branchQuery, setBranchQuery] = useState('')
   const [limit, setLimit] = useState(PAGE)
   /** Full names of the branches shown; null shows every branch. */
   const [shown, setShown] = useState<string[] | null>(null)
@@ -213,6 +215,15 @@ export function GitGraphView({ tab, visible }: { tab: GraphTab; visible: boolean
     setCompareWith(null)
   }
 
+  // Never the remotes' own HEAD, which is only another name for a branch
+  // already in the list.
+  const filteredBranches = useMemo(() => {
+    const q = branchQuery.trim().toLowerCase()
+    return branches.filter(
+      (b) => !b.name.endsWith('/HEAD') && (!q || b.name.toLowerCase().includes(q)),
+    )
+  }, [branches, branchQuery])
+
   const error = actions.error ?? loadError
   const commitMenu = menu?.kind === 'commit' ? menu.commit : null
   const refMenu = menu?.kind === 'ref' ? menu.ref : null
@@ -223,7 +234,13 @@ export function GitGraphView({ tab, visible }: { tab: GraphTab; visible: boolean
         <GitGraph size={14} className="subtle" />
         <span className="ggraph__repo truncate" title={root}>{basename(root)}</span>
         {status?.branch && <span className="chip">{status.branch}</span>}
-        <button className="btn btn--sm" onClick={(e) => setMenu({ kind: 'filter', anchor: e.currentTarget })}>
+        <button
+          className="btn btn--sm"
+          onClick={(e) => {
+            setBranchQuery('')
+            setMenu({ kind: 'filter', anchor: e.currentTarget })
+          }}
+        >
           <ListFilter size={12} />
           {shown === null ? t('graph.branchesAll') : t('graph.branchesSome', { n: shown.length })}
           <ChevronDown size={11} />
@@ -416,7 +433,18 @@ export function GitGraphView({ tab, visible }: { tab: GraphTab; visible: boolean
               }}
             />
             <MenuSeparator />
-            {branches.filter((b) => !b.name.endsWith('/HEAD')).map((b) => (
+            <label className="popover__search">
+              <Search size={12} className="subtle" />
+              <input
+                autoFocus value={branchQuery} spellCheck={false}
+                placeholder={t('graph.filterBranches')}
+                onChange={(e) => setBranchQuery(e.target.value)}
+              />
+            </label>
+            {filteredBranches.length === 0 && (
+              <div className="popover__empty subtle">{t('graph.noBranches')}</div>
+            )}
+            {filteredBranches.map((b) => (
               <MenuItem
                 key={fullRef(b)} label={b.name}
                 checked={shown?.includes(fullRef(b)) ?? false}
