@@ -7,6 +7,15 @@ file and diff panel on the right.
 Built with Tauri 2 (Rust) and React. The whole UI is one webview and a handful
 of blocked threads — no Electron, no per-tab browser process.
 
+## Screenshots
+
+![Main window — Markdown preview, file tree and side panel](docs/screenshots/main-window.png)
+
+<p>
+  <img src="docs/screenshots/new-tab-menu.png" alt="Choosing a harness for a new tab: Claude Code, Codex, OpenCode, Terminal or Browser" width="260" />
+  <img src="docs/screenshots/git-history.png" alt="Git panel — branches, tags and commit history" width="260" />
+</p>
+
 ## Features
 
 - **Projects** — name, icon, colour, a main folder and its own instructions for
