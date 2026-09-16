@@ -5,7 +5,7 @@ All notable changes to AlmaStudio. The format follows
 [Semantic Versioning](https://semver.org/).
 
 Each version's section is published as its GitHub release notes, and a
-release cannot be cut without one — see `docs/UPDATES.md`.
+release cannot be cut without one.
 
 ## [Unreleased]
 

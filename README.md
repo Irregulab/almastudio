@@ -214,7 +214,8 @@ exact path and can reveal it.
 
 ## Releasing
 
-See [docs/UPDATES.md](docs/UPDATES.md).
+Built, signed and published from a private release pipeline that is not part
+of this repository.
 
 ## Licence
 
