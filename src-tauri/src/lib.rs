@@ -3,6 +3,7 @@ mod editors;
 mod fsx;
 mod git;
 mod git_cli;
+mod harness;
 mod menu;
 mod pty;
 mod search;
@@ -292,6 +293,7 @@ pub fn run() {
             confirm_exit,
             cancel_exit,
             menu::apply_menu,
+            harness::installed_harnesses,
             pty::pty_spawn,
             pty::pty_write,
             pty::pty_resize,
@@ -385,7 +387,8 @@ pub fn run() {
             if let Some(webview) = handle.get_webview("main") {
                 let _ = webview.set_auto_resize(false);
             }
-            menu::build(&handle, HashMap::new())?;
+            let all = menu::ALL_HARNESSES.map(String::from);
+            menu::build(&handle, HashMap::new(), &all)?;
             store::spawn_scrollback_flusher(handle.clone());
             pty::spawn_activity_monitor(handle.clone());
             spawn_geometry_flusher(handle.clone());

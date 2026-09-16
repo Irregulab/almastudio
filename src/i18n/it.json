@@ -325,7 +325,8 @@
     "confirmOnExitHint": "Chiede solo se qualcosa è in esecuzione o non salvato. Chiudendo due volte di seguito esce sempre.",
     "autoFetch": "Fetch automatico",
     "autoFetchHint": "Ogni tanti minuti, per il repository nel pannello. 0 lo disattiva.",
-    "autoFetchUnit": "min"
+    "autoFetchUnit": "min",
+    "notInstalled": "Non installato: questo comando non è stato trovato, quindi l'harness non compare nei menu."
   },
   "update": {
     "checking": "Controllo aggiornamenti…",

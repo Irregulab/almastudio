@@ -9,6 +9,7 @@ import { externalEditors, openInEditor, type ExternalEditor } from '../lib/ipc'
 
 import { beginPointerDrag, useDrag } from '../lib/dragDrop'
 import { allLeaves, allTabIds, findLeaf } from '../lib/layout'
+import { useInstalledHarnesses } from '../hooks/useInstalledHarnesses'
 import { useUi } from '../store/ui'
 import { useWorkspace } from '../store/workspace'
 import { useT } from '../i18n'
@@ -232,15 +233,22 @@ function NewTabMenuItems({ onPick }: { onPick: () => void }) {
   const t = useT()
   const newTab = useNewTab()
   const editors = useExternalEditors()
+  const harnesses = useInstalledHarnesses()
   const pick = (fn: () => void) => () => {
     onPick()
     fn()
   }
   return (
     <>
-      <MenuItem icon={<Sparkles size={13} />} label={t('tabs.claude')} hint="⌘N" onClick={pick(() => void newTab('claude'))} />
-      <MenuItem icon={<Bot size={13} />} label={t('tabs.codex')} hint="⇧⌘C" onClick={pick(() => void newTab('codex'))} />
-      <MenuItem icon={<SquareCode size={13} />} label={t('tabs.opencode')} hint="⇧⌘O" onClick={pick(() => void newTab('opencode'))} />
+      {harnesses.includes('claude') && (
+        <MenuItem icon={<Sparkles size={13} />} label={t('tabs.claude')} hint="⌘N" onClick={pick(() => void newTab('claude'))} />
+      )}
+      {harnesses.includes('codex') && (
+        <MenuItem icon={<Bot size={13} />} label={t('tabs.codex')} hint="⇧⌘C" onClick={pick(() => void newTab('codex'))} />
+      )}
+      {harnesses.includes('opencode') && (
+        <MenuItem icon={<SquareCode size={13} />} label={t('tabs.opencode')} hint="⇧⌘O" onClick={pick(() => void newTab('opencode'))} />
+      )}
       <MenuItem icon={<Terminal size={13} />} label={t('tabs.shell')} hint="⌘T" onClick={pick(() => void newTab('shell'))} />
       <MenuItem icon={<Globe size={13} />} label={t('tabs.browser')} onClick={pick(openBrowser)} />
       <MenuSeparator />
@@ -286,6 +294,7 @@ async function openProjectIn(editor: ExternalEditor, t: ReturnType<typeof useT>)
 function EmptyWorkspace() {
   const t = useT()
   const newTab = useNewTab()
+  const harnesses = useInstalledHarnesses()
   return (
     <div className="empty">
       <SquareTerminal size={26} />
@@ -294,15 +303,21 @@ function EmptyWorkspace() {
         <div style={{ marginTop: 4 }}>{t('tabs.noTabsHint')}</div>
       </div>
       <div className="row">
-        <button className="btn btn--sm" onClick={() => void newTab('claude')}>
-          <Sparkles size={13} /> {t('tabs.claude')}
-        </button>
-        <button className="btn btn--sm" onClick={() => void newTab('codex')}>
-          <Bot size={13} /> {t('tabs.codex')}
-        </button>
-        <button className="btn btn--sm" onClick={() => void newTab('opencode')}>
-          <SquareCode size={13} /> {t('tabs.opencode')}
-        </button>
+        {harnesses.includes('claude') && (
+          <button className="btn btn--sm" onClick={() => void newTab('claude')}>
+            <Sparkles size={13} /> {t('tabs.claude')}
+          </button>
+        )}
+        {harnesses.includes('codex') && (
+          <button className="btn btn--sm" onClick={() => void newTab('codex')}>
+            <Bot size={13} /> {t('tabs.codex')}
+          </button>
+        )}
+        {harnesses.includes('opencode') && (
+          <button className="btn btn--sm" onClick={() => void newTab('opencode')}>
+            <SquareCode size={13} /> {t('tabs.opencode')}
+          </button>
+        )}
         <button className="btn btn--sm" onClick={() => void newTab('shell')}>
           <Terminal size={13} /> {t('tabs.shell')}
         </button>

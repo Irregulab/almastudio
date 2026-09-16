@@ -12,8 +12,12 @@ import type {
 export const appInfo = () => invoke<AppInfo>('app_info')
 export const signalReady = () => invoke<void>('ready')
 export const defaultShell = () => invoke<string>('default_shell')
-export const applyMenu = (labels: Record<string, string>) =>
-  invoke<void>('apply_menu', { labels })
+/** Rebuilds the native menu; `harnesses` are the ones to offer new tabs for. */
+export const applyMenu = (labels: Record<string, string>, harnesses: string[]) =>
+  invoke<void>('apply_menu', { labels, harnesses })
+/** Those of `commands` that are installed, looked up as a tab would run them. */
+export const installedHarnesses = (commands: string[]) =>
+  invoke<string[]>('installed_harnesses', { commands })
 
 // ------------------------------------------------------------------ pty ----
 

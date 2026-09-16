@@ -325,7 +325,8 @@
     "confirmOnExitHint": "Only asks when something is running or unsaved. Closing twice quickly always quits.",
     "autoFetch": "Fetch automatically",
     "autoFetchHint": "Every so many minutes, for the repository in the panel. 0 turns it off.",
-    "autoFetchUnit": "min"
+    "autoFetchUnit": "min",
+    "notInstalled": "Not installed: this command was not found, so the harness is left out of the menus."
   },
   "update": {
     "checking": "Checking for updates…",

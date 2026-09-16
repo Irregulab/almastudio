@@ -12,6 +12,7 @@ import { useUi, type SettingsSection } from '../store/ui'
 import { AVAILABLE_LOCALES, LOCALE_NAMES, useT } from '../i18n'
 import { SCHEME_NAMES } from '../lib/schemes'
 import { UI_THEMES } from '../lib/uiThemes'
+import { useInstalledHarnesses } from '../hooks/useInstalledHarnesses'
 import { useTheme } from '../hooks/useTheme'
 import { ConfirmDialog, Field, Modal, NumberInput, Segmented, Toggle } from './ui'
 import { UpdateSection } from './Updater'
@@ -340,6 +341,7 @@ function HarnessSection() {
   const set = useSettings((x) => x.set)
   const [kind, setKind] = useState<HarnessKind>('claude')
   const cfg = s.harness[kind]
+  const harnesses = useInstalledHarnesses()
   const setHarness = useSettings((x) => x.setHarness)
 
   return (
@@ -371,7 +373,10 @@ function HarnessSection() {
 
       <div style={{ height: 12 }} />
 
-      <Field label={t('settings.command')}>
+      <Field
+        label={t('settings.command')}
+        hint={harnesses.includes(kind) ? undefined : t('settings.notInstalled')}
+      >
         <input
           className="input mono" value={cfg.command}
           onChange={(e) => setHarness(kind, { command: e.target.value })}

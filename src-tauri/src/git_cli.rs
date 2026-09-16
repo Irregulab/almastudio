@@ -28,7 +28,7 @@ const GIT: &str = "git";
 /// starts with launchd's bare PATH, which would leave hooks (husky's `npx`)
 /// and credential helpers (`gh auth git-credential`) unable to run.
 #[cfg(unix)]
-fn login_path() -> Option<&'static str> {
+pub(crate) fn login_path() -> Option<&'static str> {
     static PATH: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
     PATH.get_or_init(|| {
         let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".into());
@@ -48,7 +48,7 @@ fn login_path() -> Option<&'static str> {
 }
 
 #[cfg(not(unix))]
-fn login_path() -> Option<&'static str> {
+pub(crate) fn login_path() -> Option<&'static str> {
     None
 }
 

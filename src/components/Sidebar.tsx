@@ -10,6 +10,7 @@ import { dirName, writeProjectInstructions } from '../lib/ipc'
 import { readableAccent } from '../lib/color'
 import { pickProjectIcon } from '../lib/image'
 import { useWorkspace } from '../store/workspace'
+import { HARNESSES, useInstalledHarnesses } from '../hooks/useInstalledHarnesses'
 import { useSettings } from '../store/settings'
 import { useUi } from '../store/ui'
 import { useTheme } from '../hooks/useTheme'
@@ -325,6 +326,7 @@ function ProjectDialog({ project, onClose }: { project: Project | null; onClose:
   const addProject = useWorkspace((s) => s.addProject)
   const updateProject = useWorkspace((s) => s.updateProject)
   const defaultHarness = useSettings((s) => s.settings.defaultHarness)
+  const harnesses = useInstalledHarnesses()
   const isDark = useTheme()
   const projects = useWorkspace((s) => s.projects)
   // Suggested while typing, so one category is not split in two by a typo.
@@ -521,9 +523,10 @@ function ProjectDialog({ project, onClose }: { project: Project | null; onClose:
           <option value="default">
             {t('project.useGlobal')} ({t(`tabs.${defaultHarness}`)})
           </option>
-          <option value="claude">{t('tabs.claude')}</option>
-          <option value="codex">{t('tabs.codex')}</option>
-          <option value="opencode">{t('tabs.opencode')}</option>
+          {/* Plus whatever this project is already set to, installed or not. */}
+          {HARNESSES.filter((kind) => harnesses.includes(kind) || harness === kind).map((kind) => (
+            <option key={kind} value={kind}>{t(`tabs.${kind}`)}</option>
+          ))}
           <option value="shell">{t('tabs.shell')}</option>
         </select>
       </Field>

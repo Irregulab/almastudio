@@ -14,6 +14,7 @@ import { useApplyTheme } from './hooks/useTheme'
 import { useMenuActions } from './hooks/useMenuActions'
 import { useFileDrop } from './hooks/useFileDrop'
 import { useAutoFetch } from './hooks/useAutoFetch'
+import { useInstalledHarnesses } from './hooks/useInstalledHarnesses'
 import { ProjectIcon, Sidebar } from './components/Sidebar'
 import { Workspace } from './components/Workspace'
 import { RightPanel } from './components/RightPanel'
@@ -87,11 +88,15 @@ export default function App() {
       .then((sys) => setLocale(resolveLocale(settings.language, sys)))
   }, [booted, settings.language, setLocale])
 
-  // Rebuild the native menu whenever the language changes.
+  const harnesses = useInstalledHarnesses()
+
+  // Rebuild the native menu whenever the language changes, or a harness is
+  // installed or its command changed: New Claude Code Tab and the rest are
+  // there only for the harnesses that can be run.
   useEffect(() => {
     if (!booted) return
-    void applyMenu(menuLabels()).catch(() => {})
-  }, [booted, locale])
+    void applyMenu(menuLabels(), harnesses).catch(() => {})
+  }, [booted, locale, harnesses])
 
   const project = useMemo(
     () => projects.find((p) => p.id === activeProjectId) ?? null,

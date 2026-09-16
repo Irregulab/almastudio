@@ -73,8 +73,19 @@ impl Labels {
     }
 }
 
-pub fn build<R: Runtime>(app: &AppHandle<R>, labels: HashMap<String, String>) -> tauri::Result<()> {
+/// Every AI harness, for a menu built before the frontend has said which of
+/// them are installed.
+pub const ALL_HARNESSES: [&str; 3] = ["claude", "codex", "opencode"];
+
+/// `harnesses` are the ones installed: the rest get no menu item, and so no
+/// shortcut either, exactly as an editor that is not installed gets none.
+pub fn build<R: Runtime>(
+    app: &AppHandle<R>,
+    labels: HashMap<String, String>,
+    harnesses: &[String],
+) -> tauri::Result<()> {
     let l = Labels(labels);
+    let has = |id: &str| harnesses.iter().any(|h| h == id);
 
     let settings = MenuItemBuilder::with_id("settings", l.get("menu.settings"))
         .accelerator("CmdOrCtrl+,")
@@ -206,10 +217,17 @@ pub fn build<R: Runtime>(app: &AppHandle<R>, labels: HashMap<String, String>) ->
     let mut file = SubmenuBuilder::new(app, l.get("menu.file"))
         .item(&new_project)
         .item(&open_folder)
-        .separator()
-        .item(&new_claude)
-        .item(&new_codex)
-        .item(&new_opencode)
+        .separator();
+    if has("claude") {
+        file = file.item(&new_claude);
+    }
+    if has("codex") {
+        file = file.item(&new_codex);
+    }
+    if has("opencode") {
+        file = file.item(&new_opencode);
+    }
+    file = file
         .item(&new_terminal)
         .item(&new_browser)
         .separator()
@@ -281,8 +299,12 @@ pub fn build<R: Runtime>(app: &AppHandle<R>, labels: HashMap<String, String>) ->
 /// Rebuilds the menu with translated labels. Called by the frontend once its
 /// locale is known and whenever the user changes language.
 #[tauri::command]
-pub fn apply_menu(app: AppHandle, labels: HashMap<String, String>) -> Result<(), String> {
-    build(&app, labels).map_err(|e| e.to_string())
+pub fn apply_menu(
+    app: AppHandle,
+    labels: HashMap<String, String>,
+    harnesses: Vec<String>,
+) -> Result<(), String> {
+    build(&app, labels, &harnesses).map_err(|e| e.to_string())
 }
 
 pub fn on_menu_event<R: Runtime>(app: &AppHandle<R>, id: &str) {
