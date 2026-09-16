@@ -9,6 +9,8 @@ release cannot be cut without one — see `docs/UPDATES.md`.
 
 ## [Unreleased]
 
+## [1.6.2] - 2026-09-16
+
 ### Added
 
 - Expand or collapse everything at once, from a button in the Files panel and
@@ -313,7 +315,8 @@ First release.
 - English and Italian.
 - Over-the-air updates.
 
-[Unreleased]: https://github.com/Irregulab/almastudio/compare/v1.6.1...HEAD
+[Unreleased]: https://github.com/Irregulab/almastudio/compare/v1.6.2...HEAD
+[1.6.2]: https://github.com/Irregulab/almastudio/compare/v1.6.1...v1.6.2
 [1.6.1]: https://github.com/Irregulab/almastudio/compare/v1.6.0...v1.6.1
 [1.6.0]: https://github.com/Irregulab/almastudio/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/Irregulab/almastudio/compare/v1.4.0...v1.5.0
