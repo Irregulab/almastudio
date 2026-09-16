@@ -71,6 +71,9 @@ export function GitView({
   const [tags, setTags] = useState<TagInfo[]>([])
   const [menu, setMenu] = useState<Menu | null>(null)
   const actions = useGitActions(status?.root ?? root, onChanged)
+  /** The last "expand/collapse all"; every section follows it, see Section. */
+  const [sections, setSections] = useState<{ open: boolean; nonce: number } | null>(null)
+  const sectionsOpen = sections?.open ?? true
 
   useEffect(() => {
     if (!status?.isRepo) return
@@ -101,10 +104,6 @@ export function GitView({
   const conflicts = status.files.filter((f) => f.conflicted).length
   const local = branches.filter((b) => !b.isRemote)
   const remote = branches.filter((b) => b.isRemote && !b.name.endsWith('/HEAD'))
-
-  /** The last "expand/collapse all"; every section follows it, see Section. */
-  const [sections, setSections] = useState<{ open: boolean; nonce: number } | null>(null)
-  const sectionsOpen = sections?.open ?? true
 
   /** Runs an operation from a menu, closing the menu first. */
   const act = (name: string, op: () => Promise<unknown>, done?: string) => {

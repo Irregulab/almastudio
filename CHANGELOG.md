@@ -13,6 +13,12 @@ release cannot be cut without one — see `docs/UPDATES.md`.
 
 ### Fixed
 
+- The Git panel no longer crashes the window on some repositories. Expand
+  All / Collapse All's state was declared after an early return added
+  earlier in the same render, so the panel called a different number of
+  Hooks once a repository's status arrived than it had before — a mistake
+  React usually reports on the spot, but here nothing was catching it (see
+  the crash screen fixed below), so it took down the whole window instead.
 - A crash anywhere in the interface no longer leaves the whole window blank:
   it now shows a message with a Reload button, and the error is written to a
   log file in the app's data folder so it can be diagnosed after the fact.
