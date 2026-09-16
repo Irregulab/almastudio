@@ -9,6 +9,8 @@ release cannot be cut without one — see `docs/UPDATES.md`.
 
 ## [Unreleased]
 
+## [1.6.3] - 2026-09-16
+
 ### Fixed
 
 - A crash anywhere in the interface no longer leaves the whole window blank:
@@ -326,7 +328,8 @@ First release.
 - English and Italian.
 - Over-the-air updates.
 
-[Unreleased]: https://github.com/Irregulab/almastudio/compare/v1.6.2...HEAD
+[Unreleased]: https://github.com/Irregulab/almastudio/compare/v1.6.3...HEAD
+[1.6.3]: https://github.com/Irregulab/almastudio/compare/v1.6.2...v1.6.3
 [1.6.2]: https://github.com/Irregulab/almastudio/compare/v1.6.1...v1.6.2
 [1.6.1]: https://github.com/Irregulab/almastudio/compare/v1.6.0...v1.6.1
 [1.6.0]: https://github.com/Irregulab/almastudio/compare/v1.5.0...v1.6.0
