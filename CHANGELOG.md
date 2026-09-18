@@ -9,6 +9,8 @@ release cannot be cut without one.
 
 ## [Unreleased]
 
+## [1.6.6] - 2026-09-18
+
 ### Changed
 
 - Search results and the Changes list open previews too, as in VS Code: a
@@ -370,7 +372,8 @@ First release.
 - English and Italian.
 - Over-the-air updates.
 
-[Unreleased]: https://github.com/Irregulab/almastudio/compare/v1.6.5...HEAD
+[Unreleased]: https://github.com/Irregulab/almastudio/compare/v1.6.6...HEAD
+[1.6.6]: https://github.com/Irregulab/almastudio/compare/v1.6.5...v1.6.6
 [1.6.5]: https://github.com/Irregulab/almastudio/compare/v1.6.4...v1.6.5
 [1.6.4]: https://github.com/Irregulab/almastudio/compare/v1.6.3...v1.6.4
 [1.6.3]: https://github.com/Irregulab/almastudio/compare/v1.6.2...v1.6.3
