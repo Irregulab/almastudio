@@ -198,6 +198,7 @@
     "name": "Name",
     "create": "Create",
     "renameTitle": "Rename",
+    "openTerminal": "Open terminal",
     "reveal": "Reveal in file manager",
     "failed": "Operation failed: {error}",
     "newFileIn": "New file in {folder}",

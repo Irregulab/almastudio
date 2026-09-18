@@ -198,6 +198,7 @@
     "name": "Nome",
     "create": "Crea",
     "renameTitle": "Rinomina",
+    "openTerminal": "Apri terminale",
     "reveal": "Mostra nel gestore file",
     "failed": "Operazione non riuscita: {error}",
     "newFileIn": "Nuovo file in {folder}",

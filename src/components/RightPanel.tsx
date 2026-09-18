@@ -3,7 +3,7 @@ import { revealItemInDir } from '@tauri-apps/plugin-opener'
 import {
   ArrowLeft, Check, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Eye, EyeOff,
   FileDiff, FilePlus2, FolderPlus, GitBranch, ListTree, Minus, Pencil, Plus, RefreshCw, Search,
-  Trash2, Undo2, X,
+  Terminal, Trash2, Undo2, X,
 } from 'lucide-react'
 
 import {
@@ -505,6 +505,11 @@ const dirname = (p: string) => {
   const i = p.lastIndexOf('/')
   return i === -1 ? '' : p.slice(0, i)
 }
+/** The folder holding an absolute path, whichever separator the platform uses. */
+const parentDir = (p: string) => {
+  const i = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'))
+  return i <= 0 ? p.slice(0, i + 1) || p : p.slice(0, i)
+}
 const codeClass = (f: ChangedFile) =>
   f.conflicted ? 'conflict' : f.untracked ? 'new' : f.deleted ? 'del' : 'mod'
 
@@ -528,6 +533,7 @@ function FilesView({
   const settings = useSettings((s) => s.settings)
   const patch = useSettings((s) => s.patch)
   const openFileTab = useWorkspace((s) => s.openFileTab)
+  const addTerminalTab = useWorkspace((s) => s.addTerminalTab)
   const [filter, setFilter] = useState('')
   /** The last "expand/collapse all"; every folder follows it, see TreeNode. */
   const [treeCommand, setTreeCommand] = useState<{ open: boolean; nonce: number } | null>(null)
@@ -682,6 +688,15 @@ function FilesView({
             const path = menu!.target.path
             setMenu(null)
             void revealItemInDir(path).catch(() => {})
+          }}
+        />
+        <MenuItem
+          icon={<Terminal size={13} />} label={t('fs.openTerminal')}
+          onClick={() => {
+            const { path, isDir } = menu!.target
+            setMenu(null)
+            // A folder opens in itself, a file in the folder that holds it.
+            addTerminalTab({ projectId, kind: 'shell', cwd: isDir ? path : parentDir(path) })
           }}
         />
         <MenuSeparator />

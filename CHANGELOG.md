@@ -9,6 +9,12 @@ release cannot be cut without one.
 
 ## [Unreleased]
 
+### Added
+
+- Open Terminal in the Files panel's right-click menu: a terminal tab
+  starts in the file's folder, or in the folder itself when you right-click
+  one.
+
 ### Changed
 
 - The Git Graph opens diffs as previews too: a click on a file of a commit,
