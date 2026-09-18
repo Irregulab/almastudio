@@ -359,9 +359,9 @@ export function GitGraphView({ tab, visible }: { tab: GraphTab; visible: boolean
           </div>
           <FileList
             files={compared}
-            onOpen={(f) => openDiffTab({
+            onOpen={(f, preview) => openDiffTab({
               projectId: tab.projectId, root, path: f.path, side: 'head',
-              base: pair.base, target: pair.target, oldPath: f.oldPath ?? undefined,
+              base: pair.base, target: pair.target, oldPath: f.oldPath ?? undefined, preview,
             })}
           />
         </div>
@@ -411,9 +411,9 @@ export function GitGraphView({ tab, visible }: { tab: GraphTab; visible: boolean
             </div>
             <FileList
               files={details.files}
-              onOpen={(f) => openDiffTab({
+              onOpen={(f, preview) => openDiffTab({
                 projectId: tab.projectId, root, path: f.path, side: 'head',
-                target: details.id, oldPath: f.oldPath ?? undefined,
+                target: details.id, oldPath: f.oldPath ?? undefined, preview,
               })}
             />
           </div>
@@ -577,15 +577,21 @@ const STATUS_CLASSES: Record<string, string> = {
   added: 'new', copied: 'new', deleted: 'del',
 }
 
-/** The files a commit, or a comparison, changed; each opens its diff. */
-function FileList({ files, onOpen }: { files: CommitFile[]; onOpen: (file: CommitFile) => void }) {
+/**
+ * The files a commit, or a comparison, changed; each opens its diff, as a
+ * preview on a single click and kept open on a double click, as in VS Code.
+ */
+function FileList({
+  files, onOpen,
+}: { files: CommitFile[]; onOpen: (file: CommitFile, preview: boolean) => void }) {
   return (
     <ul className="filelist ggraph__files">
       {files.map((f) => (
         <li
           key={`${f.oldPath ?? ''}>${f.path}`} className="filerow"
           title={f.oldPath ? `${f.oldPath} → ${f.path}` : f.path}
-          onClick={() => onOpen(f)}
+          onClick={() => onOpen(f, true)}
+          onDoubleClick={() => onOpen(f, false)}
         >
           <span className={`filerow__code filerow__code--${STATUS_CLASSES[f.status] ?? 'mod'}`}>
             {STATUS_LETTERS[f.status] ?? '?'}

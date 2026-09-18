@@ -9,6 +9,12 @@ release cannot be cut without one.
 
 ## [Unreleased]
 
+### Changed
+
+- The Git Graph opens diffs as previews too: a click on a file of a commit,
+  or of two commits compared, shows its diff in the preview tab, and a
+  double click keeps it open.
+
 ## [1.6.6] - 2026-09-18
 
 ### Changed
