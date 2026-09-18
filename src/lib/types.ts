@@ -91,6 +91,12 @@ export interface FileTab extends TabBase {
   root: string
   path: string
   reveal?: FileReveal
+  /**
+   * Opened with a single click, as VS Code's preview editors are: the next
+   * file opened that way takes its place, until it is pinned by a double
+   * click or an edit.
+   */
+  preview?: boolean
 }
 
 export interface BrowserTab extends TabBase {

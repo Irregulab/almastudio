@@ -41,6 +41,12 @@ export function containsNode(node: LayoutNode, id: string): boolean {
   return node.id === id || (isSplit(node) && node.children.some((c) => containsNode(c, id)))
 }
 
+/** Shows `tabId` in pane `leafId`, in place of the session it showed. */
+export function setLeafTab(node: LayoutNode, leafId: string, tabId: string): LayoutNode {
+  if (isLeaf(node)) return node.id === leafId ? { ...node, tabId } : node
+  return { ...node, children: node.children.map((c) => setLeafTab(c, leafId, tabId)) }
+}
+
 /** The first pane in rendering order. */
 export const firstPaneId = (node: LayoutNode): string =>
   isLeaf(node) ? node.id : firstPaneId(node.children[0])

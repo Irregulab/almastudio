@@ -7,7 +7,7 @@ import { categoryOf } from '../lib/projectGroups'
 import { useUi } from './ui'
 import {
   allTabIds, containsNode, findLeaf, findLeafOfTab, firstPaneId, isLeaf, makeLeaf,
-  removeLeaf, resizeSplit as resizeSplitIn, splitLeaf,
+  removeLeaf, resizeSplit as resizeSplitIn, setLeafTab, splitLeaf,
 } from '../lib/layout'
 import type {
   DiffSide, FileTab, HarnessKind, PanelState, Project, ProjectWorkspace, Tab, TabGroup,
@@ -82,10 +82,18 @@ interface WorkspaceStore extends WorkspaceState {
   }) => Tab
   /** A repository's commit graph, in a tab of its own; one per repository. */
   openGraphTab: (opts: { projectId: string; root: string }) => Tab
-  /** With `line` (and `column`, `length`), the file opens with that spot selected. */
+  /**
+   * With `line` (and `column`, `length`), the file opens with that spot
+   * selected. With `preview` it opens as the project's preview tab, taking
+   * the place of the previous one; without, it opens pinned, and pins the
+   * file's preview tab when there is one.
+   */
   openFileTab: (opts: {
     projectId: string; root: string; path: string; line?: number; column?: number; length?: number
+    preview?: boolean
   }) => Tab
+  /** Keeps a preview tab open: it stops being the one the next preview replaces. */
+  pinTab: (tabId: string) => void
   openBrowserTab: (opts: { projectId: string; url?: string; splitFrom?: SplitFrom }) => Tab
   setTabUrl: (tabId: string, url: string) => void
   /** Closes one session: its pane goes, and its tab too when that was the last pane. */
@@ -392,17 +400,26 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
     return tab
   },
 
-  openFileTab: ({ projectId, root, path, line, column = 0, length = 0 }) => {
+  openFileTab: ({ projectId, root, path, line, column = 0, length = 0, preview = false }) => {
     const reveal = line ? { line, column, length, nonce: Date.now() } : undefined
-    const existing = Object.values(get().tabs).find(
-      (t): t is FileTab => t.kind === 'file' && t.projectId === projectId && t.path === path,
+    const files = Object.values(get().tabs).filter(
+      (t): t is FileTab => t.kind === 'file' && t.projectId === projectId,
     )
+    const existing = files.find((t) => t.path === path)
     if (existing) {
-      if (reveal) set((s) => ({ tabs: { ...s.tabs, [existing.id]: { ...existing, reveal } } }))
+      const pin = !preview && existing.preview
+      if (reveal || pin) {
+        set((s) => ({
+          tabs: {
+            ...s.tabs,
+            [existing.id]: { ...existing, ...(reveal && { reveal }), ...(pin && { preview: false }) },
+          },
+        }))
+      }
       get().focusTab(existing.id)
-      return existing
+      return get().tabs[existing.id]
     }
-    const tab: Tab = {
+    const tab: FileTab = {
       id: uid('tab'),
       projectId,
       kind: 'file',
@@ -410,13 +427,50 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
       root,
       path,
       reveal,
+      ...(preview && { preview: true }),
     }
-    set((s) => ({
-      tabs: { ...s.tabs, [tab.id]: tab },
-      ...withWorkspace(s, projectId, (w) => place(w, tab.id)),
-    }))
+    // One preview per project, as VS Code keeps one per editor group. Editing
+    // pins it, so an unsaved one is never replaced; the check is a backstop.
+    const dirty = useUi.getState().dirtyTabs
+    const previous = preview ? files.find((t) => t.preview && !dirty[t.id]) : undefined
+    if (!previous) {
+      set((s) => ({
+        tabs: { ...s.tabs, [tab.id]: tab },
+        ...withWorkspace(s, projectId, (w) => place(w, tab.id)),
+      }))
+      return tab
+    }
+    dispose(previous)
+    set((s) => {
+      const tabs = { ...s.tabs, [tab.id]: tab }
+      delete tabs[previous.id]
+      return {
+        tabs,
+        // The new file takes the old one's pane, wherever that is.
+        ...withWorkspace(s, projectId, (w) => {
+          const group = groupOfTab(w, previous.id)
+          if (!group) return place(w, tab.id)
+          const leaf = findLeafOfTab(group.layout, previous.id)!
+          return {
+            ...updateGroup(w, group.id, (g) => ({
+              ...g,
+              layout: setLeafTab(g.layout, leaf.id, tab.id),
+              activePaneId: leaf.id,
+            })),
+            activeGroupId: group.id,
+          }
+        }),
+      }
+    })
     return tab
   },
+
+  pinTab: (tabId) =>
+    set((s) => {
+      const tab = s.tabs[tabId]
+      if (tab?.kind !== 'file' || !tab.preview) return {}
+      return { tabs: { ...s.tabs, [tabId]: { ...tab, preview: false } } }
+    }),
 
   openBrowserTab: ({ projectId, url, splitFrom }) => {
     const tab: Tab = {

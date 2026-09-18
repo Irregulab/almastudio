@@ -188,6 +188,63 @@ describe('tabs and splits', () => {
     store().moveGroup(0, 3)
     expect(sessionsByTab()).toEqual([[b.id], [c.id], [a.id]])
   })
+
+  describe('preview file tabs', () => {
+    const file = (path: string, preview?: boolean) =>
+      store().openFileTab({ projectId: pid, root: '/tmp/x', path, preview })
+    const isPreview = (tabId: string) => {
+      const tab = store().tabs[tabId]
+      return tab?.kind === 'file' && !!tab.preview
+    }
+
+    it('replaces the previous preview in its own place', () => {
+      const shell = open()
+      const a = file('a.ts', true)
+      open()
+      const b = file('b.ts', true)
+      expect(store().tabs[a.id]).toBeUndefined()
+      // b sits where a was, between the two shells, and comes to front.
+      expect(sessionsByTab()[1]).toEqual([b.id])
+      expect(ws().activeGroupId).toBe(groupOf(b.id).id)
+      expect(sessionsByTab()[0]).toEqual([shell.id])
+    })
+
+    it('replaces a preview inside a split, keeping the split', () => {
+      const shell = open()
+      store().splitPane(paneOf(shell.id), 'row')
+      const a = file('a.ts', true)
+      store().dropGroupIntoSplit(groupOf(a.id).id, paneOf(shell.id), 'row', false)
+      const b = file('b.ts', true)
+      expect(allTabIds(groupOf(shell.id).layout)).toContain(b.id)
+      expect(store().tabs[a.id]).toBeUndefined()
+    })
+
+    it('never replaces a pinned file', () => {
+      const a = file('a.ts')
+      const b = file('b.ts', true)
+      expect(store().tabs[a.id]).toBeDefined()
+      expect(sessionsByTab()).toEqual([[a.id], [b.id]])
+    })
+
+    it('pins a preview on a double click, from the tree or the tab', () => {
+      const a = file('a.ts', true)
+      file('a.ts')
+      expect(isPreview(a.id)).toBe(false)
+
+      const b = file('b.ts', true)
+      store().pinTab(b.id)
+      file('c.ts', true)
+      expect(store().tabs[a.id]).toBeDefined()
+      expect(store().tabs[b.id]).toBeDefined()
+    })
+
+    it('only focuses a file that is already open, pinned or not', () => {
+      const a = file('a.ts')
+      file('a.ts', true)
+      expect(isPreview(a.id)).toBe(false)
+      expect(Object.keys(store().tabs)).toEqual([a.id])
+    })
+  })
 })
 
 describe('migrateWorkspace', () => {

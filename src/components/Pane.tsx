@@ -76,7 +76,8 @@ function TabContent({
   if (tab.kind === 'diff') return <DiffView tab={tab} visible={visible} />
   if (tab.kind === 'browser') return <BrowserView tab={tab} visible={visible} />
   if (tab.kind === 'graph') return <GitGraphView tab={tab} visible={visible} />
-  return <FileView tab={tab} visible={visible} />
+  // Keyed, since a preview tab's pane goes on to show the next file previewed.
+  return <FileView key={tab.id} tab={tab} visible={visible} />
 }
 
 function PaneHeader({ tab, leaf, focused }: { tab: Tab; leaf: LeafNode; focused: boolean }) {
@@ -84,6 +85,7 @@ function PaneHeader({ tab, leaf, focused }: { tab: Tab; leaf: LeafNode; focused:
   const project = useWorkspace((s) => s.projects.find((p) => p.id === tab.projectId))
   const splitPane = useWorkspace((s) => s.splitPane)
   const movePaneToNewGroup = useWorkspace((s) => s.movePaneToNewGroup)
+  const pinTab = useWorkspace((s) => s.pinTab)
   const busy = useUi((s) => !!s.busyTabs[tab.id])
   const { request, dialog } = useGuardedClose()
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null)
@@ -97,8 +99,10 @@ function PaneHeader({ tab, leaf, focused }: { tab: Tab; leaf: LeafNode; focused:
 
   return (
     <div
-      className={`pane__head${focused ? ' pane__head--focused' : ''}`}
-      onDoubleClick={() => setRenaming(true)}
+      className={`pane__head${focused ? ' pane__head--focused' : ''}${
+        isPreview(tab) ? ' pane__head--preview' : ''
+      }`}
+      onDoubleClick={() => (isPreview(tab) ? pinTab(tab.id) : setRenaming(true))}
       title={tabTooltip(tab)}
     >
       <span className={`tab__icon tab__icon--${tab.kind}`}>{tabIcon(tab.kind, 12)}</span>
@@ -282,6 +286,9 @@ function autoTitle(tab: Tab, projectRoot: string | undefined): string {
 }
 
 /** A session's name: the user's, or one derived from what it shows. */
+/** A file opened with a single click, which the next one opened that way replaces. */
+export const isPreview = (tab: Tab) => tab.kind === 'file' && !!tab.preview
+
 export const sessionLabel = (tab: Tab, projectRoot: string | undefined) =>
   tab.title || autoTitle(tab, projectRoot)
 

@@ -9,6 +9,14 @@ release cannot be cut without one.
 
 ## [Unreleased]
 
+### Changed
+
+- Files open as in VS Code. A single click in the Files panel opens a file
+  as a preview, its tab title in italics, and the next file opened that way
+  takes its place instead of piling up another tab. Double-clicking the
+  file, or its tab, keeps it open for good, and so does editing it. Rename
+  stays in the tab's menu.
+
 ## [1.6.4] - 2026-09-18
 
 ### Changed

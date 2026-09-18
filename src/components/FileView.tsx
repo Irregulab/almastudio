@@ -8,6 +8,7 @@ import { findConflicts } from '../lib/conflicts'
 import { allowPreview, gitMarkResolved, readTextFile, writeTextFile } from '../lib/ipc'
 import { languageOf, previewKindOf } from '../lib/syntax'
 import { useUi } from '../store/ui'
+import { useWorkspace } from '../store/workspace'
 import { useT } from '../i18n'
 import { CodeEditor } from './CodeEditor'
 import { FileIcon } from './FileIcon'
@@ -19,6 +20,7 @@ type Mode = 'preview' | 'source'
 export function FileView({ tab, visible }: { tab: FileTab; visible: boolean }) {
   const t = useT()
   const setTabDirty = useUi((s) => s.setTabDirty)
+  const pinTab = useWorkspace((s) => s.pinTab)
   const [file, setFile] = useState<FileContent | null>(null)
   const [content, setContent] = useState('')
   /** What is on disk as far as we know; the basis for both dirty and conflict. */
@@ -92,6 +94,11 @@ export function FileView({ tab, visible }: { tab: FileTab; visible: boolean }) {
   useEffect(() => {
     setTabDirty(tab.id, dirty)
   }, [dirty, setTabDirty, tab.id])
+
+  // An edited preview is kept, as in VS Code: the next preview must not close it.
+  useEffect(() => {
+    if (dirty && tab.preview) pinTab(tab.id)
+  }, [dirty, tab.preview, tab.id, pinTab])
 
   // Clear the marker when the tab goes away, so it cannot outlive the editor.
   useEffect(() => () => setTabDirty(tab.id, false), [setTabDirty, tab.id])

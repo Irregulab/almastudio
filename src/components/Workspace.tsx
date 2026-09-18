@@ -15,7 +15,7 @@ import { useWorkspace } from '../store/workspace'
 import { useT } from '../i18n'
 import { TileNode } from './Tiles'
 import {
-  RenameInput, SessionMenuItems, TabStatus, sessionLabel, tabIcon, tabTooltip,
+  RenameInput, SessionMenuItems, TabStatus, isPreview, sessionLabel, tabIcon, tabTooltip,
   useGuardedClose, useNewTab,
 } from './Pane'
 import { MenuItem, MenuSeparator, Popover } from './ui'
@@ -83,6 +83,7 @@ function GroupChip({
   const setActiveGroup = useWorkspace((s) => s.setActiveGroup)
   const splitPane = useWorkspace((s) => s.splitPane)
   const closeOtherGroups = useWorkspace((s) => s.closeOtherGroups)
+  const pinTab = useWorkspace((s) => s.pinTab)
   const dirty = useUi((s) => allTabIds(group.layout).some((id) => s.dirtyTabs[id]))
   const busy = useUi((s) => !!s.busyTabs[front.tabId])
   const { request, dialog } = useGuardedClose()
@@ -105,14 +106,15 @@ function GroupChip({
         ref={ref}
         className={`tab${active ? ' tab--active' : ''}${dropBefore ? ' tab--drop' : ''}${
           dropAfter ? ' tab--drop-after' : ''
-        }`}
+        }${isPreview(tab) ? ' tab--preview' : ''}`}
         data-drop-tab-chip
         data-index={index}
         onPointerDown={(e) => {
           if (!renaming) beginPointerDrag(e, { kind: 'tab', id: group.id, label })
         }}
         onClick={() => setActiveGroup(group.id)}
-        onDoubleClick={() => setRenaming(true)}
+        // Double-clicking a preview keeps it open, as in VS Code; rename is in its menu.
+        onDoubleClick={() => (isPreview(tab) ? pinTab(tab.id) : setRenaming(true))}
         onAuxClick={(e) => e.button === 1 && close()}
         onContextMenu={(e) => {
           e.preventDefault()

@@ -613,7 +613,8 @@ function FilesView({
               {results.map((e) => (
                 <li
                   key={e.path} className="filerow"
-                  onClick={() => openFileTab({ projectId, root, path: e.rel })}
+                  onClick={() => openFileTab({ projectId, root, path: e.rel, preview: true })}
+                  onDoubleClick={() => openFileTab({ projectId, root, path: e.rel })}
                   onContextMenu={(ev) => {
                     ev.preventDefault()
                     setMenu({
@@ -809,7 +810,9 @@ function TreeNode({
             <button
               key={e.path} className="treerow"
               style={{ paddingLeft: 6 + childDepth * 12 + 14 }}
-              onClick={() => openFileTab({ projectId, root, path: e.rel })}
+              // A click previews the file, a double click keeps it open, as in VS Code.
+              onClick={() => openFileTab({ projectId, root, path: e.rel, preview: true })}
+              onDoubleClick={() => openFileTab({ projectId, root, path: e.rel })}
               onContextMenu={(ev) => {
                 ev.preventDefault()
                 onContext({ path: e.path, name: e.name, isDir: false }, ev.currentTarget)
