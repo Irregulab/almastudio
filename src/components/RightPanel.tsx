@@ -537,10 +537,12 @@ function FilesView({
       return
     }
     const id = window.setTimeout(() => {
-      void findFiles(root, q, 300).then(setResults).catch(() => setResults([]))
+      void findFiles(root, q, 300, settings.panel.showHidden, settings.panel.respectGitignore)
+        .then(setResults)
+        .catch(() => setResults([]))
     }, 160)
     return () => window.clearTimeout(id)
-  }, [filter, root])
+  }, [filter, root, settings.panel.showHidden, settings.panel.respectGitignore])
 
   const run = useCallback(
     async (op: Promise<unknown>) => {

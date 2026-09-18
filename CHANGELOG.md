@@ -9,6 +9,16 @@ release cannot be cut without one.
 
 ## [Unreleased]
 
+### Changed
+
+- The Files panel shows hidden files — those whose name starts with a dot,
+  such as `.env` — out of the box, including ones listed in `.gitignore`:
+  showing hidden files used to leave `.env` out anyway, because nearly every
+  project ignores it. The eye button in the panel still hides them, and
+  existing installs are switched to showing them once.
+- Searching in the Files panel follows the same settings as the tree, so it
+  finds hidden files too, and every file when "Respect .gitignore" is off.
+
 ## [1.6.3] - 2026-09-16
 
 ### Fixed

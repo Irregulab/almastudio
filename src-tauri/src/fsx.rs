@@ -2,6 +2,7 @@
 //! file viewer. Listing is lazy — one directory level per call — so opening a
 //! monorepo costs the same as opening a toy project.
 
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -30,6 +31,44 @@ fn to_rel(root: &Path, p: &Path) -> String {
         .unwrap_or(p)
         .to_string_lossy()
         .replace('\\', "/")
+}
+
+/// The dot entries of `dir` that the gitignore filter dropped. Showing hidden
+/// files is asked for to see `.env` and its kind, which are almost always
+/// gitignored, so a gitignore rule must not hide them again. `.git` stays
+/// out, and so does anything already in `listed`.
+fn ignored_dot_entries(
+    root: &Path,
+    dir: &Path,
+    listed: &HashSet<PathBuf>,
+    dirs_too: bool,
+) -> Vec<DirEntryInfo> {
+    let Ok(read) = fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    read.flatten()
+        .filter_map(|e| {
+            let name = e.file_name().to_string_lossy().to_string();
+            let path = e.path();
+            if !name.starts_with('.') || name == ".git" || listed.contains(&path) {
+                return None;
+            }
+            // Not followed through symlinks, as the walker does not follow them.
+            let meta = e.metadata().ok();
+            let is_dir = meta.as_ref().map(|m| m.is_dir()).unwrap_or(false);
+            if is_dir && !dirs_too {
+                return None;
+            }
+            Some(DirEntryInfo {
+                rel: to_rel(root, &path),
+                is_symlink: e.file_type().map(|t| t.is_symlink()).unwrap_or(false),
+                size: meta.as_ref().map(|m| m.len()).unwrap_or(0),
+                path: path.to_string_lossy().to_string(),
+                name,
+                is_dir,
+            })
+        })
+        .collect()
 }
 
 #[tauri::command]
@@ -89,6 +128,10 @@ pub fn list_dir(
             is_dir,
         });
     }
+    if show_hidden && respect_gitignore {
+        let listed: HashSet<PathBuf> = out.iter().map(|e| PathBuf::from(&e.path)).collect();
+        out.extend(ignored_dot_entries(&root_path, &dir_path, &listed, true));
+    }
 
     // Directories first, then case-insensitive by name — the ordering people
     // expect from a file tree.
@@ -139,42 +182,57 @@ pub fn read_text_file(path: String) -> Result<FileContent, String> {
 
 /// Fuzzy-ish file finder: substring match on the relative path, ranked so that
 /// filename hits beat directory hits. Bounded so a monorepo cannot hang the UI.
+/// Hidden and gitignored files follow the same settings as the tree.
 #[tauri::command]
 pub fn find_files(
     root: String,
     query: String,
     limit: Option<usize>,
+    show_hidden: bool,
+    respect_gitignore: bool,
 ) -> Result<Vec<DirEntryInfo>, String> {
+    const MAX_DEPTH: usize = 12;
     let root_path = PathBuf::from(&root);
     let needle = query.trim().to_lowercase();
     let limit = limit.unwrap_or(200).min(1000);
+    let rank = |name: &str, rel: &str| {
+        if needle.is_empty() {
+            Some(2)
+        } else if name.to_lowercase().contains(&needle) {
+            Some(0)
+        } else if rel.to_lowercase().contains(&needle) {
+            Some(1)
+        } else {
+            None
+        }
+    };
 
     let mut hits: Vec<(u8, DirEntryInfo)> = Vec::new();
+    // Folders whose gitignored dot files are gathered once the walk is done.
+    let mut dirs: Vec<PathBuf> = Vec::new();
     let walker = WalkBuilder::new(&root_path)
-        .hidden(true)
-        .git_ignore(true)
-        .parents(true)
+        .hidden(!show_hidden)
+        .git_ignore(respect_gitignore)
+        .git_global(respect_gitignore)
+        .git_exclude(respect_gitignore)
+        .ignore(respect_gitignore)
+        .parents(respect_gitignore)
         .follow_links(false)
-        .max_depth(Some(12))
+        .max_depth(Some(MAX_DEPTH))
+        .filter_entry(|e| e.file_name().to_str() != Some(".git"))
         .build();
 
     for entry in walker.flatten() {
-        if entry.depth() == 0 || entry.file_type().map(|t| t.is_dir()).unwrap_or(true) {
+        if entry.file_type().map(|t| t.is_dir()).unwrap_or(true) {
+            if show_hidden && respect_gitignore && entry.depth() < MAX_DEPTH {
+                dirs.push(entry.into_path());
+            }
             continue;
         }
         let path = entry.path();
         let rel = to_rel(&root_path, path);
         let name = entry.file_name().to_string_lossy().to_string();
-
-        let rank = if needle.is_empty() {
-            2
-        } else if name.to_lowercase().contains(&needle) {
-            0
-        } else if rel.to_lowercase().contains(&needle) {
-            1
-        } else {
-            continue;
-        };
+        let Some(rank) = rank(&name, &rel) else { continue };
 
         hits.push((
             rank,
@@ -189,6 +247,17 @@ pub fn find_files(
         ));
         if hits.len() >= limit * 8 {
             break;
+        }
+    }
+
+    // A file the walk saw but did not match fails `rank` here too, so only
+    // the hits need excluding.
+    let listed: HashSet<PathBuf> = hits.iter().map(|(_, e)| PathBuf::from(&e.path)).collect();
+    for dir in &dirs {
+        for e in ignored_dot_entries(&root_path, dir, &listed, false) {
+            if let Some(rank) = rank(&e.name, &e.rel) {
+                hits.push((rank, e));
+            }
         }
     }
 
@@ -356,4 +425,55 @@ pub fn allow_preview(app: tauri::AppHandle, path: String, root: Option<String>) 
         scope.allow_directory(checked(&root)?, true).map_err(|e| e.to_string())?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A git repository (as far as `ignore` is concerned) with a gitignored
+    /// `.env`, a gitignored `dist`, a tracked `.gitignore` and a plain file.
+    fn project() -> tempfile::TempDir {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        fs::create_dir(root.join(".git")).unwrap();
+        fs::write(root.join(".gitignore"), ".env\ndist/\n").unwrap();
+        fs::write(root.join(".env"), "SECRET=1\n").unwrap();
+        fs::create_dir(root.join("dist")).unwrap();
+        fs::write(root.join("dist/app.js"), "").unwrap();
+        fs::write(root.join("main.rs"), "").unwrap();
+        dir
+    }
+
+    fn names(entries: Vec<DirEntryInfo>) -> Vec<String> {
+        entries.into_iter().map(|e| e.name).collect()
+    }
+
+    fn list(root: &Path, show_hidden: bool, respect_gitignore: bool) -> Vec<String> {
+        let root = root.to_string_lossy().to_string();
+        names(list_dir(root, String::new(), show_hidden, respect_gitignore).unwrap())
+    }
+
+    #[test]
+    fn shows_gitignored_dot_files_but_not_git() {
+        let dir = project();
+        assert_eq!(list(dir.path(), true, true), [".env", ".gitignore", "main.rs"]);
+        assert_eq!(list(dir.path(), true, false), ["dist", ".env", ".gitignore", "main.rs"]);
+        assert_eq!(list(dir.path(), false, true), ["main.rs"]);
+    }
+
+    #[test]
+    fn finds_gitignored_dot_files_when_hidden_files_are_shown() {
+        let dir = project();
+        let root = dir.path().to_string_lossy().to_string();
+        let find = |q: &str, show_hidden| {
+            names(find_files(root.clone(), q.into(), None, show_hidden, true).unwrap())
+        };
+        assert_eq!(find("env", true), [".env"]);
+        assert!(find("env", false).is_empty());
+        assert!(find("app", true).is_empty());
+        let mut all = find("", true);
+        all.sort();
+        assert_eq!(all, [".env", ".gitignore", "main.rs"]);
+    }
 }

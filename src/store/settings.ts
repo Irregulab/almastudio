@@ -6,7 +6,7 @@ import type { HarnessKind, Settings } from '../lib/types'
 
 const STATE_KEY = 'settings'
 
-export const SETTINGS_VERSION = 3
+export const SETTINGS_VERSION = 4
 
 export const DEFAULT_SETTINGS: Settings = {
   version: SETTINGS_VERSION,
@@ -69,7 +69,8 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   panel: {
     defaultView: 'changes',
-    showHidden: false,
+    // Dotfiles such as .env are part of the project; hiding them is opt-in.
+    showHidden: true,
     respectGitignore: true,
     watch: true,
     diffView: 'unified',
@@ -142,6 +143,14 @@ function migrate(raw: Record<string, unknown>): Record<string, unknown> {
     // rather than leaving them on a default nobody chose.
     const startup = raw.startup as Record<string, unknown> | undefined
     if (startup && startup.autoStartTabs === false) startup.autoStartTabs = true
+  }
+
+  if (from < 4) {
+    // Hidden files used to be off by default. The default is now on, so the
+    // Files panel shows .env and its kind; bring existing files along, as
+    // with auto-start above.
+    const panel = raw.panel as Record<string, unknown> | undefined
+    if (panel && panel.showHidden === false) panel.showHidden = true
   }
 
   raw.version = SETTINGS_VERSION
