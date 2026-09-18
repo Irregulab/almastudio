@@ -9,6 +9,8 @@ release cannot be cut without one.
 
 ## [Unreleased]
 
+## [1.6.7] - 2026-09-18
+
 ### Added
 
 - Open Terminal in the Files panel's right-click menu: a terminal tab
@@ -384,7 +386,8 @@ First release.
 - English and Italian.
 - Over-the-air updates.
 
-[Unreleased]: https://github.com/Irregulab/almastudio/compare/v1.6.6...HEAD
+[Unreleased]: https://github.com/Irregulab/almastudio/compare/v1.6.7...HEAD
+[1.6.7]: https://github.com/Irregulab/almastudio/compare/v1.6.6...v1.6.7
 [1.6.6]: https://github.com/Irregulab/almastudio/compare/v1.6.5...v1.6.6
 [1.6.5]: https://github.com/Irregulab/almastudio/compare/v1.6.4...v1.6.5
 [1.6.4]: https://github.com/Irregulab/almastudio/compare/v1.6.3...v1.6.4
