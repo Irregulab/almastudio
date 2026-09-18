@@ -10,10 +10,10 @@ import {
   removeLeaf, resizeSplit as resizeSplitIn, setLeafTab, splitLeaf,
 } from '../lib/layout'
 import type {
-  DiffSide, FileTab, HarnessKind, PanelState, Project, ProjectWorkspace, Tab, TabGroup,
+  DiffSide, DiffTab, FileTab, HarnessKind, PanelState, Project, ProjectWorkspace, Tab, TabGroup,
   TerminalStatus, TerminalTab, WorkspaceState,
 } from '../lib/types'
-import { isTerminalTab } from '../lib/types'
+import { isPreview, isTerminalTab } from '../lib/types'
 
 /*
  * Vocabulary: a *tab* is what the strip shows — a `TabGroup`, one session or
@@ -75,18 +75,21 @@ interface WorkspaceStore extends WorkspaceState {
   addTerminalTab: (opts: {
     projectId: string; kind: HarnessKind; cwd: string; title?: string; splitFrom?: SplitFrom
   }) => TerminalTab
-  /** With `target` (and `base`), the change a commit made rather than the working tree's. */
+  /**
+   * With `target` (and `base`), the change a commit made rather than the
+   * working tree's. `preview` as for `openFileTab`.
+   */
   openDiffTab: (opts: {
     projectId: string; root: string; path: string; side: DiffSide
-    base?: string; target?: string; oldPath?: string
+    base?: string; target?: string; oldPath?: string; preview?: boolean
   }) => Tab
   /** A repository's commit graph, in a tab of its own; one per repository. */
   openGraphTab: (opts: { projectId: string; root: string }) => Tab
   /**
    * With `line` (and `column`, `length`), the file opens with that spot
-   * selected. With `preview` it opens as the project's preview tab, taking
-   * the place of the previous one; without, it opens pinned, and pins the
-   * file's preview tab when there is one.
+   * selected. With `preview` it opens as the project's preview, file or
+   * diff, taking the place of the previous one; without, it opens pinned,
+   * and pins the file's preview when there is one.
    */
   openFileTab: (opts: {
     projectId: string; root: string; path: string; line?: number; column?: number; length?: number
@@ -209,6 +212,43 @@ function unplace(ws: ProjectWorkspace, tabId: string): ProjectWorkspace {
       ws.activeGroupId === group.id
         ? (groups[Math.min(index, groups.length - 1)]?.id ?? null)
         : ws.activeGroupId,
+  }
+}
+
+/**
+ * The preview a new one opened in `projectId` replaces. Editing pins a
+ * preview, so an unsaved one is never replaced; the check is a backstop.
+ */
+function previewOf(s: WorkspaceState, projectId: string): FileTab | DiffTab | undefined {
+  const dirty = useUi.getState().dirtyTabs
+  return Object.values(s.tabs).find(
+    (t): t is FileTab | DiffTab => t.projectId === projectId && isPreview(t) && !dirty[t.id],
+  )
+}
+
+/**
+ * Adds a file or diff session: in a tab of its own, or in the pane of the
+ * preview it replaces, wherever that is.
+ */
+function addSession(s: WorkspaceState, tab: Tab, replacing?: Tab): Partial<WorkspaceState> {
+  const tabs = { ...s.tabs, [tab.id]: tab }
+  if (!replacing) return { tabs, ...withWorkspace(s, tab.projectId, (w) => place(w, tab.id)) }
+  delete tabs[replacing.id]
+  return {
+    tabs,
+    ...withWorkspace(s, tab.projectId, (w) => {
+      const group = groupOfTab(w, replacing.id)
+      if (!group) return place(w, tab.id)
+      const leaf = findLeafOfTab(group.layout, replacing.id)!
+      return {
+        ...updateGroup(w, group.id, (g) => ({
+          ...g,
+          layout: setLeafTab(g.layout, leaf.id, tab.id),
+          activePaneId: leaf.id,
+        })),
+        activeGroupId: group.id,
+      }
+    }),
   }
 }
 
@@ -346,20 +386,21 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
     return tab
   },
 
-  openDiffTab: ({ projectId, root, path, side, base, target, oldPath }) => {
+  openDiffTab: ({ projectId, root, path, side, base, target, oldPath, preview = false }) => {
     // Re-use an existing diff tab for the same file and commits instead of
     // stacking them up.
     const existing = Object.values(get().tabs).find(
-      (t) =>
+      (t): t is DiffTab =>
         t.kind === 'diff' && t.projectId === projectId && t.path === path && t.root === root &&
         t.target === target && t.base === base,
     )
     if (existing) {
+      if (!preview) get().pinTab(existing.id)
       get().focusTab(existing.id)
-      return existing
+      return get().tabs[existing.id]
     }
     const name = path.split('/').pop() ?? path
-    const tab: Tab = {
+    const tab: DiffTab = {
       id: uid('tab'),
       projectId,
       kind: 'diff',
@@ -370,11 +411,11 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
       base,
       target,
       oldPath,
+      ...(preview && { preview: true }),
     }
-    set((s) => ({
-      tabs: { ...s.tabs, [tab.id]: tab },
-      ...withWorkspace(s, projectId, (w) => place(w, tab.id)),
-    }))
+    const previous = preview ? previewOf(get(), projectId) : undefined
+    if (previous) dispose(previous)
+    set((s) => addSession(s, tab, previous))
     return tab
   },
 
@@ -402,20 +443,12 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
 
   openFileTab: ({ projectId, root, path, line, column = 0, length = 0, preview = false }) => {
     const reveal = line ? { line, column, length, nonce: Date.now() } : undefined
-    const files = Object.values(get().tabs).filter(
-      (t): t is FileTab => t.kind === 'file' && t.projectId === projectId,
+    const existing = Object.values(get().tabs).find(
+      (t): t is FileTab => t.kind === 'file' && t.projectId === projectId && t.path === path,
     )
-    const existing = files.find((t) => t.path === path)
     if (existing) {
-      const pin = !preview && existing.preview
-      if (reveal || pin) {
-        set((s) => ({
-          tabs: {
-            ...s.tabs,
-            [existing.id]: { ...existing, ...(reveal && { reveal }), ...(pin && { preview: false }) },
-          },
-        }))
-      }
+      if (reveal) set((s) => ({ tabs: { ...s.tabs, [existing.id]: { ...existing, reveal } } }))
+      if (!preview) get().pinTab(existing.id)
       get().focusTab(existing.id)
       return get().tabs[existing.id]
     }
@@ -429,46 +462,17 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
       reveal,
       ...(preview && { preview: true }),
     }
-    // One preview per project, as VS Code keeps one per editor group. Editing
-    // pins it, so an unsaved one is never replaced; the check is a backstop.
-    const dirty = useUi.getState().dirtyTabs
-    const previous = preview ? files.find((t) => t.preview && !dirty[t.id]) : undefined
-    if (!previous) {
-      set((s) => ({
-        tabs: { ...s.tabs, [tab.id]: tab },
-        ...withWorkspace(s, projectId, (w) => place(w, tab.id)),
-      }))
-      return tab
-    }
-    dispose(previous)
-    set((s) => {
-      const tabs = { ...s.tabs, [tab.id]: tab }
-      delete tabs[previous.id]
-      return {
-        tabs,
-        // The new file takes the old one's pane, wherever that is.
-        ...withWorkspace(s, projectId, (w) => {
-          const group = groupOfTab(w, previous.id)
-          if (!group) return place(w, tab.id)
-          const leaf = findLeafOfTab(group.layout, previous.id)!
-          return {
-            ...updateGroup(w, group.id, (g) => ({
-              ...g,
-              layout: setLeafTab(g.layout, leaf.id, tab.id),
-              activePaneId: leaf.id,
-            })),
-            activeGroupId: group.id,
-          }
-        }),
-      }
-    })
+    // One preview per project, file or diff, as VS Code keeps one per editor group.
+    const previous = preview ? previewOf(get(), projectId) : undefined
+    if (previous) dispose(previous)
+    set((s) => addSession(s, tab, previous))
     return tab
   },
 
   pinTab: (tabId) =>
     set((s) => {
       const tab = s.tabs[tabId]
-      if (tab?.kind !== 'file' || !tab.preview) return {}
+      if (!tab || !isPreview(tab)) return {}
       return { tabs: { ...s.tabs, [tabId]: { ...tab, preview: false } } }
     }),
 

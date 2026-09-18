@@ -238,6 +238,26 @@ describe('tabs and splits', () => {
       expect(store().tabs[b.id]).toBeDefined()
     })
 
+    const diff = (path: string, preview?: boolean) =>
+      store().openDiffTab({ projectId: pid, root: '/tmp/x', path, side: 'worktree', preview })
+
+    it('shares one preview between files and diffs', () => {
+      const a = file('a.ts', true)
+      const d = diff('b.ts', true)
+      expect(store().tabs[a.id]).toBeUndefined()
+      expect(store().tabs[d.id]).toMatchObject({ kind: 'diff', preview: true })
+      const c = file('c.ts', true)
+      expect(store().tabs[d.id]).toBeUndefined()
+      expect(sessionsByTab()).toEqual([[c.id]])
+    })
+
+    it('pins a diff opened again without preview', () => {
+      const d = diff('b.ts', true)
+      diff('b.ts')
+      file('c.ts', true)
+      expect(store().tabs[d.id]).toMatchObject({ kind: 'diff', preview: false })
+    })
+
     it('only focuses a file that is already open, pinned or not', () => {
       const a = file('a.ts')
       file('a.ts', true)

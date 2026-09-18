@@ -112,10 +112,11 @@ export function SearchView({
       return next
     })
 
-  const open = (file: FileMatches, match: LineMatch) =>
+  // A click previews the match, a double click keeps the file open, as in VS Code.
+  const open = (file: FileMatches, match: LineMatch, preview: boolean) =>
     openFileTab({
       projectId, root, path: file.path,
-      line: match.line, column: match.column, length: match.length,
+      line: match.line, column: match.column, length: match.length, preview,
     })
 
   const summary = (r: SearchResults) => {
@@ -219,7 +220,8 @@ export function SearchView({
                   key={match.line}
                   className="search__match"
                   title={`${file.rel}:${match.line}`}
-                  onClick={() => open(file, match)}
+                  onClick={() => open(file, match, true)}
+                  onDoubleClick={() => open(file, match, false)}
                 >
                   <Highlighted text={match.preview} ranges={match.ranges} />
                   <span className="search__line subtle">{match.line}</span>

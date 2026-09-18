@@ -317,12 +317,13 @@ function ChangesView({
       />
     )
   }
-  const open = (f: ChangedFile, staged: boolean) =>
+  const open = (f: ChangedFile, staged: boolean, preview: boolean) =>
     openDiffTab({
       projectId,
       root: status.root,
       path: f.path,
       side: staged ? 'index' : 'worktree',
+      preview,
     })
 
   const act = async (fn: Promise<unknown>) => {
@@ -353,7 +354,7 @@ function ChangesView({
         title={t('panel.conflicts')} files={groups.conflicts}
         actions={[]}
         // A conflict is resolved in the file itself, not in a diff.
-        onOpen={(f) => openFileTab({ projectId, root: status.root, path: f.path })}
+        onOpen={(f, preview) => openFileTab({ projectId, root: status.root, path: f.path, preview })}
         rowAction={{
           icon: <Check size={12} />, label: t('conflicts.markResolved'),
           run: (f) => void act(gitStage(status.root, [f.path])),
@@ -365,7 +366,7 @@ function ChangesView({
           icon: <Minus size={12} />, label: t('panel.unstageAll'),
           run: () => void act(gitUnstage(status.root, groups.staged.map((f) => f.path))),
         }]}
-        onOpen={(f) => open(f, true)}
+        onOpen={(f, preview) => open(f, true, preview)}
         rowAction={{
           icon: <Minus size={12} />, label: t('panel.unstage'),
           run: (f) => void act(gitUnstage(status.root, [f.path])),
@@ -383,7 +384,7 @@ function ChangesView({
             run: () => void act(gitStage(status.root, groups.changes.map((f) => f.path))),
           },
         ]}
-        onOpen={(f) => open(f, false)}
+        onOpen={(f, preview) => open(f, false, preview)}
         rowAction={{
           icon: <Plus size={12} />, label: t('panel.stage'),
           run: (f) => void act(gitStage(status.root, [f.path])),
@@ -402,7 +403,7 @@ function ChangesView({
             run: () => void act(gitStage(status.root, groups.untracked.map((f) => f.path))),
           },
         ]}
-        onOpen={(f) => open(f, false)}
+        onOpen={(f, preview) => open(f, false, preview)}
         rowAction={{
           icon: <Plus size={12} />, label: t('panel.stage'),
           run: (f) => void act(gitStage(status.root, [f.path])),
@@ -433,7 +434,8 @@ function FileGroup({
   title: string
   files: ChangedFile[]
   actions: Array<{ icon: React.ReactNode; label: string; run: () => void }>
-  onOpen: (f: ChangedFile) => void
+  /** `preview` on a single click, as in VS Code; a double click keeps the file open. */
+  onOpen: (f: ChangedFile, preview: boolean) => void
   rowAction: { icon: React.ReactNode; label: string; run: (f: ChangedFile) => void }
   onDiscard?: (f: ChangedFile) => void
 }) {
@@ -460,14 +462,19 @@ function FileGroup({
       {open && (
         <ul className="filelist">
           {files.map((f) => (
-            <li key={`${title}-${f.path}`} className="filerow" onClick={() => onOpen(f)}>
+            <li
+              key={`${title}-${f.path}`} className="filerow"
+              onClick={() => onOpen(f, true)}
+              onDoubleClick={() => onOpen(f, false)}
+            >
               <span className={`filerow__code filerow__code--${codeClass(f)}`}>
                 {f.code.trim() || '?'}
               </span>
               <FileIcon name={basename(f.path)} size={12} />
               <span className="filerow__name truncate">{basename(f.path)}</span>
               <span className="filerow__dir truncate subtle">{dirname(f.path)}</span>
-              <span className="filerow__actions">
+              {/* Clicking these twice fast must not pin the file's diff. */}
+              <span className="filerow__actions" onDoubleClick={(e) => e.stopPropagation()}>
                 {onDiscard && (
                   <button
                     className="icon-btn icon-btn--tiny"

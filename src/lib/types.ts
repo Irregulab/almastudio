@@ -60,7 +60,16 @@ export interface TerminalTab extends TabBase {
   restored?: boolean
 }
 
-export interface DiffTab extends TabBase {
+/**
+ * A file or diff opened with a single click, as VS Code's preview editors
+ * are: the next one opened that way takes its place, until it is pinned by a
+ * double click or an edit.
+ */
+interface Previewable {
+  preview?: boolean
+}
+
+export interface DiffTab extends TabBase, Previewable {
   kind: 'diff'
   /** Repository root the diff is computed against. */
   root: string
@@ -86,17 +95,11 @@ export interface FileReveal {
   nonce: number
 }
 
-export interface FileTab extends TabBase {
+export interface FileTab extends TabBase, Previewable {
   kind: 'file'
   root: string
   path: string
   reveal?: FileReveal
-  /**
-   * Opened with a single click, as VS Code's preview editors are: the next
-   * file opened that way takes its place, until it is pinned by a double
-   * click or an edit.
-   */
-  preview?: boolean
 }
 
 export interface BrowserTab extends TabBase {
@@ -115,6 +118,10 @@ export type Tab = TerminalTab | DiffTab | FileTab | BrowserTab | GraphTab
 
 export const isTerminalTab = (t: Tab): t is TerminalTab =>
   t.kind === 'claude' || t.kind === 'codex' || t.kind === 'opencode' || t.kind === 'shell'
+
+/** A preview, which the next file or diff opened with a single click replaces. */
+export const isPreview = (t: Tab): t is FileTab | DiffTab =>
+  (t.kind === 'file' || t.kind === 'diff') && !!t.preview
 
 // --------------------------------------------------------------- layout ----
 

@@ -15,12 +15,12 @@ import { useWorkspace } from '../store/workspace'
 import { useT } from '../i18n'
 import { TileNode } from './Tiles'
 import {
-  RenameInput, SessionMenuItems, TabStatus, isPreview, sessionLabel, tabIcon, tabTooltip,
+  RenameInput, SessionMenuItems, TabStatus, sessionLabel, tabIcon, tabTooltip,
   useGuardedClose, useNewTab,
 } from './Pane'
 import { MenuItem, MenuSeparator, Popover } from './ui'
 import type { ProjectWorkspace, TabGroup } from '../lib/types'
-import { isTerminalTab } from '../lib/types'
+import { isPreview, isTerminalTab } from '../lib/types'
 
 /**
  * A project's tabs: the strip across the top and, below it, the tab in front.

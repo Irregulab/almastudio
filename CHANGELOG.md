@@ -9,6 +9,12 @@ release cannot be cut without one.
 
 ## [Unreleased]
 
+### Changed
+
+- Search results and the Changes list open previews too, as in VS Code: a
+  click shows the file or its diff in the one preview tab, which files and
+  diffs share, and a double click keeps it open.
+
 ## [1.6.5] - 2026-09-18
 
 ### Added

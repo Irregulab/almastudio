@@ -20,7 +20,7 @@ import { FileView } from './FileView'
 import { GitGraphView } from './GitGraphView'
 import { ConfirmDialog, MenuItem, MenuSeparator, Popover } from './ui'
 import type { HarnessKind, LeafNode, Tab, TabGroup, TerminalStatus } from '../lib/types'
-import { isTerminalTab } from '../lib/types'
+import { isPreview, isTerminalTab } from '../lib/types'
 
 export function tabIcon(kind: Tab['kind'], size = 13) {
   switch (kind) {
@@ -73,10 +73,10 @@ function TabContent({
   if (isTerminalTab(tab)) {
     return <TerminalView tab={tab} visible={visible} focused={focused} />
   }
-  if (tab.kind === 'diff') return <DiffView tab={tab} visible={visible} />
+  if (tab.kind === 'diff') return <DiffView key={tab.id} tab={tab} visible={visible} />
   if (tab.kind === 'browser') return <BrowserView tab={tab} visible={visible} />
   if (tab.kind === 'graph') return <GitGraphView tab={tab} visible={visible} />
-  // Keyed, since a preview tab's pane goes on to show the next file previewed.
+  // Files and diffs are keyed: a preview's pane goes on to show the next one.
   return <FileView key={tab.id} tab={tab} visible={visible} />
 }
 
@@ -286,9 +286,6 @@ function autoTitle(tab: Tab, projectRoot: string | undefined): string {
 }
 
 /** A session's name: the user's, or one derived from what it shows. */
-/** A file opened with a single click, which the next one opened that way replaces. */
-export const isPreview = (tab: Tab) => tab.kind === 'file' && !!tab.preview
-
 export const sessionLabel = (tab: Tab, projectRoot: string | undefined) =>
   tab.title || autoTitle(tab, projectRoot)
 
