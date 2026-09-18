@@ -1,7 +1,7 @@
 /** Turns a tab plus the user's settings into a concrete process to spawn. */
 
 import type { SpawnOptions } from './ipc'
-import type { Project, Settings, TerminalTab } from './types'
+import type { CodexApproval, Project, Settings, TerminalTab } from './types'
 
 export interface LaunchContext {
   tab: TerminalTab
@@ -63,6 +63,20 @@ export function claudeSessionSettings(): string {
   })
 }
 
+/**
+ * Codex's flags for each approval mode. Codex dropped the `untrusted` and
+ * `on-failure` policies and `--full-auto`, so the modes are built from what
+ * it still accepts: a sandbox, and approval on request or never.
+ */
+export const CODEX_APPROVAL_ARGS: Record<CodexApproval, string[]> = {
+  config: [],
+  // Reads freely; every edit and every command beyond reading is asked for.
+  suggest: ['--sandbox', 'read-only', '--ask-for-approval', 'on-request'],
+  // Works in the project on its own; asks to go beyond the sandbox.
+  auto: ['--sandbox', 'workspace-write', '--ask-for-approval', 'on-request'],
+  'full-auto': ['--dangerously-bypass-approvals-and-sandbox'],
+}
+
 /** What the tab header shows as the thing it will run. */
 export function harnessCommandLabel(kind: TerminalTab['kind'], settings: Settings): string {
   if (kind === 'shell') return settings.terminal.shell || '$SHELL'
@@ -119,6 +133,8 @@ export function buildSpawnOptions(ctx: LaunchContext): SpawnOptions {
   } else {
     args = [...(resume ? resumeArgs : cfg.args)]
   }
+  // `codex resume` takes the same flags, so a restored tab keeps its mode.
+  if (tab.kind === 'codex') args.push(...CODEX_APPROVAL_ARGS[cfg.approval ?? 'config'])
   if (instructions && cfg.instructionsMode === 'flag' && cfg.instructionsFlag.trim()) {
     args.push(cfg.instructionsFlag.trim(), instructions)
   }

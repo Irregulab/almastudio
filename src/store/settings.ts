@@ -48,6 +48,7 @@ export const DEFAULT_SETTINGS: Settings = {
       resumeArgs: ['resume', '--last'],
       instructionsMode: 'env',
       instructionsFlag: '',
+      approval: 'config',
     },
     opencode: {
       command: 'opencode',

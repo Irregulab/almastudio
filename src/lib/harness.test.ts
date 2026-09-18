@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { buildSpawnOptions, claudeSessionFile, claudeSessionSettings, type ClaudeSession } from './harness'
 import { DEFAULT_SETTINGS } from '../store/settings'
-import type { HarnessKind, TerminalTab } from './types'
+import type { CodexApproval, HarnessKind, TerminalTab } from './types'
 
 const tab = (kind: HarnessKind): TerminalTab => ({
   id: 'tab-1',
@@ -64,5 +64,41 @@ describe('Claude Code sessions', () => {
   it('keeps record files under the state folder', () => {
     expect(claudeSessionFile('/state/', 'tab-1')).toBe('/state/sessions/tab-1.json')
     expect(claudeSessionFile('C:\\state', 'tab-1')).toBe('C:\\state\\sessions\\tab-1.json')
+  })
+})
+
+describe('Codex permissions', () => {
+  const withApproval = (approval: CodexApproval, resume: boolean) =>
+    buildSpawnOptions({
+      tab: tab('codex'),
+      project: undefined,
+      settings: {
+        ...DEFAULT_SETTINGS,
+        harness: { ...DEFAULT_SETTINGS.harness, codex: { ...DEFAULT_SETTINGS.harness.codex, approval } },
+      },
+      cols: 80,
+      rows: 24,
+      resume,
+    }).args
+
+  it('adds no flags by default, leaving it to Codex\'s config', () => {
+    expect(launch('codex', false).args).toEqual([])
+    expect(launch('codex', true).args).toEqual(['resume', '--last'])
+  })
+
+  it('starts in the chosen mode', () => {
+    expect(withApproval('suggest', false)).toEqual(['--sandbox', 'read-only', '--ask-for-approval', 'on-request'])
+    expect(withApproval('auto', false)).toEqual(['--sandbox', 'workspace-write', '--ask-for-approval', 'on-request'])
+    expect(withApproval('full-auto', false)).toEqual(['--dangerously-bypass-approvals-and-sandbox'])
+  })
+
+  it('keeps the mode when a restored tab resumes', () => {
+    expect(withApproval('full-auto', true)).toEqual([
+      'resume', '--last', '--dangerously-bypass-approvals-and-sandbox',
+    ])
+  })
+
+  it('leaves the other harnesses alone', () => {
+    expect(launch('opencode', false).args).toEqual([])
   })
 })

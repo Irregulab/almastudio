@@ -179,6 +179,12 @@ export interface WorkspaceState {
 
 // ------------------------------------------------------------- settings ----
 
+/**
+ * How much Codex may do before asking, when a tab starts it: `config` adds no
+ * flags and leaves it to ~/.codex/config.toml.
+ */
+export type CodexApproval = 'config' | 'suggest' | 'auto' | 'full-auto'
+
 export interface HarnessConfig {
   /** Executable name or absolute path. */
   command: string
@@ -193,6 +199,8 @@ export interface HarnessConfig {
    */
   instructionsMode: 'flag' | 'env' | 'none'
   instructionsFlag: string
+  /** Codex only. */
+  approval?: CodexApproval
 }
 
 export interface Settings {

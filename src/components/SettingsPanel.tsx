@@ -13,10 +13,11 @@ import { AVAILABLE_LOCALES, LOCALE_NAMES, useT } from '../i18n'
 import { SCHEME_NAMES } from '../lib/schemes'
 import { UI_THEMES } from '../lib/uiThemes'
 import { useInstalledHarnesses } from '../hooks/useInstalledHarnesses'
+import { CODEX_APPROVAL_ARGS } from '../lib/harness'
 import { useTheme } from '../hooks/useTheme'
 import { ConfirmDialog, Field, Modal, NumberInput, Segmented, Toggle } from './ui'
 import { UpdateSection } from './Updater'
-import type { AppInfo, HarnessKind, Language, PanelView, ThemeMode } from '../lib/types'
+import type { AppInfo, CodexApproval, HarnessKind, Language, PanelView, ThemeMode } from '../lib/types'
 
 type Section = SettingsSection
 
@@ -383,6 +384,8 @@ function HarnessSection() {
         />
       </Field>
 
+      {kind === 'codex' && <CodexApprovalField />}
+
       <div className="grid2">
         <Field label={t('settings.args')} hint={t('settings.argsHint')}>
           <textarea
@@ -423,6 +426,35 @@ function HarnessSection() {
         </Field>
       )}
     </>
+  )
+}
+
+const CODEX_APPROVALS: { value: CodexApproval; label: string; hint: string }[] = [
+  { value: 'config', label: 'settings.codexApprovalConfig', hint: 'settings.codexApprovalConfigHint' },
+  { value: 'suggest', label: 'settings.codexApprovalSuggest', hint: 'settings.codexApprovalSuggestHint' },
+  { value: 'auto', label: 'settings.codexApprovalAuto', hint: 'settings.codexApprovalAutoHint' },
+  { value: 'full-auto', label: 'settings.codexApprovalFullAuto', hint: 'settings.codexApprovalFullAutoHint' },
+]
+
+/** The permissions Codex starts with; the hint ends with the flags that sets. */
+function CodexApprovalField() {
+  const t = useT()
+  const approval = useSettings((x) => x.settings.harness.codex.approval) ?? 'config'
+  const setHarness = useSettings((x) => x.setHarness)
+  const current = CODEX_APPROVALS.find((a) => a.value === approval) ?? CODEX_APPROVALS[0]
+  const flags = CODEX_APPROVAL_ARGS[current.value].join(' ')
+
+  return (
+    <Field label={t('settings.codexApproval')} hint={flags ? `${t(current.hint)} (${flags})` : t(current.hint)}>
+      <select
+        className="select" value={current.value}
+        onChange={(e) => setHarness('codex', { approval: e.target.value as CodexApproval })}
+      >
+        {CODEX_APPROVALS.map((a) => (
+          <option key={a.value} value={a.value}>{t(a.label)}</option>
+        ))}
+      </select>
+    </Field>
   )
 }
 

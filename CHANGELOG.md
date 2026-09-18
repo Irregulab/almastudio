@@ -9,6 +9,14 @@ release cannot be cut without one.
 
 ## [Unreleased]
 
+### Added
+
+- Choose the permissions Codex starts with, in Settings → AI harnesses →
+  Codex: Suggest / Ask (approval for every edit and command), Auto (works in
+  the project on its own, asks to go beyond it) or Full Auto / YOLO (never
+  asks, no sandbox). The default leaves it to Codex's own config, as before;
+  a restored tab resumes in the chosen mode.
+
 ### Changed
 
 - Files open as in VS Code. A single click in the Files panel opens a file
