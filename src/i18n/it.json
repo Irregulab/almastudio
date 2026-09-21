@@ -343,6 +343,8 @@
   "update": {
     "checking": "Controllo aggiornamenti…",
     "available": "È disponibile la versione {version}",
+    "availableTitle": "Aggiornamento disponibile",
+    "availableBody": "È disponibile AlmaStudio {version}; stai usando la {current}.",
     "upToDate": "AlmaStudio è aggiornato",
     "downloading": "Download… {percent}%",
     "installing": "Installazione…",

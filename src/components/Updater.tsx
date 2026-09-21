@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { invoke } from '@tauri-apps/api/core'
 import { check, type Update } from '@tauri-apps/plugin-updater'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { Download, RefreshCw } from 'lucide-react'
@@ -10,7 +11,8 @@ import { Field, Modal, NumberInput, Toggle } from './ui'
 type Phase =
   | { kind: 'idle' }
   | { kind: 'checking' }
-  | { kind: 'available'; update: Update }
+  /** `silent` when a background check found it, which is what prompts. */
+  | { kind: 'available'; update: Update; silent: boolean }
   | { kind: 'downloading'; percent: number }
   | { kind: 'installing' }
   | { kind: 'ready'; version: string }
@@ -37,15 +39,32 @@ function usePhase(): Phase {
   return phase
 }
 
+/** When the last check finished, so a missed interval can be caught up on. */
+let lastCheck = 0
+/** The version the user answered "Later" to; it is not prompted again. */
+let dismissed: string | null = null
+
 export async function checkForUpdates(silent: boolean): Promise<void> {
+  // Nothing to look for while one is being fetched, or installed and waiting
+  // for the restart that finishes it.
   if (current.kind === 'checking' || current.kind === 'downloading') return
+  if (silent && (current.kind === 'ready' || current.kind === 'installing')) return
   setPhase({ kind: 'checking' })
   try {
     const update = await check()
-    if (update) setPhase({ kind: 'available', update })
+    if (update) setPhase({ kind: 'available', update, silent })
     else setPhase(silent ? { kind: 'idle' } : { kind: 'upToDate' })
   } catch (e) {
+    // A background check has nowhere to show this, and a silent failure is
+    // indistinguishable from "no update": leave it in the log at least.
+    if (silent) {
+      void invoke('log_frontend', {
+        level: 'warn', message: `update check failed: ${e}`,
+      }).catch(() => {})
+    }
     setPhase(silent ? { kind: 'idle' } : { kind: 'error', message: String(e) })
+  } finally {
+    lastCheck = Date.now()
   }
 }
 
@@ -77,27 +96,100 @@ async function installUpdate(update: Update) {
   }
 }
 
-/** Background check on launch and on an interval, plus the "ready" prompt. */
+/**
+ * Background check on launch and on an interval, and the prompts it leads to:
+ * one offering the update it found, one asking to restart once it is in.
+ */
 export function UpdateWatcher() {
   const t = useT()
   const { autoCheck, intervalHours } = useSettings((s) => s.settings.updates)
   const phase = usePhase()
-  const started = useRef(false)
+  const [hidden, setHidden] = useState<string | null>(dismissed)
+  /** The install was started from the prompt, so it reports back there. */
+  const [fromPrompt, setFromPrompt] = useState(false)
 
   useEffect(() => {
     if (!autoCheck) return
+    const period = Math.max(1, intervalHours) * 3600_000
+    const run = () => void checkForUpdates(true)
     // Wait for the window to settle before touching the network.
-    const first = window.setTimeout(() => void checkForUpdates(true), 8000)
-    const every = window.setInterval(
-      () => void checkForUpdates(true),
-      Math.max(1, intervalHours) * 3600_000,
-    )
-    started.current = true
+    const first = window.setTimeout(run, 8000)
+    const every = window.setInterval(run, period)
+    // Timers do not run while the machine sleeps, so a laptop closed overnight
+    // would come back with the interval long overdue and nothing to fire it.
+    const onFocus = () => {
+      if (Date.now() - lastCheck >= period) run()
+    }
+    window.addEventListener('focus', onFocus)
     return () => {
       window.clearTimeout(first)
       window.clearInterval(every)
+      window.removeEventListener('focus', onFocus)
     }
   }, [autoCheck, intervalHours])
+
+  // What a background check found: the user never opened Settings to ask, so
+  // the offer has to come to them.
+  if (phase.kind === 'available' && phase.silent && phase.update.version !== hidden) {
+    const { update } = phase
+    const later = () => {
+      dismissed = update.version
+      setHidden(update.version)
+    }
+    return (
+      <Modal
+        title={t('update.availableTitle')}
+        onClose={later}
+        footer={
+          <>
+            <button className="btn" onClick={later}>{t('update.later')}</button>
+            <button
+              className="btn btn--primary"
+              onClick={() => {
+                setFromPrompt(true)
+                void installUpdate(update)
+              }}
+            >
+              <Download size={13} /> {t('update.install')}
+            </button>
+          </>
+        }
+      >
+        <p style={{ margin: 0 }}>
+          {t('update.availableBody', { version: update.version, current: update.currentVersion })}
+        </p>
+        {update.body && <pre className="release-notes">{update.body}</pre>}
+      </Modal>
+    )
+  }
+
+  // Downloading is not instant and the prompt is gone by then; without this
+  // the window would simply close on whoever asked for the update.
+  if (fromPrompt && (phase.kind === 'downloading' || phase.kind === 'installing')) {
+    return (
+      <Modal title={t('update.availableTitle')} onClose={() => setFromPrompt(false)}>
+        <p style={{ margin: 0 }}>
+          {phase.kind === 'downloading'
+            ? t('update.downloading', { percent: phase.percent })
+            : t('update.installing')}
+        </p>
+      </Modal>
+    )
+  }
+
+  if (fromPrompt && phase.kind === 'error') {
+    return (
+      <Modal
+        title={t('update.availableTitle')}
+        onClose={() => setFromPrompt(false)}
+        footer={
+          <button className="btn" onClick={() => setFromPrompt(false)}>{t('common.close')}</button>
+        }
+      >
+        <p style={{ margin: 0 }}>{t('update.failed', { error: phase.message })}</p>
+      </Modal>
+    )
+  }
 
   if (phase.kind === 'ready') {
     return (

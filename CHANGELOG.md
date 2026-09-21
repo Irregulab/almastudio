@@ -9,6 +9,18 @@ release cannot be cut without one.
 
 ## [Unreleased]
 
+### Fixed
+
+- An update found by the automatic check is now offered on the spot. The
+  check ran on schedule and found the new version, but only the Updates page
+  of Settings ever showed it, so nothing was proposed and the app sat on an
+  old version indefinitely. A window now offers it, with its release notes,
+  and follows the download through; "Later" keeps quiet about that version.
+- The automatic check also runs when the window comes back to the front and
+  the interval has passed, since timers do not run while the machine sleeps.
+- A background check that fails is written to the app's log instead of
+  passing silently for "no update available".
+
 ## [1.6.7] - 2026-09-18
 
 ### Added
