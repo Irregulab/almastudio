@@ -9,6 +9,8 @@ release cannot be cut without one.
 
 ## [Unreleased]
 
+## [1.6.8] - 2026-09-21
+
 ### Fixed
 
 - An update found by the automatic check is now offered on the spot. The
@@ -403,7 +405,8 @@ First release.
 - English and Italian.
 - Over-the-air updates.
 
-[Unreleased]: https://github.com/Irregulab/almastudio/compare/v1.6.7...HEAD
+[Unreleased]: https://github.com/Irregulab/almastudio/compare/v1.6.8...HEAD
+[1.6.8]: https://github.com/Irregulab/almastudio/compare/v1.6.7...v1.6.8
 [1.6.7]: https://github.com/Irregulab/almastudio/compare/v1.6.6...v1.6.7
 [1.6.6]: https://github.com/Irregulab/almastudio/compare/v1.6.5...v1.6.6
 [1.6.5]: https://github.com/Irregulab/almastudio/compare/v1.6.4...v1.6.5
