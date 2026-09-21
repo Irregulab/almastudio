@@ -3,7 +3,7 @@ import {
   Archive, ArchiveRestore, ArrowDownToLine, ArrowUpFromLine, ChevronDown, ChevronRight,
   ChevronsDownUp, ChevronsUpDown, CloudUpload, Ellipsis, GitBranch, GitBranchPlus,
   GitCompareArrows, GitGraph, GitMerge, History, Loader2, Pencil, RefreshCcw, RefreshCw, Tag,
-  Trash2, TriangleAlert, Undo2,
+  Trash2, TriangleAlert, Undo2, ArrowUpDown,
 } from 'lucide-react'
 
 import {
@@ -206,46 +206,29 @@ export function GitView({
 
       <CommitBox root={repo} status={status} onChanged={onChanged} />
 
-      <Section
+      <BranchSection
         command={sections}
-        icon={<GitBranch size={12} />} title={t('git.branches')} count={local.length}
-        action={{
-          icon: <GitBranchPlus size={12} />, label: t('git.newBranch'),
-          run: () => ask({ kind: 'new-branch', base: current }),
-        }}
-      >
-        <ul className="filelist">
-          {local.map((b) => (
-            <BranchRow
-              key={b.name} branch={b} label={t('git.more')}
-              title={b.isHead ? undefined : t('panel.switchBranch')}
-              onOpen={() => {
-                if (!b.isHead && !busy) void act('checkout', () => gitCheckout(repo, b.name))
-              }}
-              onMenu={(anchor) => openMenu({ kind: 'branch', anchor, branch: b })}
-            />
-          ))}
-        </ul>
-      </Section>
+        branches={local}
+        current={current}
+        busy={busy}
+        onCheckout={(name) => void act('checkout', () => gitCheckout(repo, name))}
+        onMenu={(anchor, branch) => openMenu({ kind: 'branch', anchor, branch })}
+        onNew={() => ask({ kind: 'new-branch', base: current })}
+        t={t}
+      />
 
       {remote.length > 0 && (
-        <Section
-        command={sections}
-          icon={<CloudUpload size={12} />} title={t('git.remoteBranches')} count={remote.length}
+        <BranchSection
+          command={sections}
+          branches={remote}
+          current={current}
+          busy={busy}
+          isRemote
           defaultOpen={false}
-        >
-          <ul className="filelist">
-            {remote.map((b) => (
-              <BranchRow
-                key={b.name} branch={b} label={t('git.more')} title={t('git.checkout')}
-                onOpen={() => {
-                  if (!busy) void act('checkout', () => gitCheckout(repo, b.name, true))
-                }}
-                onMenu={(anchor) => openMenu({ kind: 'branch', anchor, branch: b })}
-              />
-            ))}
-          </ul>
-        </Section>
+          onCheckout={(name) => void act('checkout', () => gitCheckout(repo, name, true))}
+          onMenu={(anchor, branch) => openMenu({ kind: 'branch', anchor, branch })}
+          t={t}
+        />
       )}
 
       {stashes.length > 0 && (
@@ -466,12 +449,13 @@ function OpButton({
 }
 
 function Section({
-  icon, title, count, action, defaultOpen = true, command, children,
+  icon, title, count, action, extraActions, defaultOpen = true, command, children,
 }: {
   icon: React.ReactNode
   title: string
   count?: number
   action?: { icon: React.ReactNode; label: string; run: () => void }
+  extraActions?: React.ReactNode
   defaultOpen?: boolean
   /** Expand or collapse every section; `nonce` makes a repeat count again. */
   command?: { open: boolean; nonce: number } | null
@@ -494,6 +478,7 @@ function Section({
           <span>{title}</span>
           {count !== undefined && <span className="group__count">{count}</span>}
         </button>
+        {extraActions}
         {action && (
           <button
             className="icon-btn icon-btn--tiny" title={action.label} aria-label={action.label}
@@ -542,5 +527,201 @@ function BranchRow({
         </button>
       </span>
     </li>
+  )
+}
+
+// ---------------------------------------------------------------- tree ----
+
+type BranchSort = 'name' | 'date'
+
+interface BranchNode {
+  /** Segment label, e.g. "feature" or "my-branch". */
+  label: string
+  /** Full branch name when this node is a leaf. */
+  branch?: BranchInfo
+  children: Map<string, BranchNode>
+}
+
+/** Build a prefix-tree from a flat branch list. */
+function buildTree(branches: BranchInfo[]): Map<string, BranchNode> {
+  const root = new Map<string, BranchNode>()
+  for (const b of branches) {
+    const parts = b.name.split('/')
+    let map = root
+    for (let i = 0; i < parts.length; i++) {
+      const seg = parts[i]
+      if (!map.has(seg)) map.set(seg, { label: seg, children: new Map() })
+      const node = map.get(seg)!
+      if (i === parts.length - 1) node.branch = b
+      map = node.children
+    }
+  }
+  return root
+}
+
+/** Flatten a tree into a depth-first ordered list for rendering. */
+interface FlatNode {
+  key: string
+  depth: number
+  label: string
+  branch?: BranchInfo
+  hasChildren: boolean
+}
+
+function flattenTree(
+  map: Map<string, BranchNode>,
+  collapsed: Set<string>,
+  prefix = '',
+  depth = 0,
+): FlatNode[] {
+  const out: FlatNode[] = []
+  for (const [, node] of map) {
+    const key = prefix ? `${prefix}/${node.label}` : node.label
+    const hasChildren = node.children.size > 0
+    out.push({ key, depth, label: node.label, branch: node.branch, hasChildren })
+    if (hasChildren && !collapsed.has(key)) {
+      out.push(...flattenTree(node.children, collapsed, key, depth + 1))
+    }
+  }
+  return out
+}
+
+/** Sorted branch list according to the chosen sort mode. */
+function sortBranches(branches: BranchInfo[], sort: BranchSort): BranchInfo[] {
+  return [...branches].sort((a, b) => {
+    if (sort === 'date') {
+      const ta = a.lastCommit ?? 0
+      const tb = b.lastCommit ?? 0
+      return tb - ta // most recent first
+    }
+    return a.name.localeCompare(b.name)
+  })
+}
+
+/**
+ * Full branches section with hierarchical tree view and sort options.
+ */
+function BranchSection({
+  branches,
+  command,
+  current,
+  busy,
+  isRemote = false,
+  defaultOpen = true,
+  onCheckout,
+  onMenu,
+  onNew,
+  t,
+}: {
+  branches: BranchInfo[]
+  command?: { open: boolean; nonce: number } | null
+  current: string
+  busy: boolean
+  isRemote?: boolean
+  defaultOpen?: boolean
+  onCheckout: (name: string) => void
+  onMenu: (anchor: HTMLElement, branch: BranchInfo) => void
+  onNew?: () => void
+  t: (key: string) => string
+}) {
+  const [sort, setSort] = useState<BranchSort>('name')
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+
+  const sorted = sortBranches(branches, sort)
+  const tree = buildTree(sorted)
+  const flat = flattenTree(tree, collapsed)
+
+  const toggleNode = (key: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+
+  const cycleSort = () => setSort((s) => (s === 'name' ? 'date' : 'name'))
+  const sortLabel = sort === 'name' ? t('git.sortByDate') : t('git.sortByName')
+
+  const extraActions = (
+    <>
+      <button
+        className="icon-btn icon-btn--tiny"
+        title={sortLabel} aria-label={sortLabel}
+        onClick={cycleSort}
+      >
+        <ArrowUpDown size={12} />
+      </button>
+    </>
+  )
+
+  return (
+    <Section
+      command={command}
+      icon={isRemote ? <CloudUpload size={12} /> : <GitBranch size={12} />}
+      title={isRemote ? t('git.remoteBranches') : t('git.branches')}
+      count={branches.length}
+      defaultOpen={defaultOpen}
+      action={
+        onNew
+          ? { icon: <GitBranchPlus size={12} />, label: t('git.newBranch'), run: onNew }
+          : undefined
+      }
+      extraActions={extraActions}
+    >
+      <ul className="filelist">
+        {flat.map((node) => {
+          if (!node.branch && node.hasChildren) {
+            // Folder node (intermediate segment)
+            const isCollapsed = collapsed.has(node.key)
+            return (
+              <li
+                key={node.key}
+                className="filerow filerow--folder"
+                style={{ paddingLeft: node.depth * 12 }}
+                onClick={() => toggleNode(node.key)}
+              >
+                {isCollapsed ? <ChevronRight size={12} className="subtle" /> : <ChevronDown size={12} className="subtle" />}
+                <span className="filerow__name truncate">{node.label}</span>
+              </li>
+            )
+          }
+          if (!node.branch) return null
+          const b = node.branch
+          return (
+            <li
+              key={node.key}
+              className={`filerow${b.isHead ? ' filerow--current' : ''}`}
+              style={{ paddingLeft: node.depth * 12 }}
+              title={b.isHead ? undefined : (isRemote ? t('git.checkout') : t('panel.switchBranch'))}
+              onClick={() => {
+                if (!b.isHead && !busy) onCheckout(b.name)
+              }}
+              onContextMenu={(e) => {
+                e.preventDefault()
+                onMenu(e.currentTarget, b)
+              }}
+            >
+              {node.hasChildren
+                ? (collapsed.has(node.key)
+                  ? <ChevronRight size={12} className="subtle" onClick={(e) => { e.stopPropagation(); toggleNode(node.key) }} />
+                  : <ChevronDown size={12} className="subtle" onClick={(e) => { e.stopPropagation(); toggleNode(node.key) }} />)
+                : <GitBranch size={12} className="subtle" />}
+              <span className="filerow__name truncate">{node.label}</span>
+              <span className="filerow__actions">
+                <button
+                  className="icon-btn icon-btn--tiny" title={t('git.more')} aria-label={t('git.more')}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onMenu(e.currentTarget, b)
+                  }}
+                >
+                  <Ellipsis size={12} />
+                </button>
+              </span>
+            </li>
+          )
+        })}
+      </ul>
+    </Section>
   )
 }

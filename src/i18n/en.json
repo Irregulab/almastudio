@@ -453,7 +453,9 @@
     "opRevert": "Revert in progress",
     "opBisect": "Bisect in progress",
     "conflicts": "{n} files have conflicts: resolve and stage them, then continue.",
-    "readyToContinue": "No conflicts left: continue, or abort to go back."
+    "readyToContinue": "No conflicts left: continue, or abort to go back.",
+    "sortByName": "Sort by name",
+    "sortByDate": "Sort by last commit date"
   },
   "graph": {
     "open": "Open Git Graph",
