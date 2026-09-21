@@ -63,6 +63,7 @@ export function TerminalView({ tab, visible, focused }: Props) {
   const isDark = useTheme()
   const project = useWorkspace((s) => s.projects.find((p) => p.id === tab.projectId))
   const setTabStatus = useWorkspace((s) => s.setTabStatus)
+  const setTabCwd = useWorkspace((s) => s.setTabCwd)
   const [needsStart, setNeedsStart] = useState(false)
   // The custom key handler is attached once, so it reads current values
   // through refs rather than closing over the first render's.
@@ -185,6 +186,22 @@ export function TerminalView({ tab, visible, focused }: Props) {
       setFindHits(r ? { index: r.resultIndex + 1, count: r.resultCount } : null),
     )
     fit.fit()
+
+    // OSC 7 — shells (bash, zsh, fish) emit this to report the current working
+    // directory after each prompt. We persist it so that a restarted tab opens
+    // in the directory the user was actually in, not the original spawn cwd.
+    const osc7 = term.parser.registerOscHandler(7, (data) => {
+      try {
+        // Format: file://hostname/path  (hostname may be empty → file:///path)
+        const url = new URL(data)
+        if (url.protocol === 'file:') {
+          setTabCwd(tab.id, decodeURIComponent(url.pathname))
+        }
+      } catch {
+        // Malformed OSC 7 payload — ignore.
+      }
+      return false // allow other handlers to run
+    })
 
     let disposed = false
     const unlisteners: Array<() => void> = []
@@ -345,6 +362,7 @@ export function TerminalView({ tab, visible, focused }: Props) {
       ro.disconnect()
       window.clearTimeout(fitTimer)
       markSized()
+      osc7.dispose()
       onData.dispose()
       onResize.dispose()
       searchResults.dispose()
