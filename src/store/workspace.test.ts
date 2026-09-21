@@ -181,6 +181,15 @@ describe('tabs and splits', () => {
     expect(ws().activeGroupId).toBe(groupOf(added).id)
   })
 
+  it('records a terminal\'s new folder, and leaves the store alone when it is the same', () => {
+    const a = open('shell', '/tmp/x')
+    store().setTabCwd(a.id, '/tmp/x/api')
+    expect((store().tabs[a.id] as TerminalTab).cwd).toBe('/tmp/x/api')
+    const before = store().tabs
+    store().setTabCwd(a.id, '/tmp/x/api')
+    expect(store().tabs).toBe(before)
+  })
+
   it('reorders tabs with insert-before semantics', () => {
     const a = open()
     const b = open()

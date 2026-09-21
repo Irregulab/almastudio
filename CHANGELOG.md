@@ -20,6 +20,11 @@ release cannot be cut without one.
   the interval has passed, since timers do not run while the machine sleeps.
 - A background check that fails is written to the app's log instead of
   passing silently for "no update available".
+- A terminal restarted after quitting the app opens in the folder you had
+  moved to, not the one it was first started in, whenever the shell reports
+  its folder to the terminal (OSC 7). The tab's name, when you have not
+  chosen one, its tooltip and the folder the Files and Git panels show
+  follow it too.
 
 ## [1.6.7] - 2026-09-18
 

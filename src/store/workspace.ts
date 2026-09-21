@@ -538,7 +538,9 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
   setTabCwd: (tabId, cwd) =>
     set((s) => {
       const tab = s.tabs[tabId]
-      if (!tab || !isTerminalTab(tab)) return {}
+      // A shell reports its folder at every prompt, nearly always unchanged;
+      // rewriting the store then would re-render and re-save for nothing.
+      if (!tab || !isTerminalTab(tab) || tab.cwd === cwd) return {}
       return { tabs: { ...s.tabs, [tabId]: { ...tab, cwd } } }
     }),
 
