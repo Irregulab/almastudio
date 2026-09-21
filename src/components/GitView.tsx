@@ -542,11 +542,13 @@ interface BranchNode {
   children: Map<string, BranchNode>
 }
 
-/** Build a prefix-tree from a flat branch list. */
+/** Build a prefix-tree from a flat branch list. Empty segments (from
+ *  trailing or doubled slashes) are skipped to avoid orphan nodes. */
 function buildTree(branches: BranchInfo[]): Map<string, BranchNode> {
   const root = new Map<string, BranchNode>()
   for (const b of branches) {
-    const parts = b.name.split('/')
+    const parts = b.name.split('/').filter(Boolean)
+    if (parts.length === 0) continue
     let map = root
     for (let i = 0; i < parts.length; i++) {
       const seg = parts[i]
@@ -586,12 +588,17 @@ function flattenTree(
   return out
 }
 
-/** Sorted branch list according to the chosen sort mode. */
+/** Sorted branch list according to the chosen sort mode.
+ *  Branches with no recorded commit timestamp sort after those that have one. */
 function sortBranches(branches: BranchInfo[], sort: BranchSort): BranchInfo[] {
   return [...branches].sort((a, b) => {
     if (sort === 'date') {
-      const ta = a.lastCommit ?? 0
-      const tb = b.lastCommit ?? 0
+      const ta = a.lastCommit
+      const tb = b.lastCommit
+      // Null timestamps go last (treated as oldest)
+      if (ta === null && tb === null) return 0
+      if (ta === null) return 1
+      if (tb === null) return -1
       return tb - ta // most recent first
     }
     return a.name.localeCompare(b.name)
@@ -640,13 +647,14 @@ function BranchSection({
     })
 
   const cycleSort = () => setSort((s) => (s === 'name' ? 'date' : 'name'))
-  const sortLabel = sort === 'name' ? t('git.sortByDate') : t('git.sortByName')
+  // Label describes the action (what clicking will switch *to*)
+  const nextSortLabel = sort === 'name' ? t('git.sortByDate') : t('git.sortByName')
 
   const extraActions = (
     <>
       <button
         className="icon-btn icon-btn--tiny"
-        title={sortLabel} aria-label={sortLabel}
+        title={nextSortLabel} aria-label={nextSortLabel}
         onClick={cycleSort}
       >
         <ArrowUpDown size={12} />
