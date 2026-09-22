@@ -154,11 +154,6 @@ export function FileView({ tab, visible }: { tab: FileTab; visible: boolean }) {
   // An SVG being edited is drawn from the editor's text instead (see below).
   const assetKind =
     kind === 'svg' ? 'image' : kind === 'image' || kind === 'pdf' || kind === 'html' ? kind : null
-  // An HTML page pulls in stylesheets and images from around it.
-  const previewRoot = absolute.startsWith(tab.root)
-    ? tab.root
-    : absolute.replace(/[/\\][^/\\]*$/, '')
-
   return (
     <div className="diff">
       <div className="diff__bar">
@@ -251,7 +246,7 @@ export function FileView({ tab, visible }: { tab: FileTab; visible: boolean }) {
           <ImagePreview src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(content)}`} />
         ) : (
           assetKind && !error && (
-            <AssetPreview kind={assetKind} path={absolute} root={previewRoot} version={version} />
+            <AssetPreview kind={assetKind} path={absolute} version={version} />
           )
         )}
       </div>
@@ -369,12 +364,11 @@ function resolveMarkdownImage(documentPath: string, source: string): string | nu
 
 /**
  * Images, PDFs and HTML pages, loaded straight from disk through the asset
- * protocol rather than copied over IPC: no size limit, and an HTML page's
- * relative stylesheets, images and fonts resolve against its real location.
+ * protocol rather than copied over IPC: no size limit.
  */
 function AssetPreview({
-  kind, path, root, version,
-}: { kind: 'image' | 'pdf' | 'html'; path: string; root: string; version: number }) {
+  kind, path, version,
+}: { kind: 'image' | 'pdf' | 'html'; path: string; version: number }) {
   const t = useT()
   const [url, setUrl] = useState<string | null>(null)
   const [failed, setFailed] = useState<string | null>(null)
@@ -382,15 +376,16 @@ function AssetPreview({
   useEffect(() => {
     let cancelled = false
     setFailed(null)
-    // The asset protocol serves nothing until allowed; an image or PDF needs
-    // only itself, a page also the folder its resources live in.
-    void allowPreview(path, kind === 'html' ? root : undefined)
+    // Authorize only the selected file. The scope is shared by all webviews,
+    // so allowing an HTML directory would let a remote browser tab probe every
+    // file beneath it through image-load success/failure.
+    void allowPreview(path)
       .then(() => !cancelled && setUrl(`${convertFileSrc(path)}?v=${version}`))
       .catch((e) => !cancelled && setFailed(String(e)))
     return () => {
       cancelled = true
     }
-  }, [kind, path, root, version])
+  }, [kind, path, version])
 
   if (failed) return <div className="empty">{failed}</div>
   if (!url) return <div className="empty">{t('common.loading')}</div>

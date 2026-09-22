@@ -418,9 +418,7 @@ pub fn read_file_base64(path: String, max_bytes: Option<u64>) -> Result<String, 
     Ok(base64::engine::general_purpose::STANDARD.encode(bytes))
 }
 
-/// Lets the file viewer load `path` through the asset protocol — and, for an
-/// HTML preview, everything under `root`, so its stylesheets and images
-/// resolve.
+/// Lets the file viewer load one selected `path` through the asset protocol.
 ///
 /// The scope starts empty and grows only with what the user opens. The
 /// protocol is registered in every webview, browser tabs included; CORS keeps
@@ -428,13 +426,10 @@ pub fn read_file_base64(path: String, max_bytes: Option<u64>) -> Result<String, 
 /// whether an allowed file exists by loading it as an image, so allowing the
 /// whole disk up front would hand every site a way to probe it.
 #[tauri::command]
-pub fn allow_preview(app: tauri::AppHandle, path: String, root: Option<String>) -> Result<(), String> {
+pub fn allow_preview(app: tauri::AppHandle, path: String) -> Result<(), String> {
     use tauri::Manager as _;
     let scope = app.asset_protocol_scope();
     scope.allow_file(checked(&path)?).map_err(|e| e.to_string())?;
-    if let Some(root) = root {
-        scope.allow_directory(checked(&root)?, true).map_err(|e| e.to_string())?;
-    }
     Ok(())
 }
 

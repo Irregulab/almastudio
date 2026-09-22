@@ -235,9 +235,9 @@ export const writeTextFile = (path: string, contents: string) =>
 export const readFileBase64 = (path: string, maxBytes?: number) =>
   invoke<string>('read_file_base64', { path, maxBytes })
 export const pathExists = (path: string) => invoke<boolean>('path_exists', { path })
-/** Lets the asset protocol serve `path` (and everything under `root`) to the viewer. */
-export const allowPreview = (path: string, root?: string) =>
-  invoke<void>('allow_preview', { path, root })
+/** Lets the asset protocol serve one selected file to the viewer. */
+export const allowPreview = (path: string) =>
+  invoke<void>('allow_preview', { path })
 
 // --------------------------------------------------------- pty activity ----
 
