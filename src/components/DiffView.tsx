@@ -163,7 +163,10 @@ export function DiffView({ tab, visible }: { tab: DiffTab; visible: boolean }) {
             { value: 'split', label: t('diff.split') },
           ]}
         />
-        <button className="icon-btn" onClick={() => void load()} aria-label={t('panel.refresh')}>
+        <button
+          className="icon-btn" onClick={() => void load()}
+          aria-label={t('panel.refresh')} title={t('panel.refresh')}
+        >
           <RefreshCw size={13} className={loading ? 'spin' : undefined} />
         </button>
         <button

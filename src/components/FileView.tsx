@@ -202,7 +202,10 @@ export function FileView({ tab, visible }: { tab: FileTab; visible: boolean }) {
             {t('editor.revert')}
           </button>
         )}
-        <button className="icon-btn" onClick={() => void load(!dirty, true)} aria-label={t('panel.refresh')}>
+        <button
+          className="icon-btn" onClick={() => void load(!dirty, true)}
+          aria-label={t('panel.refresh')} title={t('panel.refresh')}
+        >
           <RefreshCw size={13} className={loading ? 'spin' : undefined} />
         </button>
         <button
