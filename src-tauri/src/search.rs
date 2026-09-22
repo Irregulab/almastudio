@@ -82,6 +82,32 @@ pub struct SearchResults {
     pub cancelled: bool,
 }
 
+/// Query for replacing text across a folder.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReplaceQuery {
+    pub root: String,
+    pub pattern: String,
+    #[serde(default)]
+    pub case_sensitive: bool,
+    #[serde(default)]
+    pub whole_word: bool,
+    #[serde(default)]
+    pub regex: bool,
+    #[serde(default)]
+    pub include: String,
+    #[serde(default)]
+    pub exclude: String,
+    pub replacement: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReplaceResults {
+    pub files_changed: usize,
+    pub replacements: usize,
+}
+
 type IsCurrent = Arc<dyn Fn() -> bool + Send + Sync>;
 
 #[tauri::command]
@@ -91,6 +117,115 @@ pub async fn search_text(query: SearchQuery) -> Result<SearchResults, String> {
     tauri::async_runtime::spawn_blocking(move || search(&query, is_current))
         .await
         .map_err(|e| e.to_string())?
+}
+
+/// Replaces all occurrences of the search pattern across a folder.
+#[tauri::command]
+pub async fn replace_text(query: ReplaceQuery) -> Result<ReplaceResults, String> {
+    tauri::async_runtime::spawn_blocking(move || replace_all(&query))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+fn replace_all(query: &ReplaceQuery) -> Result<ReplaceResults, String> {
+    if query.pattern.is_empty() {
+        return Ok(ReplaceResults { files_changed: 0, replacements: 0 });
+    }
+
+    // Build the regex for replacing (multi-line, whole-file variant only).
+    let re = {
+        let source = if query.regex {
+            query.pattern.clone()
+        } else {
+            regex::escape(&query.pattern)
+        };
+        let source = if query.whole_word { format!(r"\b(?:{source})\b") } else { source };
+        RegexBuilder::new(&source)
+            .case_insensitive(!query.case_sensitive)
+            .multi_line(true)
+            .crlf(true)
+            .build()
+            .map_err(|e| e.to_string())?
+    };
+
+    let include = build_globs(&query.include)?;
+    let exclude = Arc::new(build_globs(&query.exclude)?);
+    let root = PathBuf::from(&query.root);
+    let re = Arc::new(re);
+
+    // Collect matching files first (parallel walk), then replace serially.
+    let to_process: Arc<Mutex<Vec<PathBuf>>> = Arc::new(Mutex::new(Vec::new()));
+    let filter_root = root.clone();
+    let filter_exclude = exclude.clone();
+    let include_arc = Arc::new(include);
+
+    WalkBuilder::new(&root)
+        .hidden(false)
+        .git_ignore(true)
+        .git_global(true)
+        .git_exclude(true)
+        .require_git(false)
+        .follow_links(false)
+        .filter_entry(move |entry| {
+            entry.file_name() != ".git"
+                && (filter_exclude.is_empty()
+                    || !filter_exclude.is_match(rel_path(&filter_root, entry.path())))
+        })
+        .build_parallel()
+        .run(|| {
+            let re = re.clone();
+            let include = include_arc.clone();
+            let root = root.clone();
+            let to_process = to_process.clone();
+            Box::new(move |entry| {
+                let Ok(entry) = entry else { return WalkState::Continue };
+                if !entry.file_type().is_some_and(|t| t.is_file()) {
+                    return WalkState::Continue;
+                }
+                if entry.path().metadata().ok().is_some_and(|m| m.len() > MAX_FILE_BYTES) {
+                    return WalkState::Continue;
+                }
+                let rel = rel_path(&root, entry.path());
+                if !include.is_empty() && !include.is_match(&rel) {
+                    return WalkState::Continue;
+                }
+                if let Ok(bytes) = std::fs::read(entry.path()) {
+                    if !bytes[..bytes.len().min(8192)].contains(&0) {
+                        if let Ok(text) = std::str::from_utf8(&bytes) {
+                            if re.is_match(text) {
+                                to_process.lock().push(entry.path().to_path_buf());
+                            }
+                        }
+                    }
+                }
+                WalkState::Continue
+            })
+        });
+
+    let paths = std::mem::take(&mut *to_process.lock());
+    let mut files_changed = 0usize;
+    let mut replacements = 0usize;
+
+    for path in paths {
+        let Ok(content) = std::fs::read_to_string(&path) else { continue };
+        let count = re.find_iter(&content).count();
+        if count == 0 {
+            continue;
+        }
+        let new_content = if query.regex {
+            re.replace_all(&content, query.replacement.as_str()).into_owned()
+        } else {
+            // Treat replacement as a literal string, not a regex substitution.
+            re.replace_all(&content, regex::NoExpand(query.replacement.as_str()))
+                .into_owned()
+        };
+        if std::fs::write(&path, new_content.as_bytes()).is_ok() {
+            files_changed += 1;
+            replacements += count;
+        }
+    }
+
+    Ok(ReplaceResults { files_changed, replacements })
 }
 
 /// The pattern, compiled twice: per line for the matches, and over a whole

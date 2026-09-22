@@ -379,6 +379,7 @@ pub fn run() {
             fsx::allow_preview,
             fsx::path_exists,
             search::search_text,
+            search::replace_text,
             editors::external_editors,
             editors::open_in_editor,
             watcher::watch_start,

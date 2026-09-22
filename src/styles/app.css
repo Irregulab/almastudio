@@ -1269,6 +1269,15 @@ img, a { -webkit-user-drag: none; }
   color: inherit;
 }
 .search__line { flex: 0 0 auto; font-family: var(--font-mono); font-size: 10.5px; }
+.search__replace-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3) 0 calc(var(--sp-3) + 22px);
+}
+.search__replace-input { flex: 1 1 auto; min-width: 0; }
+.search__file-replace { margin-left: auto; opacity: 0; transition: opacity 80ms; }
+.search__file-head:hover .search__file-replace { opacity: 1; }
 
 /* Fetch, pull and push beside the branch name. */
 .git__sync { display: flex; gap: 1px; margin-left: auto; }

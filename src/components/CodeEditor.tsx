@@ -176,6 +176,62 @@ export function CodeEditor({
             backgroundColor: 'var(--bg-active)',
             color: 'var(--fg)',
           },
+          // Search / replace panel
+          '.cm-panel': {
+            backgroundColor: 'var(--bg-raised)',
+            borderTop: '1px solid var(--border)',
+            padding: '6px 8px',
+          },
+          '.cm-panel.cm-search': {
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '4px',
+            alignItems: 'center',
+          },
+          '.cm-panel input[type="text"], .cm-panel input:not([type])': {
+            backgroundColor: 'var(--bg-input)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)',
+            color: 'var(--fg)',
+            fontFamily: 'var(--font-mono)',
+            fontSize: '12px',
+            padding: '2px 6px',
+            outline: 'none',
+          },
+          '.cm-panel input[type="text"]:focus, .cm-panel input:not([type]):focus': {
+            borderColor: 'var(--accent)',
+          },
+          '.cm-panel input[type="checkbox"]': {
+            accentColor: 'var(--accent)',
+          },
+          '.cm-panel button': {
+            backgroundColor: 'var(--bg-input)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)',
+            color: 'var(--fg)',
+            cursor: 'pointer',
+            fontSize: '12px',
+            padding: '2px 8px',
+          },
+          '.cm-panel button:hover': {
+            backgroundColor: 'var(--bg-hover)',
+          },
+          '.cm-panel button[name="close"]': {
+            background: 'none',
+            border: 'none',
+            color: 'var(--fg-muted)',
+            padding: '0 4px',
+          },
+          '.cm-panel label': {
+            color: 'var(--fg-muted)',
+            fontSize: '11.5px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '3px',
+          },
+          '.cm-searchMatch.cm-searchMatch-selected': {
+            backgroundColor: 'color-mix(in srgb, var(--yellow) 60%, transparent)',
+          },
         },
         { dark: true },
       )
