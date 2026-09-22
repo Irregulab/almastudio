@@ -242,7 +242,7 @@ export function FileView({ tab, visible }: { tab: FileTab; visible: boolean }) {
           </>
         ) : kind === 'markdown' ? (
           editable ? (
-            <MarkdownPreview source={content} />
+            <MarkdownPreview source={content} path={absolute} />
           ) : (
             file?.truncated && <div className="empty">{t('diff.truncated')}</div>
           )
@@ -277,7 +277,7 @@ export function FileView({ tab, visible }: { tab: FileTab; visible: boolean }) {
 
 // -------------------------------------------------------------- markdown ---
 
-function MarkdownPreview({ source }: { source: string }) {
+function MarkdownPreview({ source, path }: { source: string; path: string }) {
   const t = useT()
   const [html, setHtml] = useState<string | null>(null)
   const [failed, setFailed] = useState(false)
@@ -289,12 +289,29 @@ function MarkdownPreview({ source }: { source: string }) {
     setFailed(false)
     void import('../lib/markdown')
       .then(({ renderMarkdown }) => renderMarkdown(source))
-      .then((r) => !cancelled && setHtml(r.html))
+      .then(async (r) => {
+        const document = new DOMParser().parseFromString(`<div>${r.html}</div>`, 'text/html')
+        const images = [...document.body.firstElementChild!.querySelectorAll('img[src]')]
+        await Promise.all(images.map(async (image) => {
+          const src = image.getAttribute('src')
+          const localPath = src ? resolveMarkdownImage(path, src) : null
+          if (!localPath) return
+          try {
+            await allowPreview(localPath)
+            image.setAttribute('src', convertFileSrc(localPath))
+          } catch {
+            // Leave an unavailable local image untouched; the browser's
+            // broken-image state is preferable to failing the whole preview.
+          }
+        }))
+        return document.body.firstElementChild!.innerHTML
+      })
+      .then((html) => !cancelled && setHtml(html))
       .catch(() => !cancelled && setFailed(true))
     return () => {
       cancelled = true
     }
-  }, [source])
+  }, [path, source])
 
   // Links in a document must not navigate the app's own webview away.
   const onClick = useCallback((e: React.MouseEvent) => {
@@ -317,6 +334,35 @@ function MarkdownPreview({ source }: { source: string }) {
       dangerouslySetInnerHTML={{ __html: html }}
     />
   )
+}
+
+/** Resolve a Markdown image against the document it belongs to. */
+function resolveMarkdownImage(documentPath: string, source: string): string | null {
+  // Keep remote, data and fragment URLs under the normal browser handling.
+  if (/^(?:[a-z][a-z\d+.-]*:|\/\/|#)/i.test(source)) return null
+
+  const clean = source.split(/[?#]/, 1)[0]
+  if (!clean) return null
+  const base = documentPath.replace(/[/\\][^/\\]*$/, '')
+  const initial = clean.startsWith('/') ? [] : base.split(/[\\/]/)
+  const parts = [...initial]
+
+  for (const raw of clean.replaceAll('\\', '/').split('/')) {
+    if (!raw || raw === '.') continue
+    if (raw === '..') {
+      if (parts.length === 0) return null
+      parts.pop()
+      continue
+    }
+    try {
+      parts.push(decodeURIComponent(raw))
+    } catch {
+      parts.push(raw)
+    }
+  }
+
+  const resolved = parts.join('/')
+  return clean.startsWith('/') ? `/${resolved}` : resolved
 }
 
 // ---------------------------------------------------- images, pdf, html ---
