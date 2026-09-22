@@ -237,7 +237,7 @@ export function FileView({ tab, visible }: { tab: FileTab; visible: boolean }) {
           </>
         ) : kind === 'markdown' ? (
           editable ? (
-            <MarkdownPreview source={content} path={absolute} />
+            <MarkdownPreview source={content} path={absolute} root={tab.root} />
           ) : (
             file?.truncated && <div className="empty">{t('diff.truncated')}</div>
           )
@@ -272,7 +272,7 @@ export function FileView({ tab, visible }: { tab: FileTab; visible: boolean }) {
 
 // -------------------------------------------------------------- markdown ---
 
-function MarkdownPreview({ source, path }: { source: string; path: string }) {
+function MarkdownPreview({ source, path, root }: { source: string; path: string; root: string }) {
   const t = useT()
   const [html, setHtml] = useState<string | null>(null)
   const [failed, setFailed] = useState(false)
@@ -289,7 +289,7 @@ function MarkdownPreview({ source, path }: { source: string; path: string }) {
         const images = [...document.body.firstElementChild!.querySelectorAll('img[src]')]
         await Promise.all(images.map(async (image) => {
           const src = image.getAttribute('src')
-          const localPath = src ? resolveMarkdownImage(path, src) : null
+          const localPath = src ? resolveMarkdownImage(path, src, root) : null
           if (!localPath) return
           try {
             await allowPreview(localPath)
@@ -306,7 +306,7 @@ function MarkdownPreview({ source, path }: { source: string; path: string }) {
     return () => {
       cancelled = true
     }
-  }, [path, source])
+  }, [path, root, source])
 
   // Links in a document must not navigate the app's own webview away.
   const onClick = useCallback((e: React.MouseEvent) => {
@@ -332,7 +332,7 @@ function MarkdownPreview({ source, path }: { source: string; path: string }) {
 }
 
 /** Resolve a Markdown image against the document it belongs to. */
-function resolveMarkdownImage(documentPath: string, source: string): string | null {
+function resolveMarkdownImage(documentPath: string, source: string, root: string): string | null {
   // Keep remote, data and fragment URLs under the normal browser handling.
   if (/^(?:[a-z][a-z\d+.-]*:|\/\/|#)/i.test(source)) return null
 
@@ -357,7 +357,15 @@ function resolveMarkdownImage(documentPath: string, source: string): string | nu
   }
 
   const resolved = parts.join('/')
-  return clean.startsWith('/') ? `/${resolved}` : resolved
+  const normalizedRoot = root.replaceAll('\\', '/').replace(/\/+$/, '')
+  const normalizedResolved = (clean.startsWith('/') ? `/${resolved}` : resolved)
+    .replaceAll('\\', '/')
+  const rootKey = /^[A-Za-z]:\//.test(normalizedRoot) ? normalizedRoot.toLowerCase() : normalizedRoot
+  const resolvedKey = /^[A-Za-z]:\//.test(normalizedResolved)
+    ? normalizedResolved.toLowerCase()
+    : normalizedResolved
+  if (resolvedKey !== rootKey && !resolvedKey.startsWith(`${rootKey}/`)) return null
+  return normalizedResolved
 }
 
 // ---------------------------------------------------- images, pdf, html ---
