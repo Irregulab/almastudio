@@ -9,6 +9,13 @@ release cannot be cut without one.
 
 ## [Unreleased]
 
+### Added
+
+- Branches in the sidebar's Git panel show as a folder tree when their names
+  use `/` as a separator, such as `feature/x`, instead of a flat list — each
+  folder collapses on its own. A button sorts them by name or by the branch
+  tip's commit date instead.
+
 ## [1.6.8] - 2026-09-21
 
 ### Fixed

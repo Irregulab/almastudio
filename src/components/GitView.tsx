@@ -209,7 +209,6 @@ export function GitView({
       <BranchSection
         command={sections}
         branches={local}
-        current={current}
         busy={busy}
         onCheckout={(name) => void act('checkout', () => gitCheckout(repo, name))}
         onMenu={(anchor, branch) => openMenu({ kind: 'branch', anchor, branch })}
@@ -221,7 +220,6 @@ export function GitView({
         <BranchSection
           command={sections}
           branches={remote}
-          current={current}
           busy={busy}
           isRemote
           defaultOpen={false}
@@ -493,42 +491,6 @@ function Section({
   )
 }
 
-function BranchRow({
-  branch, title, label, onOpen, onMenu,
-}: {
-  branch: BranchInfo
-  title?: string
-  /** The row's menu button. */
-  label: string
-  onOpen: () => void
-  onMenu: (anchor: HTMLElement) => void
-}) {
-  return (
-    <li
-      className={`filerow${branch.isHead ? ' filerow--current' : ''}`}
-      title={title}
-      onClick={onOpen}
-      onContextMenu={(e) => {
-        e.preventDefault()
-        onMenu(e.currentTarget)
-      }}
-    >
-      <GitBranch size={12} className="subtle" />
-      <span className="filerow__name truncate">{branch.name}</span>
-      <span className="filerow__actions">
-        <button
-          className="icon-btn icon-btn--tiny" title={label} aria-label={label}
-          onClick={(e) => {
-            e.stopPropagation()
-            onMenu(e.currentTarget)
-          }}
-        >
-          <Ellipsis size={12} />
-        </button>
-      </span>
-    </li>
-  )
-}
 
 // ---------------------------------------------------------------- tree ----
 
@@ -611,7 +573,6 @@ function sortBranches(branches: BranchInfo[], sort: BranchSort): BranchInfo[] {
 function BranchSection({
   branches,
   command,
-  current,
   busy,
   isRemote = false,
   defaultOpen = true,
@@ -622,7 +583,6 @@ function BranchSection({
 }: {
   branches: BranchInfo[]
   command?: { open: boolean; nonce: number } | null
-  current: string
   busy: boolean
   isRemote?: boolean
   defaultOpen?: boolean
