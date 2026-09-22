@@ -322,6 +322,19 @@
 .term__host { position: absolute; inset: 6px 2px 2px 8px; }
 .term__host .xterm { height: 100%; }
 .term__host .xterm-viewport { background: transparent !important; }
+/* xterm's viewport is the only scrolling element in a terminal, so styling
+   its scrollbar switches it from the platform's auto-hiding overlay (macOS,
+   invisible until a scroll gesture) to one that stays on screen — the only
+   way scrollback depth is visible without scrolling first. */
+.term__host .xterm-viewport::-webkit-scrollbar { width: 10px; }
+.term__host .xterm-viewport::-webkit-scrollbar-track { background: transparent; }
+.term__host .xterm-viewport::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: var(--radius-sm);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.term__host .xterm-viewport::-webkit-scrollbar-thumb:hover { background: var(--fg-subtle); }
 
 /* In normal flow below the terminal, never on top of it. */
 .term__start {

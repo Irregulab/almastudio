@@ -9,6 +9,11 @@ release cannot be cut without one.
 
 ## [Unreleased]
 
+### Changed
+
+- A terminal's scrollbar stays on screen instead of only appearing while
+  scrolling, so scrollback depth is visible at a glance.
+
 ## [1.6.9] - 2026-09-22
 
 ### Added
