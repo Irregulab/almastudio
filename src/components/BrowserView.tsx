@@ -97,14 +97,21 @@ export function BrowserView({ tab, visible }: { tab: BrowserTab; visible: boolea
   // than polled for.
   useEffect(() => {
     let unlisten: (() => void) | undefined
+    let disposed = false
     void onBrowserNavigated(({ id, url }) => {
       if (id !== tab.id || !url) return
       setCurrent(url)
       setAddress(url)
       setTabUrl(tab.id, url)
       if (!tab.renamed) renameTab(tab.id, hostOf(url))
-    }).then((un) => (unlisten = un))
-    return () => unlisten?.()
+    }).then((un) => {
+      if (disposed) un()
+      else unlisten = un
+    })
+    return () => {
+      disposed = true
+      unlisten?.()
+    }
   }, [renameTab, setTabUrl, tab.id, tab.renamed])
 
   const go = useCallback(
