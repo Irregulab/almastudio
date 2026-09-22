@@ -9,6 +9,8 @@ release cannot be cut without one.
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-09-22
+
 ### Added
 
 - Replace across files from the Search view: a Replace All button, and one
@@ -430,7 +432,8 @@ First release.
 - English and Italian.
 - Over-the-air updates.
 
-[Unreleased]: https://github.com/Irregulab/almastudio/compare/v1.6.9...HEAD
+[Unreleased]: https://github.com/Irregulab/almastudio/compare/v1.7.0...HEAD
+[1.7.0]: https://github.com/Irregulab/almastudio/compare/v1.6.9...v1.7.0
 [1.6.9]: https://github.com/Irregulab/almastudio/compare/v1.6.8...v1.6.9
 [1.6.8]: https://github.com/Irregulab/almastudio/compare/v1.6.7...v1.6.8
 [1.6.7]: https://github.com/Irregulab/almastudio/compare/v1.6.6...v1.6.7
