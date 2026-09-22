@@ -261,19 +261,26 @@ export function TerminalView({ tab, visible, focused }: Props) {
       if (disposed) return
       // Subscribe before snapshotting so nothing emitted in between is lost;
       // the offsets then tell us exactly what to discard as duplicate.
-      unlisteners.push(
-        await onPtyData(tab.id, (bytes, end) => {
-          if (ready) writeBatch(bytes, end)
-          else pending.push({ bytes, end })
-        }),
-      )
-      unlisteners.push(
-        await onPtyExit(tab.id, (code) => {
-          setTabStatus(tab.id, 'exited', code)
-          setNeedsStart(true)
-          term.write(`\r\n\x1b[2m— ${t('tabs.exited', { code })} —\x1b[0m\r\n`)
-        }),
-      )
+      const unlistenData = await onPtyData(tab.id, (bytes, end) => {
+        if (ready) writeBatch(bytes, end)
+        else pending.push({ bytes, end })
+      })
+      if (disposed) {
+        unlistenData()
+        return
+      }
+      unlisteners.push(unlistenData)
+
+      const unlistenExit = await onPtyExit(tab.id, (code) => {
+        setTabStatus(tab.id, 'exited', code)
+        setNeedsStart(true)
+        term.write(`\r\n\x1b[2m— ${t('tabs.exited', { code })} —\x1b[0m\r\n`)
+      })
+      if (disposed) {
+        unlistenExit()
+        return
+      }
+      unlisteners.push(unlistenExit)
       if (disposed) return
 
       const status = await ptyStatus(tab.id)
