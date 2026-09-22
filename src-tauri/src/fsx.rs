@@ -5,6 +5,7 @@
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use ignore::WalkBuilder;
 use serde::Serialize;
@@ -12,6 +13,7 @@ use serde::Serialize;
 /// Above this a file is shown as "too large to display" rather than shipped
 /// into the webview.
 const MAX_TEXT_BYTES: u64 = 2 * 1024 * 1024;
+static WRITE_TEMP_SEQ: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -373,13 +375,21 @@ pub fn write_text_file(path: String, contents: String) -> Result<(), String> {
     }
     // Same write-then-rename dance the app uses for its own state: an editor
     // that truncates a file and then fails mid-write destroys the original.
-    let tmp = p.with_extension(format!(
-        "{}.almastudio-tmp",
-        p.extension().map(|e| e.to_string_lossy().to_string()).unwrap_or_default()
+    // Each save gets its own temporary file: two overlapping editor saves must
+    // not overwrite one another's staged contents.
+    let name = p.file_name().and_then(|n| n.to_str()).unwrap_or("file");
+    let tmp = p.with_file_name(format!(
+        ".{name}.almastudio-tmp-{}-{}",
+        std::process::id(),
+        WRITE_TEMP_SEQ.fetch_add(1, Ordering::Relaxed),
     ));
     {
         use std::io::Write as _;
-        let mut f = fs::File::create(&tmp).map_err(|e| e.to_string())?;
+        let mut f = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&tmp)
+            .map_err(|e| e.to_string())?;
         f.write_all(contents.as_bytes()).map_err(|e| e.to_string())?;
         f.sync_all().map_err(|e| e.to_string())?;
     }
