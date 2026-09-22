@@ -17,6 +17,9 @@ release cannot be cut without one.
   use `/` as a separator, such as `feature/x`, instead of a flat list — each
   folder collapses on its own. A button sorts them by name or by the branch
   tip's commit date instead.
+- Clicking a commit in the sidebar's History graph opens its changed files
+  below it, each opening its diff — a click previews it, a double click
+  keeps it open — without switching to the full Git Graph tab.
 
 ## [1.6.8] - 2026-09-21
 
