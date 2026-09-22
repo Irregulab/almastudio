@@ -341,7 +341,7 @@ export function GitView({
                 files={details.files}
                 onOpen={(f, preview) => openDiffTab({
                   projectId, root, path: f.path, side: 'head',
-                  target: details.id, oldPath: f.oldPath ?? undefined, preview,
+                  target: selectedCommit, oldPath: f.oldPath ?? undefined, preview,
                 })}
               />
             )}
