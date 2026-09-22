@@ -112,8 +112,9 @@ describe('GitView history details', () => {
   })
 
   afterEach(async () => {
-    if (root) {
-      await act(async () => root.unmount())
+    const appRoot = root
+    if (appRoot) {
+      await act(async () => appRoot.unmount())
     }
     host.remove()
     vi.clearAllMocks()
@@ -121,8 +122,9 @@ describe('GitView history details', () => {
 
   it('shows changed files for a clicked commit and opens diff tabs as preview or pinned', async () => {
     await act(async () => {
-      root = createRoot(host)
-      root.render(createElement(GitView, {
+      const appRoot = createRoot(host)
+      root = appRoot
+      appRoot.render(createElement(GitView, {
         projectId: project.id, root: project.root, status, onChanged: () => {},
       }))
     })
