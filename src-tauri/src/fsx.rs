@@ -279,7 +279,8 @@ pub fn dir_name(path: String) -> String {
 /// agent — including ones AlmaStudio does not know about — can pick them up.
 #[tauri::command]
 pub fn write_project_instructions(root: String, contents: String) -> Result<String, String> {
-    let dir = PathBuf::from(&root).join(".almastudio");
+    let root = checked(&root)?;
+    let dir = root.join(".almastudio");
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
 
     // Make the folder ignore itself rather than editing the project's own
