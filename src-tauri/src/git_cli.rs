@@ -137,7 +137,15 @@ fn run_with(root: &str, args: &[&str], input: Option<&str>) -> Result<String, St
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     if let Some(path) = path {
-        command.env("PATH", path);
+        // Keep the login-shell tools first, but retain entries inherited by
+        // the app in case the shell omitted system or app-specific paths.
+        let mut entries: Vec<PathBuf> = std::env::split_paths(path).collect();
+        if let Some(process_path) = std::env::var_os("PATH") {
+            entries.extend(std::env::split_paths(process_path));
+        }
+        if let Ok(path) = std::env::join_paths(entries) {
+            command.env("PATH", path);
+        }
     }
     #[cfg(windows)]
     {
