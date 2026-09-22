@@ -9,6 +9,14 @@ release cannot be cut without one.
 
 ## [Unreleased]
 
+### Added
+
+- Replace across files from the Search view: a Replace All button, and one
+  beside each file, both asking to confirm the number of files and matches
+  first, since it writes to every file it touches with no way to undo it
+  from within AlmaStudio. Find and replace inside the current file, too
+  (⌘F, ⌘H in the code editor), styled to match the rest of the app.
+
 ### Changed
 
 - A terminal's scrollbar stays on screen instead of only appearing while

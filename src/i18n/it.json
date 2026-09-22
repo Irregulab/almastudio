@@ -385,6 +385,8 @@
     "replacePlaceholder": "Sostituisci",
     "replaceAll": "Sostituisci tutto",
     "replaceInFile": "Sostituisci nel file",
+    "replaceAllConfirmMessage": "Sostituire {n} corrispondenza/e in {f} file? Scrive su ogni file e non si può annullare da AlmaStudio.",
+    "replaceInFileConfirmMessage": "Sostituire {n} corrispondenza/e in {file}? Non si può annullare da AlmaStudio.",
     "replaceDone": "{n} sostituzione/i in {f} file",
     "searching": "Ricerca in corso…",
     "noResults": "Nessun risultato",

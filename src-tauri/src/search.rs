@@ -481,6 +481,19 @@ mod tests {
         search(q, Arc::new(|| true)).unwrap()
     }
 
+    fn replace_query(root: &Path, pattern: &str, replacement: &str) -> ReplaceQuery {
+        ReplaceQuery {
+            root: root.to_string_lossy().into_owned(),
+            pattern: pattern.into(),
+            case_sensitive: false,
+            whole_word: false,
+            regex: false,
+            include: String::new(),
+            exclude: String::new(),
+            replacement: replacement.into(),
+        }
+    }
+
     /// "rel:line,line" for every file found, in result order.
     fn found(results: &SearchResults) -> Vec<String> {
         results
@@ -630,5 +643,93 @@ mod tests {
         for miss in ["docs/other/x.json", "srcs/a.ts", "lib/a.ts"] {
             assert!(!set.is_match(miss), "{miss} should not match");
         }
+    }
+
+    #[test]
+    fn replaces_across_files_and_leaves_the_rest_untouched() {
+        let dir = tree();
+        let result = replace_all(&replace_query(dir.path(), "hello", "hi")).unwrap();
+        // The same four files finds_lines_skipping_ignored_git_and_binary_files
+        // sees: .env, node_modules/lib/index.js, src/app.ts (twice), src/notes.md.
+        assert_eq!(result.files_changed, 4);
+        assert_eq!(result.replacements, 5);
+        assert_eq!(fs::read_to_string(dir.path().join("src/app.ts")).unwrap(), "const greeting = 'hi';\n// hi again\n");
+        // Untouched: ignored by .gitignore, same as search.
+        assert_eq!(fs::read_to_string(dir.path().join("build/app.js")).unwrap(), "hello from a build\n");
+    }
+
+    #[test]
+    fn a_file_with_no_match_is_reported_unchanged() {
+        let dir = tree();
+        let result = replace_all(&replace_query(dir.path(), "xyz-not-present", "hi")).unwrap();
+        assert_eq!((result.files_changed, result.replacements), (0, 0));
+    }
+
+    #[test]
+    fn treats_the_replacement_as_literal_text_outside_regex_mode() {
+        // A `$` in the replacement must not be read as a capture-group
+        // reference when the search itself is a plain string, or replacing
+        // "price" with "$5" would silently drop the "5".
+        let dir = tree();
+        let mut q = replace_query(dir.path(), "hello", "$1 hi");
+        q.regex = false;
+        let result = replace_all(&q).unwrap();
+        assert!(result.files_changed > 0);
+        assert!(fs::read_to_string(dir.path().join("src/app.ts")).unwrap().contains("$1 hi"));
+    }
+
+    #[test]
+    fn regex_mode_expands_capture_groups() {
+        // `${1}`, not `$1p`: the regex crate reads `$1p` as the named group
+        // "1p", which does not exist, and expands it to nothing — unlike
+        // JavaScript's replacement syntax, which stops at the first
+        // non-digit. `${name}` is how its own docs disambiguate this.
+        let dir = tree();
+        let mut q = replace_query(dir.path(), "(hell)o", "${1}p");
+        q.regex = true;
+        replace_all(&q).unwrap();
+        // Capture group 1 keeps the source's own case: "Hell" from "Hello",
+        // "hell" from "hello".
+        assert_eq!(fs::read_to_string(dir.path().join("src/app.ts")).unwrap(), "const greeting = 'Hellp';\n// hellp again\n");
+    }
+
+    #[test]
+    fn respects_whole_word_and_case_sensitivity() {
+        let dir = tree();
+        let mut q = replace_query(dir.path(), "Hello", "hi");
+        q.case_sensitive = true;
+        let result = replace_all(&q).unwrap();
+        assert_eq!((result.files_changed, result.replacements), (1, 1));
+        assert!(fs::read_to_string(dir.path().join("src/app.ts")).unwrap().contains("hi"));
+
+        let dir = tree();
+        let mut q = replace_query(dir.path(), "hell", "hi");
+        q.whole_word = true;
+        let result = replace_all(&q).unwrap();
+        assert_eq!((result.files_changed, result.replacements), (0, 0));
+    }
+
+    #[test]
+    fn include_and_exclude_scope_the_files_replaced() {
+        let dir = tree();
+        let mut q = replace_query(dir.path(), "hello", "hi");
+        q.include = "src/app.ts".into();
+        let result = replace_all(&q).unwrap();
+        assert_eq!(result.files_changed, 1);
+        assert!(fs::read_to_string(dir.path().join("src/notes.md")).unwrap().contains("hello"));
+    }
+
+    #[test]
+    fn an_empty_pattern_replaces_nothing() {
+        let dir = tree();
+        let result = replace_all(&replace_query(dir.path(), "", "hi")).unwrap();
+        assert_eq!((result.files_changed, result.replacements), (0, 0));
+    }
+
+    #[test]
+    fn leaves_no_temp_file_behind_after_a_successful_replace() {
+        let dir = tree();
+        replace_all(&replace_query(dir.path(), "hello", "hi")).unwrap();
+        assert!(!dir.path().join("src/.almastudio_tmp_app.ts").exists());
     }
 }

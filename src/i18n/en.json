@@ -385,6 +385,8 @@
     "replacePlaceholder": "Replace",
     "replaceAll": "Replace All",
     "replaceInFile": "Replace in file",
+    "replaceAllConfirmMessage": "Replace {n} match(es) in {f} file(s)? This writes to every file, and cannot be undone from within AlmaStudio.",
+    "replaceInFileConfirmMessage": "Replace {n} match(es) in {file}? This cannot be undone from within AlmaStudio.",
     "replaceDone": "{n} replacement(s) in {f} file(s)",
     "searching": "Searching…",
     "noResults": "No results",

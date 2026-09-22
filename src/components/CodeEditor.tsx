@@ -189,7 +189,7 @@ export function CodeEditor({
             alignItems: 'center',
           },
           '.cm-panel input[type="text"], .cm-panel input:not([type])': {
-            backgroundColor: 'var(--bg-input)',
+            backgroundColor: 'var(--bg-inset)',
             border: '1px solid var(--border)',
             borderRadius: 'var(--radius)',
             color: 'var(--fg)',
@@ -205,7 +205,7 @@ export function CodeEditor({
             accentColor: 'var(--accent)',
           },
           '.cm-panel button': {
-            backgroundColor: 'var(--bg-input)',
+            backgroundColor: 'var(--bg-inset)',
             border: '1px solid var(--border)',
             borderRadius: 'var(--radius)',
             color: 'var(--fg)',

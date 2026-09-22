@@ -5,6 +5,7 @@ import { create } from 'zustand'
 import { replaceText, searchText, type FileMatches, type LineMatch, type SearchResults } from '../lib/ipc'
 import { useWorkspace } from '../store/workspace'
 import { useT } from '../i18n'
+import { ConfirmDialog } from './ui'
 import { FileIcon } from './FileIcon'
 
 interface SearchOptions {
@@ -53,6 +54,8 @@ export function SearchView({
   const [replaceNotice, setReplaceNotice] = useState<string | null>(null)
   const [replaceError, setReplaceError] = useState<string | null>(null)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  /** Replace All when 'all', or in one file; set to ask before running it. */
+  const [confirmReplace, setConfirmReplace] = useState<'all' | FileMatches | null>(null)
   /** Enter searches at once rather than after the typing pause. */
   const [runNow, setRunNow] = useState(0)
   const immediate = useRef(false)
@@ -120,7 +123,7 @@ export function SearchView({
       return next
     })
 
-  const doReplaceAll = useCallback(async () => {
+  const runReplaceAll = useCallback(async () => {
     if (!pattern || !replacement) return
     setReplacing(true)
     setReplaceError(null)
@@ -142,7 +145,7 @@ export function SearchView({
     }
   }, [root, pattern, caseSensitive, wholeWord, regex, include, exclude, replacement, t])
 
-  const doReplaceFile = useCallback(async (file: FileMatches) => {
+  const runReplaceFile = useCallback(async (file: FileMatches) => {
     if (!pattern || !replacement) return
     setReplacing(true)
     setReplaceError(null)
@@ -181,6 +184,24 @@ export function SearchView({
     const files = r.files.length === 1 ? t('search.filesOne') : t('search.filesMany', { n: r.files.length })
     return `${found} ${files}`
   }
+
+  const confirmReplaceProps = (() => {
+    if (!confirmReplace || !results) return null
+    if (confirmReplace === 'all') {
+      return {
+        title: t('search.replaceAll'),
+        message: t('search.replaceAllConfirmMessage', { n: results.matchCount, f: results.files.length }),
+        run: runReplaceAll,
+      }
+    }
+    return {
+      title: t('search.replaceInFile'),
+      message: t('search.replaceInFileConfirmMessage', {
+        n: confirmReplace.matches.length, file: confirmReplace.rel,
+      }),
+      run: () => runReplaceFile(confirmReplace),
+    }
+  })()
 
   return (
     <div className="search">
@@ -234,7 +255,7 @@ export function SearchView({
             spellCheck={false}
             onChange={(e) => set({ replacement: e.target.value })}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') void doReplaceAll()
+              if (e.key === 'Enter' && pattern && replacement) setConfirmReplace('all')
               if (e.key === 'Escape') set({ replacement: '' })
             }}
           />
@@ -242,7 +263,7 @@ export function SearchView({
             className="btn btn--sm"
             disabled={!pattern || !replacement || replacing}
             title={t('search.replaceAll')}
-            onClick={() => void doReplaceAll()}
+            onClick={() => setConfirmReplace('all')}
           >
             <Replace size={12} /> {t('search.replaceAll')}
           </button>
@@ -307,7 +328,7 @@ export function SearchView({
                     className="icon-btn icon-btn--tiny search__file-replace"
                     title={t('search.replaceInFile')}
                     disabled={replacing}
-                    onClick={(e) => { e.stopPropagation(); void doReplaceFile(file) }}
+                    onClick={(e) => { e.stopPropagation(); setConfirmReplace(file) }}
                   >
                     <Replace size={11} />
                   </button>
@@ -329,6 +350,19 @@ export function SearchView({
           )
         })}
       </div>
+      {confirmReplaceProps && (
+        <ConfirmDialog
+          title={confirmReplaceProps.title}
+          message={confirmReplaceProps.message}
+          confirmLabel={t('search.replaceAll')}
+          danger
+          onCancel={() => setConfirmReplace(null)}
+          onConfirm={() => {
+            setConfirmReplace(null)
+            void confirmReplaceProps.run()
+          }}
+        />
+      )}
     </div>
   )
 }
