@@ -8,18 +8,19 @@ import {
 
 import {
   gitAbort, gitBranches, gitCheckout, gitContinue, gitFetch, gitGraph, gitMerge, gitPull, gitPush,
-  gitPushTags, gitRebase, gitStash, gitStashApply, gitStashPop, gitStashes, gitSync, gitTags,
-  gitUndoCommit,
+  gitCommitDetails, gitPushTags, gitRebase, gitStash, gitStashApply, gitStashPop, gitStashes,
+  gitSync, gitTags, gitUndoCommit,
 } from '../lib/ipc'
 import { relativeTime } from '../lib/time'
 import { useWorkspace } from '../store/workspace'
 import { useT } from '../i18n'
 import { CommitBox, setCommitMessage } from './CommitBox'
 import { CommitGraph } from './CommitGraph'
+import { FileList } from './GitGraphView'
 import { RepoAccordion, useRepoStatus } from './RepoAccordion'
 import { useGitActions, type GitDialog } from './gitActions'
 import { MenuItem, MenuSeparator, Popover } from './ui'
-import type { BranchInfo, GraphCommit, RepoStatus, StashInfo, TagInfo } from '../lib/types'
+import type { BranchInfo, CommitDetails, GraphCommit, RepoStatus, StashInfo, TagInfo } from '../lib/types'
 
 /** Commits loaded into the graph at a time. */
 const GRAPH_PAGE = 200
@@ -64,11 +65,14 @@ export function GitView({
 }) {
   const t = useT()
   const openGraphTab = useWorkspace((s) => s.openGraphTab)
+  const openDiffTab = useWorkspace((s) => s.openDiffTab)
   const [commits, setCommits] = useState<GraphCommit[] | null>(null)
   const [limit, setLimit] = useState(GRAPH_PAGE)
   const [branches, setBranches] = useState<BranchInfo[]>([])
   const [stashes, setStashes] = useState<StashInfo[]>([])
   const [tags, setTags] = useState<TagInfo[]>([])
+  const [selectedCommit, setSelectedCommit] = useState<string | null>(null)
+  const [details, setDetails] = useState<CommitDetails | null>(null)
   const [menu, setMenu] = useState<Menu | null>(null)
   const actions = useGitActions(status?.root ?? root, onChanged)
   /** The last "expand/collapse all"; every section follows it, see Section. */
@@ -82,6 +86,23 @@ export function GitView({
     void gitStashes(root).then(setStashes).catch(() => setStashes([]))
     void gitTags(root).then(setTags).catch(() => setTags([]))
   }, [root, status, limit])
+
+  useEffect(() => {
+    setSelectedCommit(null)
+    setDetails(null)
+  }, [root])
+
+  useEffect(() => {
+    setDetails(null)
+    if (!selectedCommit) return
+    let live = true
+    void gitCommitDetails(root, selectedCommit)
+      .then((d) => live && setDetails(d))
+      .catch(() => live && setSelectedCommit(null))
+    return () => {
+      live = false
+    }
+  }, [root, selectedCommit])
 
   if (!status?.isRepo) {
     return (
@@ -298,7 +319,34 @@ export function GitView({
         {commits && commits.length === 0 && (
           <div className="repo__loading subtle">{t('panel.noCommits')}</div>
         )}
-        {commits && commits.length > 0 && <CommitGraph commits={commits} />}
+        {commits && commits.length > 0 && (
+          <CommitGraph
+            commits={commits}
+            selected={selectedCommit}
+            onSelect={(commit) => setSelectedCommit((id) => (id === commit.id ? null : commit.id))}
+          />
+        )}
+        {selectedCommit && (
+          <div className="ggraph__details">
+            <div className="ggraph__details-bar">
+              <span className="mono">{selectedCommit.slice(0, 7)}</span>
+              <span className="subtle">
+                {details
+                  ? t('graph.files', { n: details.files.length })
+                  : t('common.loading')}
+              </span>
+            </div>
+            {details && (
+              <FileList
+                files={details.files}
+                onOpen={(f, preview) => openDiffTab({
+                  projectId, root: repo, path: f.path, side: 'head',
+                  target: details.id, oldPath: f.oldPath ?? undefined, preview,
+                })}
+              />
+            )}
+          </div>
+        )}
         {commits && commits.length >= limit && (
           <button className="btn btn--sm graph__more" onClick={() => setLimit((n) => n + GRAPH_PAGE)}>
             {t('panel.showMore')}

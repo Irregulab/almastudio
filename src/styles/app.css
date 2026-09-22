@@ -1286,6 +1286,7 @@ img, a { -webkit-user-drag: none; }
   font-size: 12px;
 }
 .graph__row:hover { background: var(--bg-hover); }
+.graph__row.is-selected { background: var(--bg-selected); }
 .graph__lanes { flex: 0 0 auto; }
 .graph__lanes path { fill: none; stroke-width: 1.5; }
 .graph__ref {
