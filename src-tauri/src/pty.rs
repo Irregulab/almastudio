@@ -473,6 +473,29 @@ fn default_shell() -> String {
     }
 }
 
+/// Quotes one argument for the Windows `cmd /c` wrapper. `cmd.exe` has shell
+/// expansion rules that are different from normal process argument parsing;
+/// rejecting the ambiguous expansion characters is safer than allowing an
+/// argument to become a second command.
+fn windows_cmd_arg(value: &str) -> anyhow::Result<String> {
+    if value
+        .chars()
+        .any(|c| matches!(c, '"' | '%' | '!' | '\r' | '\n' | '\0'))
+    {
+        anyhow::bail!("argument contains characters unsupported by the Windows shell wrapper")
+    }
+    let mut out = String::with_capacity(value.len() + 2);
+    out.push('"');
+    for c in value.chars() {
+        if matches!(c, '^' | '&' | '|' | '<' | '>' | '(' | ')') {
+            out.push('^');
+        }
+        out.push(c);
+    }
+    out.push('"');
+    Ok(out)
+}
+
 fn build_command(opts: &SpawnOptions) -> anyhow::Result<CommandBuilder> {
     let shell = opts.shell.clone().filter(|s| !s.trim().is_empty()).unwrap_or_else(default_shell);
 
@@ -492,10 +515,10 @@ fn build_command(opts: &SpawnOptions) -> anyhow::Result<CommandBuilder> {
     } else if cfg!(windows) {
         // cmd.exe resolves the `.cmd` shims that npm-installed CLIs ship with,
         // which a bare CreateProcess does not.
-        let mut line = opts.program.clone();
+        let mut line = windows_cmd_arg(&opts.program)?;
         for a in &opts.args {
             line.push(' ');
-            line.push_str(a);
+            line.push_str(&windows_cmd_arg(a)?);
         }
         let mut c = CommandBuilder::new(shell);
         c.arg("/d");
