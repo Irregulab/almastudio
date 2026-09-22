@@ -113,15 +113,17 @@ export function RightPanel({
   return (
     <aside className="panel">
       <div className="panel__tabs">
-        <PanelTab active={view === 'changes'} onClick={() => onViewChange('changes')}
-          icon={<FileDiff size={13} />} label={t('panel.changes')}
-          badge={status?.files.length || undefined} />
-        <PanelTab active={view === 'files'} onClick={() => onViewChange('files')}
-          icon={<ListTree size={13} />} label={t('panel.files')} />
-        <PanelTab active={view === 'git'} onClick={() => onViewChange('git')}
-          icon={<GitBranch size={13} />} label={t('panel.git')} />
-        <PanelTab active={view === 'search'} onClick={() => onViewChange('search')}
-          icon={<Search size={13} />} label={t('panel.search')} />
+        <div className="panel__tablist" role="tablist">
+          <PanelTab active={view === 'changes'} onClick={() => onViewChange('changes')}
+            icon={<FileDiff size={13} />} label={t('panel.changes')}
+            badge={status?.files.length || undefined} />
+          <PanelTab active={view === 'files'} onClick={() => onViewChange('files')}
+            icon={<ListTree size={13} />} label={t('panel.files')} />
+          <PanelTab active={view === 'git'} onClick={() => onViewChange('git')}
+            icon={<GitBranch size={13} />} label={t('panel.git')} />
+          <PanelTab active={view === 'search'} onClick={() => onViewChange('search')}
+            icon={<Search size={13} />} label={t('panel.search')} />
+        </div>
         <span className="spacer" />
         <button
           className="icon-btn" onClick={() => setTick((n) => n + 1)}
@@ -267,7 +269,10 @@ function PanelTab({
   active: boolean; onClick: () => void; icon: React.ReactNode; label: string; badge?: number
 }) {
   return (
-    <button className={`panel-tab${active ? ' panel-tab--active' : ''}`} onClick={onClick}>
+    <button
+      className={`panel-tab${active ? ' panel-tab--active' : ''}`}
+      role="tab" aria-selected={active} onClick={onClick}
+    >
       {icon}
       <span>{label}</span>
       {badge !== undefined && <span className="panel-tab__badge">{badge}</span>}
