@@ -732,7 +732,7 @@ function FilesView({
           onCancel={() => setDialog(null)}
           onConfirm={(name) => {
             setDialog(null)
-            void run(createFile(join(dialog.dir, name)))
+            void run(createFile(join(dialog.dir, name), root))
           }}
         />
       )}
@@ -743,7 +743,7 @@ function FilesView({
           onCancel={() => setDialog(null)}
           onConfirm={(name) => {
             setDialog(null)
-            void run(createDir(join(dialog.dir, name)))
+            void run(createDir(join(dialog.dir, name), root))
           }}
         />
       )}
@@ -758,7 +758,7 @@ function FilesView({
               Math.max(0, dialog.target.path.lastIndexOf('/')),
             )
             setDialog(null)
-            void run(renamePath(dialog.target.path, join(parent, name)))
+            void run(renamePath(dialog.target.path, join(parent, name), root))
           }}
         />
       )}
@@ -771,7 +771,7 @@ function FilesView({
           onConfirm={() => {
             const path = dialog.target.path
             setDialog(null)
-            void run(trashPath(path))
+            void run(trashPath(path, root))
           }}
         />
       )}

@@ -193,7 +193,8 @@ export const listDir = (
   root: string, dir: string, showHidden: boolean, respectGitignore: boolean,
 ) => invoke<DirEntryInfo[]>('list_dir', { root, dir, showHidden, respectGitignore })
 
-export const readTextFile = (path: string) => invoke<FileContent>('read_text_file', { path })
+export const readTextFile = (path: string, root?: string) =>
+  invoke<FileContent>('read_text_file', { path, root: root ?? null })
 export const findFiles = (
   root: string, query: string, limit: number, showHidden: boolean, respectGitignore: boolean,
 ) => invoke<DirEntryInfo[]>('find_files', { root, query, limit, showHidden, respectGitignore })
@@ -224,17 +225,21 @@ export const onMenuAction = (cb: (id: string) => void): Promise<UnlistenFn> =>
 
 // ------------------------------------------------------ fs mutation ---------
 
-export const createDir = (path: string) => invoke<string>('create_dir', { path })
-export const createFile = (path: string) => invoke<string>('create_file', { path })
-export const renamePath = (from: string, to: string) =>
-  invoke<string>('rename_path', { from, to })
+export const createDir = (path: string, root?: string) =>
+  invoke<string>('create_dir', { path, root: root ?? null })
+export const createFile = (path: string, root?: string) =>
+  invoke<string>('create_file', { path, root: root ?? null })
+export const renamePath = (from: string, to: string, root?: string) =>
+  invoke<string>('rename_path', { from, to, root: root ?? null })
 /** Moves to the OS trash rather than deleting outright. */
-export const trashPath = (path: string) => invoke<void>('trash_path', { path })
-export const writeTextFile = (path: string, contents: string) =>
-  invoke<void>('write_text_file', { path, contents })
+export const trashPath = (path: string, root?: string) =>
+  invoke<void>('trash_path', { path, root: root ?? null })
+export const writeTextFile = (path: string, contents: string, root?: string) =>
+  invoke<void>('write_text_file', { path, contents, root: root ?? null })
 export const readFileBase64 = (path: string, maxBytes?: number) =>
   invoke<string>('read_file_base64', { path, maxBytes })
-export const pathExists = (path: string) => invoke<boolean>('path_exists', { path })
+export const pathExists = (path: string, root?: string) =>
+  invoke<boolean>('path_exists', { path, root: root ?? null })
 /** Lets the asset protocol serve one selected file to the viewer. */
 export const allowPreview = (path: string) =>
   invoke<void>('allow_preview', { path })

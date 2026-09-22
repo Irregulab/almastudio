@@ -161,8 +161,8 @@ fn looks_binary(bytes: &[u8]) -> bool {
 }
 
 #[tauri::command]
-pub fn read_text_file(path: String) -> Result<FileContent, String> {
-    let p = PathBuf::from(&path);
+pub fn read_text_file(path: String, root: Option<String>) -> Result<FileContent, String> {
+    let p = scoped(root.as_deref(), &path)?;
     let meta = fs::metadata(&p).map_err(|e| e.to_string())?;
     let size = meta.len();
 
@@ -312,15 +312,37 @@ fn checked(path: &str) -> Result<PathBuf, String> {
     Ok(p)
 }
 
+/// Checks a path against a project root when the caller has one. Existing
+/// paths are canonicalized so a symlink cannot escape the selected project;
+/// new paths use their canonicalized parent and retain their final component.
+fn scoped(root: Option<&str>, path: &str) -> Result<PathBuf, String> {
+    let p = checked(path)?;
+    let Some(root) = root else { return Ok(p) };
+    let root = fs::canonicalize(checked(root)?).map_err(|e| e.to_string())?;
+    let target = if p.exists() {
+        fs::canonicalize(&p).map_err(|e| e.to_string())?
+    } else {
+        let parent = p.parent().ok_or_else(|| "path has no parent".to_string())?;
+        fs::canonicalize(parent)
+            .map_err(|e| e.to_string())?
+            .join(p.file_name().ok_or_else(|| "path has no file name".to_string())?)
+    };
+    if target == root || target.starts_with(&root) {
+        Ok(p)
+    } else {
+        Err("path is outside the project folder".into())
+    }
+}
+
 /// Whether a file or folder exists, for callers that must not act on a stale path.
 #[tauri::command]
-pub fn path_exists(path: String) -> bool {
-    checked(&path).map(|p| p.exists()).unwrap_or(false)
+pub fn path_exists(path: String, root: Option<String>) -> bool {
+    scoped(root.as_deref(), &path).map(|p| p.exists()).unwrap_or(false)
 }
 
 #[tauri::command]
-pub fn create_dir(path: String) -> Result<String, String> {
-    let p = checked(&path)?;
+pub fn create_dir(path: String, root: Option<String>) -> Result<String, String> {
+    let p = scoped(root.as_deref(), &path)?;
     if p.exists() {
         return Err(format!("{} already exists", p.display()));
     }
@@ -329,8 +351,8 @@ pub fn create_dir(path: String) -> Result<String, String> {
 }
 
 #[tauri::command]
-pub fn create_file(path: String) -> Result<String, String> {
-    let p = checked(&path)?;
+pub fn create_file(path: String, root: Option<String>) -> Result<String, String> {
+    let p = scoped(root.as_deref(), &path)?;
     if p.exists() {
         return Err(format!("{} already exists", p.display()));
     }
@@ -342,9 +364,9 @@ pub fn create_file(path: String) -> Result<String, String> {
 }
 
 #[tauri::command]
-pub fn rename_path(from: String, to: String) -> Result<String, String> {
-    let src = checked(&from)?;
-    let dst = checked(&to)?;
+pub fn rename_path(from: String, to: String, root: Option<String>) -> Result<String, String> {
+    let src = scoped(root.as_deref(), &from)?;
+    let dst = scoped(root.as_deref(), &to)?;
     if !src.exists() {
         return Err(format!("{} does not exist", src.display()));
     }
@@ -360,8 +382,8 @@ pub fn rename_path(from: String, to: String) -> Result<String, String> {
 
 /// Moves to the OS trash. Recovering a mistake should not need a backup.
 #[tauri::command]
-pub fn trash_path(path: String) -> Result<(), String> {
-    let p = checked(&path)?;
+pub fn trash_path(path: String, root: Option<String>) -> Result<(), String> {
+    let p = scoped(root.as_deref(), &path)?;
     if !p.exists() {
         return Err(format!("{} does not exist", p.display()));
     }
@@ -369,8 +391,8 @@ pub fn trash_path(path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn write_text_file(path: String, contents: String) -> Result<(), String> {
-    let p = checked(&path)?;
+pub fn write_text_file(path: String, contents: String, root: Option<String>) -> Result<(), String> {
+    let p = scoped(root.as_deref(), &path)?;
     if let Some(parent) = p.parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }

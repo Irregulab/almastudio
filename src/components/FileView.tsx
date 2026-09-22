@@ -66,7 +66,7 @@ export function FileView({ tab, visible }: { tab: FileTab; visible: boolean }) {
     async (discardEdits = false, force = false) => {
       setLoading(true)
       try {
-        const f = await readTextFile(absolute)
+        const f = await readTextFile(absolute, tab.root)
         setFile(f)
         // Reload disk-backed previews only when the file changed (or on an
         // explicit refresh), so coming back to the tab keeps a PDF's page.
@@ -84,7 +84,7 @@ export function FileView({ tab, visible }: { tab: FileTab; visible: boolean }) {
         setLoading(false)
       }
     },
-    [absolute],
+    [absolute, tab.root],
   )
 
   useEffect(() => {
@@ -106,7 +106,7 @@ export function FileView({ tab, visible }: { tab: FileTab; visible: boolean }) {
   const write = useCallback(async () => {
     setSaving(true)
     try {
-      await writeTextFile(absolute, content)
+      await writeTextFile(absolute, content, tab.root)
       setOriginal(content)
       seen.current = content
       setVersion((v) => v + 1)
@@ -119,14 +119,14 @@ export function FileView({ tab, visible }: { tab: FileTab; visible: boolean }) {
       setSaving(false)
       setConflict(null)
     }
-  }, [absolute, content, t])
+  }, [absolute, content, t, tab.root])
 
   const save = useCallback(async () => {
     if (!dirty || saving) return
     // Agents are editing these same files in the next tab along, so check what
     // is actually on disk before overwriting it.
     try {
-      const onDisk = await readTextFile(absolute)
+      const onDisk = await readTextFile(absolute, tab.root)
       if (!onDisk.binary && onDisk.content !== original) {
         setConflict(onDisk.content)
         return
