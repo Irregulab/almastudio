@@ -1,4 +1,4 @@
-import { act } from 'react'
+import { act, createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -91,9 +91,10 @@ async function flush() {
 
 describe('GitView history details', () => {
   let host: HTMLDivElement
-  let root: Root
+  let root: Root | null = null
 
   beforeEach(() => {
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     host = document.createElement('div')
     document.body.appendChild(host)
     useWorkspace.setState({
@@ -121,7 +122,9 @@ describe('GitView history details', () => {
   it('shows changed files for a clicked commit and opens diff tabs as preview or pinned', async () => {
     await act(async () => {
       root = createRoot(host)
-      root.render(<GitView projectId={project.id} root={project.root} status={status} onChanged={() => {}} />)
+      root.render(createElement(GitView, {
+        projectId: project.id, root: project.root, status, onChanged: () => {},
+      }))
     })
     await flush()
     await flush()
@@ -137,10 +140,10 @@ describe('GitView history details', () => {
 
     expect(mockedGitCommitDetails).toHaveBeenCalledWith(project.root, commit.id)
     expect(row!.className).toContain('is-selected')
-    expect(host.textContent).toContain('src/app.ts')
 
     const file = host.querySelector('.ggraph__details .filerow')
     expect(file).not.toBeNull()
+    expect(file?.getAttribute('title')).toBe('src/app.ts')
 
     await act(async () => {
       file!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
