@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { CaseSensitive, ChevronDown, ChevronRight, Ellipsis, Regex, WholeWord } from 'lucide-react'
+import { CaseSensitive, ChevronDown, ChevronRight, ChevronRightSquare, Ellipsis, Regex, Replace, WholeWord } from 'lucide-react'
 import { create } from 'zustand'
 
-import { searchText, type FileMatches, type LineMatch, type SearchResults } from '../lib/ipc'
+import { replaceText, searchText, type FileMatches, type LineMatch, type SearchResults } from '../lib/ipc'
 import { useWorkspace } from '../store/workspace'
 import { useT } from '../i18n'
 import { FileIcon } from './FileIcon'
@@ -15,6 +15,8 @@ interface SearchOptions {
   include: string
   exclude: string
   showFilters: boolean
+  replacement: string
+  showReplace: boolean
 }
 
 const DEFAULTS: SearchOptions = {
@@ -25,6 +27,8 @@ const DEFAULTS: SearchOptions = {
   include: '',
   exclude: '',
   showFilters: false,
+  replacement: '',
+  showReplace: false,
 }
 
 /** Kept per project, so switching panel views or projects keeps the query. */
@@ -45,6 +49,9 @@ export function SearchView({
   const [results, setResults] = useState<SearchResults | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [searching, setSearching] = useState(false)
+  const [replacing, setReplacing] = useState(false)
+  const [replaceNotice, setReplaceNotice] = useState<string | null>(null)
+  const [replaceError, setReplaceError] = useState<string | null>(null)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   /** Enter searches at once rather than after the typing pause. */
   const [runNow, setRunNow] = useState(0)
@@ -70,7 +77,8 @@ export function SearchView({
     return () => window.removeEventListener('almastudio:search-focus', focus)
   }, [])
 
-  const { pattern, caseSensitive, wholeWord, regex, include, exclude } = options
+  const { pattern, caseSensitive, wholeWord, regex, include, exclude, replacement } = options
+
   useEffect(() => {
     if (!pattern) {
       setResults(null)
@@ -112,6 +120,54 @@ export function SearchView({
       return next
     })
 
+  const doReplaceAll = useCallback(async () => {
+    if (!pattern || !replacement) return
+    setReplacing(true)
+    setReplaceError(null)
+    setReplaceNotice(null)
+    try {
+      const r = await replaceText({
+        root, pattern, caseSensitive, wholeWord, regex, include, exclude, replacement,
+      })
+      const msg = t('search.replaceDone', { n: r.replacements, f: r.filesChanged })
+      setReplaceNotice(msg)
+      window.setTimeout(() => setReplaceNotice(null), 3000)
+      // Re-run the search to refresh results.
+      immediate.current = true
+      setRunNow((n) => n + 1)
+    } catch (e) {
+      setReplaceError(String(e))
+    } finally {
+      setReplacing(false)
+    }
+  }, [root, pattern, caseSensitive, wholeWord, regex, include, exclude, replacement, t])
+
+  const doReplaceFile = useCallback(async (file: FileMatches) => {
+    if (!pattern || !replacement) return
+    setReplacing(true)
+    setReplaceError(null)
+    setReplaceNotice(null)
+    // Use the file's relative path as an include glob so only that one file
+    // is affected.
+    try {
+      const r = await replaceText({
+        root, pattern, caseSensitive, wholeWord, regex,
+        include: file.rel,
+        exclude: '',
+        replacement,
+      })
+      const msg = t('search.replaceDone', { n: r.replacements, f: r.filesChanged })
+      setReplaceNotice(msg)
+      window.setTimeout(() => setReplaceNotice(null), 3000)
+      immediate.current = true
+      setRunNow((n) => n + 1)
+    } catch (e) {
+      setReplaceError(String(e))
+    } finally {
+      setReplacing(false)
+    }
+  }, [root, pattern, caseSensitive, wholeWord, regex, replacement, t])
+
   // A click previews the match, a double click keeps the file open, as in VS Code.
   const open = (file: FileMatches, match: LineMatch, preview: boolean) =>
     openFileTab({
@@ -129,6 +185,10 @@ export function SearchView({
   return (
     <div className="search">
       <div className="search__bar">
+        <Toggle on={options.showReplace} label={t('search.toggleReplace')}
+          onClick={() => set({ showReplace: !options.showReplace })}>
+          <ChevronRightSquare size={14} />
+        </Toggle>
         <div className="search__field">
           <input
             ref={inputRef}
@@ -165,6 +225,30 @@ export function SearchView({
         </Toggle>
       </div>
 
+      {options.showReplace && (
+        <div className="search__replace-row">
+          <input
+            className="input input--sm search__replace-input"
+            placeholder={t('search.replacePlaceholder')}
+            value={replacement}
+            spellCheck={false}
+            onChange={(e) => set({ replacement: e.target.value })}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void doReplaceAll()
+              if (e.key === 'Escape') set({ replacement: '' })
+            }}
+          />
+          <button
+            className="btn btn--sm"
+            disabled={!pattern || !replacement || replacing}
+            title={t('search.replaceAll')}
+            onClick={() => void doReplaceAll()}
+          >
+            <Replace size={12} /> {t('search.replaceAll')}
+          </button>
+        </div>
+      )}
+
       {options.showFilters && (
         <div className="search__filters">
           <label className="search__label">
@@ -187,7 +271,11 @@ export function SearchView({
       )}
 
       <div className="search__status subtle">
-        {error ? (
+        {replaceError ? (
+          <span className="search__error">{replaceError}</span>
+        ) : replaceNotice ? (
+          <span>{replaceNotice}</span>
+        ) : error ? (
           <span className="search__error">{error}</span>
         ) : results && pattern ? (
           <>
@@ -214,6 +302,16 @@ export function SearchView({
                   {slash > 0 ? file.rel.slice(0, slash) : ''}
                 </span>
                 <span className="search__count">{file.matches.length}</span>
+                {options.showReplace && replacement && (
+                  <button
+                    className="icon-btn icon-btn--tiny search__file-replace"
+                    title={t('search.replaceInFile')}
+                    disabled={replacing}
+                    onClick={(e) => { e.stopPropagation(); void doReplaceFile(file) }}
+                  >
+                    <Replace size={11} />
+                  </button>
+                )}
               </button>
               {!closed && file.matches.map((match) => (
                 <button

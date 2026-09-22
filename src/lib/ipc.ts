@@ -348,6 +348,25 @@ export interface SearchResults {
 /** Starting a search cancels the one before; an empty pattern just cancels. */
 export const searchText = (query: SearchQuery) => invoke<SearchResults>('search_text', { query })
 
+export interface ReplaceQuery {
+  root: string
+  pattern: string
+  caseSensitive?: boolean
+  wholeWord?: boolean
+  regex?: boolean
+  include?: string
+  exclude?: string
+  replacement: string
+}
+
+export interface ReplaceResults {
+  filesChanged: number
+  replacements: number
+}
+
+/** Replaces all occurrences of the search pattern across the folder. */
+export const replaceText = (query: ReplaceQuery) => invoke<ReplaceResults>('replace_text', { query })
+
 // -------------------------------------------------------- external editors ----
 
 export interface ExternalEditor {
