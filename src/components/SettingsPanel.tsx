@@ -153,9 +153,9 @@ function AppearanceSection() {
         </select>
       </Field>
 
-      <Field label={t('settings.uiFont')} hint="e.g. Inter, 'SF Pro Text', system-ui">
+      <Field label={t('settings.uiFont')} hint={t('settings.uiFontHint')}>
         <input
-          className="input" value={s.ui.fontFamily} placeholder="System"
+          className="input" value={s.ui.fontFamily} placeholder={t('settings.uiFontSystem')}
           onChange={(e) => patch('ui', { fontFamily: e.target.value })}
         />
       </Field>
@@ -245,9 +245,9 @@ function TerminalSection() {
         </select>
       </Field>
 
-      <Field label={t('settings.termFont')} hint="e.g. 'JetBrains Mono', 'Fira Code', Menlo">
+      <Field label={t('settings.termFont')} hint={t('settings.termFontHint')}>
         <input
-          className="input mono" value={s.terminal.fontFamily} placeholder="System monospace"
+          className="input mono" value={s.terminal.fontFamily} placeholder={t('settings.termFontSystem')}
           onChange={(e) => patch('terminal', { fontFamily: e.target.value })}
         />
       </Field>
