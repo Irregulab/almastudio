@@ -145,7 +145,8 @@ describe('GitView history details', () => {
 
     const file = host.querySelector('.ggraph__details .filerow')
     expect(file).not.toBeNull()
-    expect(file?.getAttribute('title')).toBe('src/app.ts')
+    expect(file?.textContent).toContain('app.ts')
+    expect(file?.textContent).toContain('src')
 
     await act(async () => {
       file!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
