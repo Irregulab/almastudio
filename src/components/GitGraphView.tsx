@@ -72,12 +72,14 @@ export function GitGraphView({ tab, visible }: { tab: GraphTab; visible: boolean
   const [details, setDetails] = useState<CommitDetails | null>(null)
   const [compared, setCompared] = useState<CommitFile[] | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
   const [menu, setMenu] = useState<Menu | null>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
   const loadSeq = useRef(0)
 
   const load = useCallback(async () => {
     const seq = ++loadSeq.current
+    setLoading(true)
     try {
       const [s, list, all] = await Promise.all([
         gitStatus(root), gitGraph(root, limit, shown ?? undefined), gitBranches(root),
@@ -89,6 +91,8 @@ export function GitGraphView({ tab, visible }: { tab: GraphTab; visible: boolean
       setLoadError(null)
     } catch (e) {
       if (seq === loadSeq.current) setLoadError(String(e))
+    } finally {
+      if (seq === loadSeq.current) setLoading(false)
     }
   }, [root, limit, shown])
 
@@ -276,9 +280,10 @@ export function GitGraphView({ tab, visible }: { tab: GraphTab; visible: boolean
         </button>
         <button
           className="icon-btn" title={t('panel.refresh')} aria-label={t('panel.refresh')}
+          disabled={busy || loading}
           onClick={() => void load()}
         >
-          {running && running !== 'fetch' ? <Loader2 size={13} className="spin" /> : <RefreshCw size={13} />}
+          {loading ? <Loader2 size={13} className="spin" /> : <RefreshCw size={13} />}
         </button>
       </div>
 
