@@ -285,7 +285,12 @@ function RepoChanges({
   const status = useRepoStatus(root, revision)
   if (!status) return <div className="repo__loading subtle">{t('common.loading')}</div>
   if (status.files.length === 0) {
-    return <div className="repo__loading subtle">{t('panel.noChangesHint')}</div>
+    return (
+      <div className="empty">
+        <div>{t('panel.noChanges')}</div>
+        <div className="subtle">{t('panel.noChangesHint')}</div>
+      </div>
+    )
   }
   return <ChangesView projectId={projectId} status={status} onChanged={onChanged} />
 }
