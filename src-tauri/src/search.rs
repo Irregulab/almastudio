@@ -208,10 +208,6 @@ fn replace_all(query: &ReplaceQuery) -> Result<ReplaceResults, String> {
 
     for path in paths {
         let Ok(content) = std::fs::read_to_string(&path) else { continue };
-        let count = re.find_iter(&content).count();
-        if count == 0 {
-            continue;
-        }
         let new_content = if query.regex {
             re.replace_all(&content, query.replacement.as_str()).into_owned()
         } else {
@@ -219,7 +215,23 @@ fn replace_all(query: &ReplaceQuery) -> Result<ReplaceResults, String> {
             re.replace_all(&content, regex::NoExpand(query.replacement.as_str()))
                 .into_owned()
         };
-        if std::fs::write(&path, new_content.as_bytes()).is_ok() {
+        if new_content == content {
+            continue;
+        }
+        // Count matches on the original content (same source the replacement used).
+        let count = re.find_iter(&content).count();
+        // Write atomically: write to a sibling temp file then rename over the target.
+        // `rename` is atomic on POSIX and much safer than truncate-then-write.
+        let tmp_path = {
+            let parent = path.parent().unwrap_or_else(|| std::path::Path::new("."));
+            let name = path.file_name().unwrap_or_default().to_string_lossy();
+            parent.join(format!(".almastudio_tmp_{name}"))
+        };
+        let wrote = std::fs::write(&tmp_path, new_content.as_bytes())
+            .and_then(|_| std::fs::rename(&tmp_path, &path));
+        if wrote.is_err() {
+            let _ = std::fs::remove_file(&tmp_path);
+        } else {
             files_changed += 1;
             replacements += count;
         }
