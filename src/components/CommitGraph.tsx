@@ -63,7 +63,13 @@ export function GraphLanes({ row, lanes }: { row: GraphRow; lanes: number }) {
  * of its own, merges drawn where they join, and branches and tags labelled on
  * the commits they point at.
  */
-export function CommitGraph({ commits }: { commits: GraphCommit[] }) {
+export function CommitGraph({
+  commits, selected, onSelect,
+}: {
+  commits: GraphCommit[]
+  selected?: string | null
+  onSelect?: (commit: GraphCommit) => void
+}) {
   const rows = useMemo(() => layoutGraph(commits), [commits])
   const lanes = Math.min(MAX_LANES, Math.max(1, ...rows.map((r) => r.width)))
 
@@ -75,8 +81,9 @@ export function CommitGraph({ commits }: { commits: GraphCommit[] }) {
         return (
           <li
             key={commit.id}
-            className="graph__row"
+            className={`graph__row${selected === commit.id ? ' is-selected' : ''}`}
             title={`${commit.shortId} · ${commit.author} <${commit.email}> · ${date}\n\n${commit.summary}`}
+            onClick={() => onSelect?.(commit)}
           >
             <GraphLanes row={row} lanes={lanes} />
             {commit.refs.map((ref) => (

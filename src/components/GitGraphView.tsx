@@ -581,7 +581,7 @@ const STATUS_CLASSES: Record<string, string> = {
  * The files a commit, or a comparison, changed; each opens its diff, as a
  * preview on a single click and kept open on a double click, as in VS Code.
  */
-function FileList({
+export function FileList({
   files, onOpen,
 }: { files: CommitFile[]; onOpen: (file: CommitFile, preview: boolean) => void }) {
   return (
