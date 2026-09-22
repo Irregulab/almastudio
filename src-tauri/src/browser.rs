@@ -42,7 +42,11 @@ fn parse_url(raw: &str) -> Result<url::Url, String> {
             urlencoding_lite(trimmed)
         )
     };
-    url::Url::parse(&candidate).map_err(|e| format!("invalid url: {e}"))
+    let url = url::Url::parse(&candidate).map_err(|e| format!("invalid url: {e}"))?;
+    match url.scheme() {
+        "http" | "https" => Ok(url),
+        scheme => Err(format!("unsupported url scheme: {scheme}")),
+    }
 }
 
 /// Minimal percent-encoding for a query string; pulling in a crate for this
