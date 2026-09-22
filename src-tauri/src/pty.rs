@@ -33,6 +33,8 @@ const SCROLLBACK_CAP: usize = 256 * 1024;
 const COALESCE_MS: u64 = 8;
 /// Hard cap on a single IPC batch, so one huge burst cannot stall the webview.
 const MAX_BATCH: usize = 256 * 1024;
+/// If event delivery stops, do not retain an unbounded stream in the outbox.
+const MAX_OUTBOX: usize = MAX_BATCH * 4;
 
 /// A session is "busy" while it has produced output this recently. Agents
 /// animate a spinner while they think and go quiet at a prompt, so silence is
@@ -317,7 +319,17 @@ fn spawn_reader(
                     ring.lock().push(bytes);
                     let (lock, cv) = &*shared;
                     let mut ob = lock.lock();
+                    if ob.closed {
+                        break;
+                    }
                     ob.buf.extend_from_slice(bytes);
+                    if ob.buf.len() > MAX_OUTBOX {
+                        // The webview is no longer consuming this stream. Keep
+                        // the process alive, but drop old IPC data instead of
+                        // allowing a broken event channel to grow memory.
+                        let overflow = ob.buf.len() - MAX_OUTBOX;
+                        ob.buf.drain(..overflow);
+                    }
                     cv.notify_one();
                 }
                 Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
@@ -369,6 +381,9 @@ fn spawn_emitter(app: AppHandle, id: String, shared: Shared) {
             let payload =
                 DataPayload { id: id.clone(), b64: engine.encode(&batch), end: emitted };
             if app.emit(&event, payload).is_err() {
+                let (lock, cv) = &*shared;
+                lock.lock().closed = true;
+                cv.notify_all();
                 break;
             }
         }
