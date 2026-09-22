@@ -70,6 +70,7 @@ export function GitView({
   const [branches, setBranches] = useState<BranchInfo[]>([])
   const [stashes, setStashes] = useState<StashInfo[]>([])
   const [tags, setTags] = useState<TagInfo[]>([])
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [selectedCommit, setSelectedCommit] = useState<string | null>(null)
   const [details, setDetails] = useState<CommitDetails | null>(null)
   const [menu, setMenu] = useState<Menu | null>(null)
@@ -80,10 +81,23 @@ export function GitView({
 
   useEffect(() => {
     if (!status?.isRepo) return
-    void gitGraph(root, limit).then(setCommits).catch(() => setCommits([]))
-    void gitBranches(root).then(setBranches).catch(() => setBranches([]))
-    void gitStashes(root).then(setStashes).catch(() => setStashes([]))
-    void gitTags(root).then(setTags).catch(() => setTags([]))
+    let live = true
+    setCommits(null)
+    setLoadError(null)
+    void Promise.all([
+      gitGraph(root, limit), gitBranches(root), gitStashes(root), gitTags(root),
+    ]).then(([nextCommits, nextBranches, nextStashes, nextTags]) => {
+      if (!live) return
+      setCommits(nextCommits)
+      setBranches(nextBranches)
+      setStashes(nextStashes)
+      setTags(nextTags)
+    }).catch((e) => {
+      if (live) setLoadError(String(e))
+    })
+    return () => {
+      live = false
+    }
   }, [root, status, limit])
 
   useEffect(() => {
@@ -218,6 +232,7 @@ export function GitView({
       )}
 
       {actions.error && <div className="git__error git__error--block">{actions.error}</div>}
+      {loadError && <div className="git__error git__error--block">{loadError}</div>}
 
       <CommitBox root={repo} status={status} onChanged={onChanged} />
 
@@ -309,6 +324,9 @@ export function GitView({
         command={sections}
         icon={<History size={12} />} title={t('panel.history')}
       >
+        {commits === null && !loadError && (
+          <div className="repo__loading subtle">{t('common.loading')}</div>
+        )}
         {commits && commits.length === 0 && (
           <div className="repo__loading subtle">{t('panel.noCommits')}</div>
         )}
