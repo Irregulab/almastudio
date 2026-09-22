@@ -340,7 +340,7 @@ export function GitView({
               <FileList
                 files={details.files}
                 onOpen={(f, preview) => openDiffTab({
-                  projectId, root: repo, path: f.path, side: 'head',
+                  projectId, root, path: f.path, side: 'head',
                   target: details.id, oldPath: f.oldPath ?? undefined, preview,
                 })}
               />
