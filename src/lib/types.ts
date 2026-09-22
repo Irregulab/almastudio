@@ -378,6 +378,8 @@ export interface BranchInfo {
   name: string
   isHead: boolean
   isRemote: boolean
+  /** Unix timestamp (seconds) of the branch tip commit, if available. */
+  lastCommit: number | null
 }
 
 // ------------------------------------------------------------------- fs ----

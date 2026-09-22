@@ -858,6 +858,8 @@ pub struct BranchInfo {
     pub name: String,
     pub is_head: bool,
     pub is_remote: bool,
+    /// Unix timestamp (seconds) of the branch tip commit, if available.
+    pub last_commit: Option<i64>,
 }
 
 #[tauri::command]
@@ -868,10 +870,16 @@ pub fn git_branches(root: String) -> Result<Vec<BranchInfo>, String> {
     for b in branches.flatten() {
         let (branch, kind) = b;
         if let Ok(Some(name)) = branch.name() {
+            let last_commit = branch
+                .get()
+                .peel_to_commit()
+                .ok()
+                .map(|c| c.time().seconds());
             out.push(BranchInfo {
                 name: name.to_string(),
                 is_head: branch.is_head(),
                 is_remote: matches!(kind, git2::BranchType::Remote),
+                last_commit,
             });
         }
     }

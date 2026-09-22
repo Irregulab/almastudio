@@ -453,6 +453,7 @@
 }
 .filerow:hover { background: var(--bg-hover); }
 .filerow--current { color: var(--accent-strong); font-weight: 600; }
+.filerow--folder { cursor: default; user-select: none; }
 .filerow__code {
   width: 18px;
   flex: 0 0 auto;

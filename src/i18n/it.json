@@ -453,7 +453,9 @@
     "opRevert": "Revert in corso",
     "opBisect": "Bisect in corso",
     "conflicts": "{n} file con conflitti: risolvili e mettili in stage, poi continua.",
-    "readyToContinue": "Nessun conflitto rimasto: continua, oppure annulla per tornare indietro."
+    "readyToContinue": "Nessun conflitto rimasto: continua, oppure annulla per tornare indietro.",
+    "sortByName": "Ordina per nome",
+    "sortByDate": "Ordina per data ultimo commit"
   },
   "graph": {
     "open": "Apri Git Graph",
