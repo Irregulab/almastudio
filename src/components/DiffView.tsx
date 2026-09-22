@@ -30,22 +30,27 @@ export function DiffView({ tab, visible }: { tab: DiffTab; visible: boolean }) {
   const [applying, setApplying] = useState(false)
   const [applyError, setApplyError] = useState<string | null>(null)
   const [confirmDiscard, setConfirmDiscard] = useState<number | null>(null)
+  const loadSeq = useRef(0)
 
   const load = useCallback(async () => {
+    const seq = ++loadSeq.current
     setLoading(true)
     try {
       const commits = tab.target
         ? { base: tab.base, target: tab.target, oldPath: tab.oldPath }
         : undefined
       const d = await gitDiffFile(tab.root, tab.path, side, settings.panel.contextLines, commits)
+      if (seq !== loadSeq.current) return
       setDiff(d)
       setPicked({})
       setError(null)
     } catch (e) {
-      setError(String(e))
-      setDiff(null)
+      if (seq === loadSeq.current) {
+        setError(String(e))
+        setDiff(null)
+      }
     } finally {
-      setLoading(false)
+      if (seq === loadSeq.current) setLoading(false)
     }
   }, [side, settings.panel.contextLines, tab.base, tab.oldPath, tab.path, tab.root, tab.target])
 

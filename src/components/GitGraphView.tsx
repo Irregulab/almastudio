@@ -74,18 +74,21 @@ export function GitGraphView({ tab, visible }: { tab: GraphTab; visible: boolean
   const [loadError, setLoadError] = useState<string | null>(null)
   const [menu, setMenu] = useState<Menu | null>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
+  const loadSeq = useRef(0)
 
   const load = useCallback(async () => {
+    const seq = ++loadSeq.current
     try {
       const [s, list, all] = await Promise.all([
         gitStatus(root), gitGraph(root, limit, shown ?? undefined), gitBranches(root),
       ])
+      if (seq !== loadSeq.current) return
       setStatus(s)
       setCommits(list)
       setBranches(all)
       setLoadError(null)
     } catch (e) {
-      setLoadError(String(e))
+      if (seq === loadSeq.current) setLoadError(String(e))
     }
   }, [root, limit, shown])
 

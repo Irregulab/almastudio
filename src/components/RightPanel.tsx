@@ -49,16 +49,19 @@ export function RightPanel({
   const [status, setStatus] = useState<RepoStatus | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [tick, setTick] = useState(0)
+  const refreshSeq = useRef(0)
 
   const refresh = useCallback(async () => {
     if (!root) return
+    const seq = ++refreshSeq.current
     setRefreshing(true)
     try {
-      setStatus(await gitStatus(root))
+      const next = await gitStatus(root)
+      if (seq === refreshSeq.current) setStatus(next)
     } catch {
-      setStatus(null)
+      if (seq === refreshSeq.current) setStatus(null)
     } finally {
-      setRefreshing(false)
+      if (seq === refreshSeq.current) setRefreshing(false)
     }
   }, [root])
 
@@ -72,6 +75,10 @@ export function RightPanel({
     const id = `panel-${projectId}`
     let unlisten: (() => void) | undefined
     let timer: number | undefined
+    let cancelled = false
+    let started = false
+    let stopRequested = false
+    const stop = () => { void watchStop(id).catch(() => {}) }
     void (async () => {
       unlisten = await onFsChange(id, () => {
         // The backend already debounces; this second stage keeps a long
@@ -79,12 +86,20 @@ export function RightPanel({
         window.clearTimeout(timer)
         timer = window.setTimeout(() => setTick((n) => n + 1), 250)
       })
+      if (cancelled) {
+        unlisten()
+        return
+      }
       await watchStart(id, root).catch(() => {})
+      started = true
+      if (stopRequested) stop()
     })()
     return () => {
+      cancelled = true
+      stopRequested = true
       window.clearTimeout(timer)
       unlisten?.()
-      void watchStop(id).catch(() => {})
+      if (started) stop()
     }
   }, [projectId, root, settings.panel.watch])
 
