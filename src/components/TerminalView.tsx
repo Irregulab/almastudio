@@ -47,6 +47,8 @@ interface Props {
   focused: boolean
 }
 
+const MAX_PENDING_BYTES = 512 * 1024
+
 export function TerminalView({ tab, visible, focused }: Props) {
   const t = useT()
   const hostRef = useRef<HTMLDivElement>(null)
@@ -207,6 +209,7 @@ export function TerminalView({ tab, visible, focused }: Props) {
     const unlisteners: Array<() => void> = []
     /** Batches that arrive while the snapshot is still loading. */
     const pending: Array<{ bytes: Uint8Array; end: number }> = []
+    let pendingBytes = 0
     let ready = false
     /** Restored output is being parsed; see onData. */
     let replaying = false
@@ -263,7 +266,15 @@ export function TerminalView({ tab, visible, focused }: Props) {
       // the offsets then tell us exactly what to discard as duplicate.
       const unlistenData = await onPtyData(tab.id, (bytes, end) => {
         if (ready) writeBatch(bytes, end)
-        else pending.push({ bytes, end })
+        else {
+          pending.push({ bytes, end })
+          pendingBytes += bytes.length
+          while (pendingBytes > MAX_PENDING_BYTES) {
+            const dropped = pending.shift()
+            if (!dropped) break
+            pendingBytes -= dropped.bytes.length
+          }
+        }
       })
       if (disposed) {
         unlistenData()
@@ -314,6 +325,7 @@ export function TerminalView({ tab, visible, focused }: Props) {
       ready = true
       for (const p of pending) writeBatch(p.bytes, p.end)
       pending.length = 0
+      pendingBytes = 0
 
       if (status.running && status.alive) {
         setTabStatus(tab.id, 'running')
