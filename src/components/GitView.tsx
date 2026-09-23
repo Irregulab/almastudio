@@ -344,8 +344,13 @@ export function GitView({
             onSelect={(commit) => setSelectedCommit((id) => (id === commit.id ? null : commit.id))}
           />
         )}
+        {commits && commits.length >= limit && (
+          <button className="btn btn--sm graph__more" onClick={() => setLimit((n) => n + GRAPH_PAGE)}>
+            {t('panel.showMore')}
+          </button>
+        )}
         {selectedCommit && (
-          <div className="ggraph__details">
+          <div className="ggraph__details ggraph__details--pinned">
             <div className="ggraph__details-bar">
               <span className="mono">{selectedCommit.slice(0, 7)}</span>
               <span className="subtle">
@@ -364,11 +369,6 @@ export function GitView({
               />
             )}
           </div>
-        )}
-        {commits && commits.length >= limit && (
-          <button className="btn btn--sm graph__more" onClick={() => setLimit((n) => n + GRAPH_PAGE)}>
-            {t('panel.showMore')}
-          </button>
         )}
       </Section>
 

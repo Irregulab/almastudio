@@ -1491,6 +1491,16 @@ button.graph__ref:hover { filter: brightness(1.25); }
 .ggraph__link:hover { text-decoration: underline; }
 .ggraph__files { flex: 1 1 50%; min-width: 0; overflow: auto; }
 .ggraph__details > .ggraph__files { flex: 1 1 auto; }
+/* In the Git sidebar the commit's files stay at the bottom of the panel while
+   the history scrolls behind them. */
+.ggraph__details--pinned {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  min-height: 0;
+  max-height: 40vh;
+  box-shadow: 0 -4px 8px -6px rgb(0 0 0 / 0.35);
+}
 .ggraph__stat { flex: 0 0 auto; font-size: 10.5px; }
 
 /* Staging a hunk, or the lines picked in it, from the diff. */
