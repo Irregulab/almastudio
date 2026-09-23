@@ -1,6 +1,6 @@
 [package]
 name = "almastudio"
-version = "1.7.1"
+version = "1.7.2"
 description = "AlmaStudio — multi-project desktop workspace for AI coding agents"
 authors = ["Almaware"]
 license = "MIT"

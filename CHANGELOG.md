@@ -9,6 +9,15 @@ release cannot be cut without one.
 
 ## [Unreleased]
 
+## [1.7.2] - 2026-09-23
+
+### Changed
+
+- Clicking a commit in the Git tab's history shows its files in a box pinned
+  to the bottom of the panel, so the history keeps scrolling behind it instead
+  of the files sitting after the last commit. A long file list scrolls inside
+  the box.
+
 ## [1.7.1] - 2026-09-23
 
 ### Changed
