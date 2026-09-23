@@ -9,6 +9,42 @@ release cannot be cut without one.
 
 ## [Unreleased]
 
+## [1.7.1] - 2026-09-23
+
+### Changed
+
+- Markdown previews show images referenced with a relative path, as long as
+  they sit inside the project folder.
+- The Git sidebar and the Git Graph say when they are loading and show an
+  error when a repository cannot be read, instead of staying empty. The
+  graph's refresh button spins while it reloads.
+- Refresh buttons in file and diff tabs show a tooltip, the Changes view's
+  empty state matches the rest of the panel, and the font hints in Settings
+  are translated.
+- The side panel's tabs are announced as tabs by screen readers.
+
+### Fixed
+
+- Git commands run from AlmaStudio keep the tools on the app's own PATH as
+  well as the login shell's, so a Git hook or helper outside the shell's
+  PATH is still found.
+- Two saves of the same file in quick succession can no longer overwrite each
+  other's temporary copy.
+- Switching quickly between files, diffs or repositories no longer lets a
+  slower, older load overwrite the newer view.
+- A terminal whose view stops receiving output no longer grows memory without
+  limit.
+
+### Security
+
+- File operations started from a project (open, save, create, rename, move to
+  trash) are confined to that project's folder, symlinks included.
+- HTML previews can load only the selected file, so a page open in a browser
+  tab can no longer probe other files next to it.
+- The built-in browser opens only `http` and `https` addresses.
+- On Windows, arguments passed to agents through the shell wrapper are quoted,
+  and ones that `cmd.exe` would expand are rejected.
+
 ## [1.7.0] - 2026-09-22
 
 ### Added
