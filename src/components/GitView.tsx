@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import {
   Archive, ArchiveRestore, ArrowDownToLine, ArrowUpFromLine, ChevronDown, ChevronRight,
   ChevronsDownUp, ChevronsUpDown, CloudUpload, Ellipsis, GitBranch, GitBranchPlus,
-  GitCompareArrows, GitMerge, History, Loader2, Pencil, RefreshCcw, RefreshCw, Tag,
+  GitCompareArrows, GitGraph, GitMerge, History, Loader2, Pencil, RefreshCcw, RefreshCw, Tag,
   Trash2, TriangleAlert, Undo2, ArrowUpDown,
 } from 'lucide-react'
 
@@ -64,6 +64,7 @@ export function GitView({
   revision?: number
 }) {
   const t = useT()
+  const openGraphTab = useWorkspace((s) => s.openGraphTab)
   const openDiffTab = useWorkspace((s) => s.openDiffTab)
   const [commits, setCommits] = useState<GraphCommit[] | null>(null)
   const [limit, setLimit] = useState(GRAPH_PAGE)
@@ -151,6 +152,11 @@ export function GitView({
   const openMenu = (next: Menu) => {
     if (!busy) setMenu(next)
   }
+  const openGraph = () => {
+    setMenu(null)
+    openGraphTab({ projectId, root: repo })
+  }
+
   return (
     <div className="git">
       <div className="git__branch">
@@ -323,6 +329,7 @@ export function GitView({
       <Section
         command={sections}
         icon={<History size={12} />} title={t('panel.history')}
+        action={{ icon: <GitGraph size={12} />, label: t('graph.open'), run: openGraph }}
       >
         {commits === null && !loadError && (
           <div className="repo__loading subtle">{t('common.loading')}</div>
@@ -388,6 +395,7 @@ export function GitView({
                 void act('undo', async () => setCommitMessage(repo, await gitUndoCommit(repo)), t('git.undoDone'))
               }
             />
+            <MenuItem icon={<GitGraph size={13} />} label={t('graph.open')} onClick={openGraph} />
             <MenuSeparator />
             <MenuItem
               icon={<GitBranchPlus size={13} />} label={t('git.newBranch')}
