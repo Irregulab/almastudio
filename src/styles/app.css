@@ -1501,6 +1501,66 @@ button.graph__ref:hover { filter: brightness(1.25); }
   max-height: 40vh;
   box-shadow: 0 -4px 8px -6px rgb(0 0 0 / 0.35);
 }
+
+/* The Git sidebar's sections share the panel's height, as VS Code's views do:
+   each open one scrolls on its own and the border between two of them drags.
+   An open section never grows past its content, so the room a short list
+   does not need goes to the long ones. */
+.git--fill {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 360px;
+  padding-bottom: 0;
+}
+.git--fill > * { flex: 0 0 auto; }
+.git--fill > .git__panes {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.git__panes > .group { position: relative; flex: 0 0 auto; }
+.git__panes > .group--open {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 56px;
+  max-height: max-content;
+}
+.git__panes > .group:last-child { border-bottom: none; }
+.git__panes .group__body { flex: 1 1 auto; min-height: 0; overflow: auto; }
+/* History scrolls above the selected commit's files, which keep their height. */
+.git__panes > [data-pane='history'] > .group__body {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.git__panes .git__history { flex: 1 1 auto; min-height: 0; overflow: auto; }
+.git__panes .ggraph__details--pinned {
+  position: relative;
+  flex: 0 0 40%;
+  max-height: none;
+  min-height: 56px;
+}
+/* The handle sits on a section's top border; only one with an open section
+   above it has anything to trade height with. */
+.git__sash {
+  position: absolute;
+  top: -3px;
+  left: 0;
+  right: 0;
+  height: 6px;
+  z-index: 3;
+  display: none;
+}
+.git__panes > .group--open ~ .group--open > .git__sash,
+.git__panes .ggraph__details--pinned > .git__sash {
+  display: block;
+  cursor: row-resize;
+}
+.git__sash:hover { background: var(--accent); background-clip: content-box; padding: 2px 0; }
 .ggraph__stat { flex: 0 0 auto; font-size: 10.5px; }
 
 /* Staging a hunk, or the lines picked in it, from the diff. */
