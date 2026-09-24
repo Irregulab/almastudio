@@ -25,56 +25,6 @@ import type { BranchInfo, CommitDetails, GraphCommit, RepoStatus, StashInfo, Tag
 /** Commits loaded into the graph at a time. */
 const GRAPH_PAGE = 200
 
-/** Smallest height, in pixels, a pane can be dragged down to. */
-const MIN_PANE = 56
-
-/** How much of the panel each open section takes before any is resized. */
-const DEFAULT_WEIGHTS: Record<string, number> = { branches: 2, history: 3 }
-
-const PANES_KEY = 'almastudio.gitPanes'
-
-/**
- * The heights the user dragged the sections and the commit's file list to.
- * Section heights are flex weights, so they keep their proportions when the
- * panel is resized; the file list is a fixed height.
- */
-interface PaneSizes {
-  sections: Record<string, number>
-  details?: number
-}
-
-function loadPaneSizes(): PaneSizes {
-  try {
-    const raw = JSON.parse(localStorage.getItem(PANES_KEY) ?? 'null')
-    if (raw && typeof raw.sections === 'object') return raw
-  } catch {
-    // Unreadable or unavailable: fall back to the default split.
-  }
-  return { sections: {} }
-}
-
-function savePaneSizes(sizes: PaneSizes) {
-  try {
-    localStorage.setItem(PANES_KEY, JSON.stringify(sizes))
-  } catch {
-    // Not remembered, which only costs the user redoing the drag.
-  }
-}
-
-/** Where a section sits among the resizable panes, and how much room it gets. */
-interface PaneProps {
-  id: string
-  weight: number
-  onResize: (e: React.PointerEvent) => void
-}
-
-/** Height a pane would take with nothing hidden: its header plus all its content. */
-function naturalHeight(section: HTMLElement) {
-  const head = section.querySelector<HTMLElement>(':scope > .group__head')
-  const body = section.querySelector<HTMLElement>(':scope > .group__body')
-  return (head?.offsetHeight ?? 0) + (body?.scrollHeight ?? 0)
-}
-
 const OPERATION_LABELS: Record<NonNullable<RepoStatus['operation']>, string> = {
   merge: 'git.opMerge',
   rebase: 'git.opRebase',
@@ -95,9 +45,7 @@ function RepoGit({
   const t = useT()
   const status = useRepoStatus(root, revision)
   if (!status) return <div className="repo__loading subtle">{t('common.loading')}</div>
-  return (
-    <GitView projectId={projectId} root={root} status={status} onChanged={onChanged} nested />
-  )
+  return <GitView projectId={projectId} root={root} status={status} onChanged={onChanged} />
 }
 
 /**
@@ -106,7 +54,7 @@ function RepoGit({
  * through a merge or rebase stopped on conflicts — above the commit graph.
  */
 export function GitView({
-  projectId, root, status, onChanged, onPickRepo, revision, nested = false,
+  projectId, root, status, onChanged, onPickRepo, revision,
 }: {
   projectId: string
   root: string
@@ -114,11 +62,6 @@ export function GitView({
   onChanged: () => void
   onPickRepo?: (path: string) => void
   revision?: number
-  /**
-   * Inside the repository accordion, where several of these stack up and the
-   * sections flow one after another instead of sharing the panel's height.
-   */
-  nested?: boolean
 }) {
   const t = useT()
   const openGraphTab = useWorkspace((s) => s.openGraphTab)
@@ -136,8 +79,6 @@ export function GitView({
   /** The last "expand/collapse all"; every section follows it, see Section. */
   const [sections, setSections] = useState<{ open: boolean; nonce: number } | null>(null)
   const sectionsOpen = sections?.open ?? true
-  const [paneSizes, setPaneSizes] = useState(loadPaneSizes)
-  const panesRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!status?.isRepo) return
@@ -216,109 +157,8 @@ export function GitView({
     openGraphTab({ projectId, root: repo })
   }
 
-  const remembered = Object.values(paneSizes.sections)
-  const averageWeight = remembered.length
-    ? remembered.reduce((a, b) => a + b, 0) / remembered.length
-    : null
-  /** Resizing hooks for a section, or none when the sections simply stack. */
-  const pane = (id: string): PaneProps | undefined =>
-    nested ? undefined : {
-      id,
-      // A section never resized takes an average share of one that was.
-      weight: paneSizes.sections[id] ?? averageWeight ?? DEFAULT_WEIGHTS[id] ?? 1,
-      onResize: startPaneDrag,
-    }
-
-  /**
-   * Drags the border between an open section and the open one above it. The
-   * current layout is frozen into pixel weights first, so only those two
-   * change; heights go straight to the DOM while dragging and are kept on
-   * release, as the tiles do.
-   */
-  function startPaneDrag(e: React.PointerEvent) {
-    const host = panesRef.current
-    const below = (e.currentTarget as HTMLElement).parentElement
-    if (!host || !below) return
-    const open = Array.from(host.children).filter((c): c is HTMLElement =>
-      c.classList.contains('group--open'),
-    )
-    const i = open.indexOf(below)
-    if (i < 1) return
-    const above = open[i - 1]
-    e.preventDefault()
-    ;(e.target as Element).setPointerCapture(e.pointerId)
-
-    const heights = open.map((el) => el.getBoundingClientRect().height)
-    open.forEach((el, j) => {
-      el.style.flexGrow = String(heights[j])
-    })
-    const a = heights[i - 1]
-    const b = heights[i]
-    // Neither grows past its content, which would only open up a gap.
-    const maxA = Math.max(a, naturalHeight(above))
-    const maxB = Math.max(b, naturalHeight(below))
-    const lo = Math.max(MIN_PANE - a, b - maxB)
-    const hi = Math.min(b - MIN_PANE, maxA - a)
-    const start = e.clientY
-    let delta = 0
-
-    const move = (ev: PointerEvent) => {
-      delta = Math.max(lo, Math.min(ev.clientY - start, hi))
-      above.style.flexGrow = String(a + delta)
-      below.style.flexGrow = String(b - delta)
-    }
-    const up = (ev: PointerEvent) => {
-      window.removeEventListener('pointermove', move)
-      window.removeEventListener('pointerup', up)
-      ;(e.target as Element).releasePointerCapture?.(ev.pointerId)
-      heights[i - 1] = a + delta
-      heights[i] = b - delta
-      setPaneSizes((prev) => {
-        const sections = { ...prev.sections }
-        open.forEach((el, j) => {
-          if (el.dataset.pane) sections[el.dataset.pane] = heights[j]
-        })
-        const next = { ...prev, sections }
-        savePaneSizes(next)
-        return next
-      })
-    }
-    window.addEventListener('pointermove', move)
-    window.addEventListener('pointerup', up)
-  }
-
-  /** Drags the top edge of the selected commit's file list. */
-  function startDetailsDrag(e: React.PointerEvent) {
-    const details = (e.currentTarget as HTMLElement).parentElement
-    const body = details?.parentElement
-    if (!details || !body) return
-    e.preventDefault()
-    ;(e.target as Element).setPointerCapture(e.pointerId)
-    const startHeight = details.getBoundingClientRect().height
-    const max = body.getBoundingClientRect().height - MIN_PANE
-    const start = e.clientY
-    let height = startHeight
-
-    const move = (ev: PointerEvent) => {
-      height = Math.max(MIN_PANE, Math.min(startHeight - (ev.clientY - start), max))
-      details.style.flexBasis = `${height}px`
-    }
-    const up = (ev: PointerEvent) => {
-      window.removeEventListener('pointermove', move)
-      window.removeEventListener('pointerup', up)
-      ;(e.target as Element).releasePointerCapture?.(ev.pointerId)
-      setPaneSizes((prev) => {
-        const next = { ...prev, details: height }
-        savePaneSizes(next)
-        return next
-      })
-    }
-    window.addEventListener('pointermove', move)
-    window.addEventListener('pointerup', up)
-  }
-
   return (
-    <div className={nested ? 'git' : 'git git--fill'}>
+    <div className="git">
       <div className="git__branch">
         <GitBranch size={13} />
         <span className="truncate">{current}</span>
@@ -402,154 +242,135 @@ export function GitView({
 
       <CommitBox root={repo} status={status} onChanged={onChanged} />
 
-      <div ref={panesRef} className="git__panes">
+      <BranchSection
+        command={sections}
+        branches={local}
+        busy={busy}
+        onCheckout={(name) => void act('checkout', () => gitCheckout(repo, name))}
+        onMenu={(anchor, branch) => openMenu({ kind: 'branch', anchor, branch })}
+        onNew={() => ask({ kind: 'new-branch', base: current })}
+        t={t}
+      />
 
+      {remote.length > 0 && (
         <BranchSection
-          pane={pane('branches')}
           command={sections}
-          branches={local}
+          branches={remote}
           busy={busy}
-          onCheckout={(name) => void act('checkout', () => gitCheckout(repo, name))}
+          isRemote
+          defaultOpen={false}
+          onCheckout={(name) => void act('checkout', () => gitCheckout(repo, name, true))}
           onMenu={(anchor, branch) => openMenu({ kind: 'branch', anchor, branch })}
-          onNew={() => ask({ kind: 'new-branch', base: current })}
           t={t}
         />
+      )}
 
-        {remote.length > 0 && (
-          <BranchSection
-            pane={pane('remote')}
-            command={sections}
-            branches={remote}
-            busy={busy}
-            isRemote
-            defaultOpen={false}
-            onCheckout={(name) => void act('checkout', () => gitCheckout(repo, name, true))}
-            onMenu={(anchor, branch) => openMenu({ kind: 'branch', anchor, branch })}
-            t={t}
+      {stashes.length > 0 && (
+        <Section
+          command={sections} icon={<Archive size={12} />}
+          title={t('git.stashes')} count={stashes.length}
+        >
+          <ul className="filelist">
+            {stashes.map((s) => (
+              <li
+                key={s.id} className="filerow" title={`stash@{${s.index}}`}
+                onContextMenu={(e) => {
+                  e.preventDefault()
+                  openMenu({ kind: 'stash', anchor: e.currentTarget, stash: s })
+                }}
+              >
+                <Archive size={12} className="subtle" />
+                <span className="filerow__name truncate">{s.message}</span>
+                <span className="git__meta subtle">{relativeTime(s.time)}</span>
+                <span className="filerow__actions">
+                  <button
+                    className="icon-btn icon-btn--tiny" title={t('git.more')} aria-label={t('git.more')}
+                    onClick={(e) => openMenu({ kind: 'stash', anchor: e.currentTarget, stash: s })}
+                  >
+                    <Ellipsis size={12} />
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+
+      {tags.length > 0 && (
+        <Section
+        command={sections}
+          icon={<Tag size={12} />} title={t('git.tags')} count={tags.length} defaultOpen={false}
+          action={{
+            icon: <Tag size={12} />, label: t('git.newTag'),
+            run: () => ask({ kind: 'new-tag', base: current }),
+          }}
+        >
+          <ul className="filelist">
+            {tags.map((tag) => (
+              <li key={tag.name} className="filerow" title={tag.target}>
+                <Tag size={12} className="subtle" />
+                <span className="filerow__name truncate">{tag.name}</span>
+                <span className="git__meta subtle mono">{tag.target}</span>
+                <span className="filerow__actions">
+                  <button
+                    className="icon-btn icon-btn--tiny" title={t('git.deleteTag')}
+                    aria-label={t('git.deleteTag')} disabled={busy}
+                    onClick={() => ask({ kind: 'delete-tag', name: tag.name })}
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
+
+      <Section
+        command={sections}
+        icon={<History size={12} />} title={t('panel.history')}
+        action={{ icon: <GitGraph size={12} />, label: t('graph.open'), run: openGraph }}
+      >
+        {commits === null && !loadError && (
+          <div className="repo__loading subtle">{t('common.loading')}</div>
+        )}
+        {commits && commits.length === 0 && (
+          <div className="repo__loading subtle">{t('panel.noCommits')}</div>
+        )}
+        {commits && commits.length > 0 && (
+          <CommitGraph
+            commits={commits}
+            selected={selectedCommit}
+            onSelect={(commit) => setSelectedCommit((id) => (id === commit.id ? null : commit.id))}
           />
         )}
-
-        {stashes.length > 0 && (
-          <Section
-            pane={pane('stashes')}
-            command={sections} icon={<Archive size={12} />}
-            title={t('git.stashes')} count={stashes.length}
-          >
-            <ul className="filelist">
-              {stashes.map((s) => (
-                <li
-                  key={s.id} className="filerow" title={`stash@{${s.index}}`}
-                  onContextMenu={(e) => {
-                    e.preventDefault()
-                    openMenu({ kind: 'stash', anchor: e.currentTarget, stash: s })
-                  }}
-                >
-                  <Archive size={12} className="subtle" />
-                  <span className="filerow__name truncate">{s.message}</span>
-                  <span className="git__meta subtle">{relativeTime(s.time)}</span>
-                  <span className="filerow__actions">
-                    <button
-                      className="icon-btn icon-btn--tiny" title={t('git.more')} aria-label={t('git.more')}
-                      onClick={(e) => openMenu({ kind: 'stash', anchor: e.currentTarget, stash: s })}
-                    >
-                      <Ellipsis size={12} />
-                    </button>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </Section>
+        {commits && commits.length >= limit && (
+          <button className="btn btn--sm graph__more" onClick={() => setLimit((n) => n + GRAPH_PAGE)}>
+            {t('panel.showMore')}
+          </button>
         )}
-
-        {tags.length > 0 && (
-          <Section
-            pane={pane('tags')}
-            command={sections}
-            icon={<Tag size={12} />} title={t('git.tags')} count={tags.length} defaultOpen={false}
-            action={{
-              icon: <Tag size={12} />, label: t('git.newTag'),
-              run: () => ask({ kind: 'new-tag', base: current }),
-            }}
-          >
-            <ul className="filelist">
-              {tags.map((tag) => (
-                <li key={tag.name} className="filerow" title={tag.target}>
-                  <Tag size={12} className="subtle" />
-                  <span className="filerow__name truncate">{tag.name}</span>
-                  <span className="git__meta subtle mono">{tag.target}</span>
-                  <span className="filerow__actions">
-                    <button
-                      className="icon-btn icon-btn--tiny" title={t('git.deleteTag')}
-                      aria-label={t('git.deleteTag')} disabled={busy}
-                      onClick={() => ask({ kind: 'delete-tag', name: tag.name })}
-                    >
-                      <Trash2 size={12} />
-                    </button>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </Section>
-        )}
-
-        <Section
-          pane={pane('history')}
-          command={sections}
-          icon={<History size={12} />} title={t('panel.history')}
-          action={{ icon: <GitGraph size={12} />, label: t('graph.open'), run: openGraph }}
-        >
-          <div className="git__history">
-            {commits === null && !loadError && (
-              <div className="repo__loading subtle">{t('common.loading')}</div>
-            )}
-            {commits && commits.length === 0 && (
-              <div className="repo__loading subtle">{t('panel.noCommits')}</div>
-            )}
-            {commits && commits.length > 0 && (
-              <CommitGraph
-                commits={commits}
-                selected={selectedCommit}
-                onSelect={(commit) => setSelectedCommit((id) => (id === commit.id ? null : commit.id))}
+        {selectedCommit && (
+          <div className="ggraph__details ggraph__details--pinned">
+            <div className="ggraph__details-bar">
+              <span className="mono">{selectedCommit.slice(0, 7)}</span>
+              <span className="subtle">
+                {details
+                  ? t('graph.files', { n: details.files.length })
+                  : t('common.loading')}
+              </span>
+            </div>
+            {details && (
+              <FileList
+                files={details.files}
+                onOpen={(f, preview) => openDiffTab({
+                  projectId, root, path: f.path, side: 'head',
+                  target: selectedCommit, oldPath: f.oldPath ?? undefined, preview,
+                })}
               />
             )}
-            {commits && commits.length >= limit && (
-              <button className="btn btn--sm graph__more" onClick={() => setLimit((n) => n + GRAPH_PAGE)}>
-                {t('panel.showMore')}
-              </button>
-            )}
           </div>
-          {selectedCommit && (
-            <div
-              className="ggraph__details ggraph__details--pinned"
-              style={!nested && paneSizes.details ? { flexBasis: paneSizes.details } : undefined}
-            >
-              {!nested && (
-                <div
-                  className="git__sash" onPointerDown={startDetailsDrag}
-                  role="separator" aria-orientation="horizontal"
-                />
-              )}
-              <div className="ggraph__details-bar">
-                <span className="mono">{selectedCommit.slice(0, 7)}</span>
-                <span className="subtle">
-                  {details
-                    ? t('graph.files', { n: details.files.length })
-                    : t('common.loading')}
-                </span>
-              </div>
-              {details && (
-                <FileList
-                  files={details.files}
-                  onOpen={(f, preview) => openDiffTab({
-                    projectId, root, path: f.path, side: 'head',
-                    target: selectedCommit, oldPath: f.oldPath ?? undefined, preview,
-                  })}
-                />
-              )}
-            </div>
-          )}
-        </Section>
-      </div>
+        )}
+      </Section>
 
       <Popover
         anchor={menu?.anchor ?? null} open={!!menu} onClose={() => setMenu(null)}
@@ -692,7 +513,7 @@ function OpButton({
 }
 
 function Section({
-  icon, title, count, action, extraActions, defaultOpen = true, command, pane, children,
+  icon, title, count, action, extraActions, defaultOpen = true, command, children,
 }: {
   icon: React.ReactNode
   title: string
@@ -702,8 +523,6 @@ function Section({
   defaultOpen?: boolean
   /** Expand or collapse every section; `nonce` makes a repeat count again. */
   command?: { open: boolean; nonce: number } | null
-  /** Set when the section is one of the panes sharing the panel's height. */
-  pane?: PaneProps
   children: React.ReactNode
 }) {
   const [open, setOpen] = useState(defaultOpen)
@@ -715,17 +534,7 @@ function Section({
     setOpen(command.open)
   }, [command])
   return (
-    <section
-      className={open ? 'group group--open' : 'group'}
-      data-pane={pane?.id}
-      style={pane && open ? { flexGrow: pane.weight } : undefined}
-    >
-      {pane && open && (
-        <div
-          className="git__sash" onPointerDown={pane.onResize}
-          role="separator" aria-orientation="horizontal"
-        />
-      )}
+    <section className="group">
       <header className="group__head">
         <button className="group__toggle" onClick={() => setOpen((o) => !o)}>
           {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
@@ -743,7 +552,7 @@ function Section({
           </button>
         )}
       </header>
-      {open && (pane ? <div className="group__body">{children}</div> : children)}
+      {open && children}
     </section>
   )
 }
@@ -829,7 +638,6 @@ function sortBranches(branches: BranchInfo[], sort: BranchSort): BranchInfo[] {
  */
 function BranchSection({
   branches,
-  pane,
   command,
   busy,
   isRemote = false,
@@ -840,7 +648,6 @@ function BranchSection({
   t,
 }: {
   branches: BranchInfo[]
-  pane?: PaneProps
   command?: { open: boolean; nonce: number } | null
   busy: boolean
   isRemote?: boolean
@@ -883,7 +690,6 @@ function BranchSection({
 
   return (
     <Section
-      pane={pane}
       command={command}
       icon={isRemote ? <CloudUpload size={12} /> : <GitBranch size={12} />}
       title={isRemote ? t('git.remoteBranches') : t('git.branches')}
