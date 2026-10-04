@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { revealItemInDir } from '@tauri-apps/plugin-opener'
 import { platform } from '@tauri-apps/plugin-os'
 import {
-  Bot, Info, Monitor, Palette, RefreshCw, Sparkles, SquareCode, SquareTerminal,
+  Bot, Info, Monitor, Palette, RefreshCw, Smartphone, Sparkles, SquareCode, SquareTerminal,
   Terminal,
 } from 'lucide-react'
 
@@ -17,6 +17,7 @@ import { CODEX_APPROVAL_ARGS } from '../lib/harness'
 import { useTheme } from '../hooks/useTheme'
 import { ConfirmDialog, Field, Modal, NumberInput, Segmented, Toggle } from './ui'
 import { UpdateSection } from './Updater'
+import { RemoteSection } from './RemoteSettings'
 import type { AppInfo, CodexApproval, HarnessKind, Language, PanelView, ThemeMode } from '../lib/types'
 
 type Section = SettingsSection
@@ -39,6 +40,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
     { id: 'terminal', label: t('settings.terminal'), icon: <SquareTerminal size={14} /> },
     { id: 'harness', label: t('settings.harness'), icon: <Sparkles size={14} /> },
     { id: 'workspace', label: t('settings.workspace'), icon: <Monitor size={14} /> },
+    { id: 'remote', label: t('settings.remote'), icon: <Smartphone size={14} /> },
     { id: 'updates', label: t('settings.updates'), icon: <RefreshCw size={14} /> },
     { id: 'about', label: t('settings.about'), icon: <Info size={14} /> },
   ]
@@ -76,6 +78,7 @@ export function SettingsPanel({ onClose }: { onClose: () => void }) {
           {section === 'terminal' && <TerminalSection />}
           {section === 'harness' && <HarnessSection />}
           {section === 'workspace' && <WorkspaceSection />}
+          {section === 'remote' && <RemoteSection />}
           {section === 'updates' && <UpdateSection />}
           {section === 'about' && <AboutSection />}
         </div>

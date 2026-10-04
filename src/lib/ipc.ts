@@ -385,3 +385,97 @@ export const externalEditors = () => invoke<ExternalEditor[]>('external_editors'
 /** Opens `folder` in an installed editor, in its own window. */
 export const openInEditor = (editor: string, folder: string) =>
   invoke<void>('open_in_editor', { editor, folder })
+
+// ---------------------------------------------------------------- remote ----
+
+/** A paired phone or tablet. */
+export interface RemoteDevice {
+  key: string
+  name: string
+  platform: string
+  pairedAt: number
+  lastSeen: number
+}
+
+export interface RemoteClient {
+  id: number
+  deviceKey: string
+  name: string
+  platform: string
+  addr: string
+  via: 'lan' | 'relay'
+  appVersion: string
+  attached: string[]
+  connectedAt: number
+}
+
+export interface RemoteStatus {
+  running: boolean
+  port: number | null
+  error: string | null
+  addresses: string[]
+  relay: { url: string; connected: boolean; error: string | null } | null
+  clients: RemoteClient[]
+  devices: RemoteDevice[]
+}
+
+export interface PairingInfo {
+  uri: string
+  svg: string
+  expiresAt: number
+}
+
+export interface RemoteRelayConfig {
+  url: string
+}
+
+export const remoteConfigure = (
+  enabled: boolean,
+  port: number,
+  name: string,
+  relay: RemoteRelayConfig | null,
+  notify: boolean,
+  hideNames: boolean,
+) => invoke<RemoteStatus>('remote_configure', { enabled, port, name, relay, notify, hideNames })
+export const remoteStatus = () => invoke<RemoteStatus>('remote_status')
+export const remotePairing = (relay: string | null) =>
+  invoke<PairingInfo>('remote_pairing', { relay })
+export const remotePairRespond = (requestId: number, accept: boolean) =>
+  invoke<void>('remote_pair_respond', { requestId, accept })
+export const remoteRevoke = (key: string) => invoke<void>('remote_revoke', { key })
+export const remotePublishState = (state: unknown) =>
+  invoke<void>('remote_publish_state', { state })
+export const remoteCommandResult = (
+  requestId: number,
+  ok: boolean,
+  result: unknown,
+  error: string | null,
+) => invoke<void>('remote_command_result', { requestId, ok, result, error })
+
+export interface RemoteCommand {
+  requestId: number
+  method: string
+  params: Record<string, unknown>
+}
+
+export const onRemoteCommand = (cb: (c: RemoteCommand) => void): Promise<UnlistenFn> =>
+  listen<RemoteCommand>('remote://command', (e) => cb(e.payload))
+
+export interface PairRequest {
+  requestId: number
+  name: string
+  platform: string
+}
+
+export const onPairRequest = (cb: (r: PairRequest) => void): Promise<UnlistenFn> =>
+  listen<PairRequest>('remote://pair-request', (e) => cb(e.payload))
+export const onPairRequestDone = (cb: (requestId: number) => void): Promise<UnlistenFn> =>
+  listen<{ requestId: number }>('remote://pair-request-done', (e) => cb(e.payload.requestId))
+export const onRemoteChanged = (cb: () => void): Promise<UnlistenFn> =>
+  listen('remote://changed', () => cb())
+
+/** The desktop terminal is being used again; it takes the pty's size back. */
+export const ptyClaim = (id: string) => invoke<void>('pty_claim', { id })
+export const ptySizeOwnerRemote = (id: string) => invoke<boolean>('pty_size_owner_remote', { id })
+export const onPtySizeOwner = (id: string, cb: (remote: boolean) => void): Promise<UnlistenFn> =>
+  listen<{ id: string; remote: boolean }>(`pty://size-owner/${id}`, (e) => cb(e.payload.remote))

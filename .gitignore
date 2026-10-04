@@ -17,3 +17,5 @@ src-tauri/gen
 .env
 .env.*
 !.env.example
+packages/terminal-web/dist
+relay/target

@@ -336,6 +336,28 @@
 }
 .term__host .xterm-viewport::-webkit-scrollbar-thumb:hover { background: var(--fg-subtle); }
 
+/* While a phone has the pty sized for its screen. Floated rather than in the
+   flow, so showing and hiding it never resizes the terminal itself. */
+.term { position: relative; }
+.term__remote {
+  position: absolute;
+  bottom: 10px;
+  right: 18px;
+  z-index: 20;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-raised);
+  color: var(--fg-muted);
+  font-size: 11.5px;
+  box-shadow: var(--shadow-2);
+  cursor: pointer;
+}
+.term__remote:hover { color: var(--fg); border-color: var(--project-accent, var(--accent)); }
+
 /* In normal flow below the terminal, never on top of it. */
 .term__start {
   flex: 0 0 auto;
@@ -1553,3 +1575,45 @@ button.graph__ref:hover { filter: brightness(1.25); }
   font-size: 12px;
 }
 .popover__empty { padding: 6px 8px; font-size: 12px; }
+
+/* -------------------------------------------------------------- remote --- */
+
+.remote__status {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: calc(-1 * var(--sp-2)) 0 var(--sp-4);
+  font-size: 12px;
+}
+.remote__error { color: var(--red); }
+.remote__devices { margin-top: var(--sp-5); }
+.remote__devices-head { display: flex; align-items: center; margin-bottom: var(--sp-3); }
+.remote__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.remote__device {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.remote__device-text { flex: 1 1 auto; min-width: 0; font-size: 12.5px; line-height: 1.5; }
+.remote__pairing { display: flex; flex-direction: column; align-items: center; text-align: center; }
+.remote__pairing p { margin: var(--sp-2) 0 0; max-width: 340px; line-height: 1.5; }
+.remote__qr {
+  padding: 12px;
+  background: #fff;
+  border-radius: var(--radius);
+  line-height: 0;
+}
+.remote__qr svg { width: 240px; height: 240px; }
+.remote__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px;
+  margin-right: 4px;
+  border-radius: 999px;
+  color: var(--project-accent, var(--accent));
+  font-size: 11px;
+}

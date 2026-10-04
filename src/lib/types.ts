@@ -260,6 +260,19 @@ export interface Settings {
     confirmOnExit: boolean
   }
   updates: { autoCheck: boolean; intervalHours: number }
+  /** The companion app: phones and tablets that drive this computer. */
+  remote: {
+    /** Listen for paired devices on the local network. Off until turned on. */
+    enabled: boolean
+    port: number
+    /** Also reachable through the relay, from anywhere. */
+    relay: boolean
+    relayUrl: string
+    /** Push a notification when an agent finishes or waits for the user. */
+    notify: boolean
+    /** Leave project names out of notifications. */
+    hideNames: boolean
+  }
 }
 
 // ------------------------------------------------------------------ git ----

@@ -1,0 +1,8 @@
+{
+  "name": "@almastudio/shared",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pure TypeScript shared by AlmaStudio and its companion app",
+  "type": "module",
+  "main": "src/wordDiff.ts"
+}

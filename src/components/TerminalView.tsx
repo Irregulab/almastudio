@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowDown, ArrowUp, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, Smartphone, X } from 'lucide-react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { SearchAddon } from '@xterm/addon-search'
@@ -10,7 +10,8 @@ import { openUrl } from '@tauri-apps/plugin-opener'
 import '@xterm/xterm/css/xterm.css'
 
 import {
-  onPtyData, onPtyExit, ptyResize, ptySpawn, ptyStatus, ptyWrite, scrollbackLoad,
+  onPtyData, onPtyExit, onPtySizeOwner, ptyClaim, ptyResize, ptySizeOwnerRemote, ptySpawn,
+  ptyStatus, ptyWrite, scrollbackLoad,
 } from '../lib/ipc'
 import { buildSpawnOptions, harnessCommandLabel } from '../lib/harness'
 import { claudeSessionFor } from '../lib/claudeSession'
@@ -19,6 +20,7 @@ import { resolveUiTheme } from '../lib/uiThemes'
 import { useDrag } from '../lib/dragDrop'
 import { useSettings } from '../store/settings'
 import { useWorkspace } from '../store/workspace'
+import { useRemote } from '../store/remote'
 import { useTheme } from '../hooks/useTheme'
 import { useT } from '../i18n'
 import type { TerminalTab } from '../lib/types'
@@ -75,6 +77,14 @@ export function TerminalView({ tab, visible, focused }: Props) {
   const [findTerm, setFindTerm] = useState('')
   const [findHits, setFindHits] = useState<{ index: number; count: number } | null>(null)
   const fileDropTarget = useDrag((s) => s.fileDropTab === tab.id)
+  // A phone or tablet has the pty sized for its own screen. The desktop takes
+  // its size back as soon as it is typed or clicked in.
+  const [remoteSized, setRemoteSized] = useState(false)
+  const remoteSizedRef = useRef(false)
+  remoteSizedRef.current = remoteSized
+  const claimSize = useCallback(() => {
+    if (remoteSizedRef.current) void ptyClaim(tab.id).catch(() => {})
+  }, [tab.id])
 
   const commandLabel = harnessCommandLabel(tab.kind, settings)
   needsStartRef.current = needsStart
@@ -251,6 +261,49 @@ export function TerminalView({ tab, visible, focused }: Props) {
     })
     ro.observe(host)
 
+    /**
+     * A start asked for from the companion app. The tab may be hidden — in a
+     * project or tab nobody has looked at on this screen — and a hidden
+     * terminal never gets a size, so it borrows the phone's until it is shown.
+     */
+    let startWhenReady = false
+    let handledStart = 0
+    const takeRemoteStart = () => {
+      const start = useRemote.getState().starts[tab.id]
+      if (!start || start.nonce <= handledStart) return
+      handledStart = start.nonce
+      // Dropped only once this mount has taken it: in development React
+      // mounts every component twice, and the second mount needs it too.
+      window.setTimeout(() => useRemote.getState().consumeStart(tab.id, start.nonce), 0)
+      if (!hasSize) {
+        if (host.clientWidth > 0 && host.clientHeight > 0) {
+          hasSize = true
+          fitNow()
+        } else {
+          try {
+            term.resize(Math.max(20, start.cols), Math.max(5, start.rows))
+          } catch {
+            /* mid-teardown */
+          }
+        }
+        markSized()
+      }
+      if (start.mode === 'restart') {
+        if (ready) spawnRef.current(tab.kind !== 'shell')
+        else startWhenReady = true
+      } else if (start.mode === 'start') {
+        if (ready && needsStartRef.current) {
+          spawnRef.current(tab.resumeOnRestore && tab.kind !== 'shell')
+        } else if (!ready) {
+          startWhenReady = true
+        }
+      }
+    }
+    takeRemoteStart()
+    const unsubStarts = useRemote.subscribe((st, prev) => {
+      if (st.starts[tab.id] && st.starts[tab.id] !== prev.starts[tab.id]) takeRemoteStart()
+    })
+
     const writeBatch = (bytes: Uint8Array, end: number) => {
       const start = end - bytes.length
       if (end <= writtenTo.current) return // already covered by the snapshot
@@ -292,6 +345,13 @@ export function TerminalView({ tab, visible, focused }: Props) {
         return
       }
       unlisteners.push(unlistenExit)
+
+      const unlistenOwner = await onPtySizeOwner(tab.id, (remote) => setRemoteSized(remote))
+      if (disposed) {
+        unlistenOwner()
+        return
+      }
+      unlisteners.push(unlistenOwner)
       if (disposed) return
 
       const status = await ptyStatus(tab.id)
@@ -332,6 +392,18 @@ export function TerminalView({ tab, visible, focused }: Props) {
         // Whatever size it was last given, it is now this terminal's.
         ptySize.current = null
         syncPtySize()
+        void ptySizeOwnerRemote(tab.id).then((remote) => {
+          if (!disposed) setRemoteSized(remote)
+        }).catch(() => {})
+        if (startWhenReady) {
+          startWhenReady = false
+          await spawn(tab.kind !== 'shell')
+        }
+        return
+      }
+      if (startWhenReady) {
+        startWhenReady = false
+        await spawn(tab.resumeOnRestore && tab.kind !== 'shell', true)
         return
       }
       // Nothing is running. Opening a tab is already the instruction to start
@@ -349,6 +421,10 @@ export function TerminalView({ tab, visible, focused }: Props) {
     // listening on the other end until a process exists, so the keystroke is
     // free to reuse.
     term.attachCustomKeyEventHandler((e) => {
+      // Typing here is using the desktop again: it gets its size back.
+      if (e.type === 'keydown' && remoteSizedRef.current) {
+        void ptyClaim(tab.id).catch(() => {})
+      }
       if (e.type === 'keydown' && e.key === 'Enter' && needsStartRef.current) {
         spawnRef.current(tab.resumeOnRestore && tab.kind !== 'shell')
         return false
@@ -379,6 +455,7 @@ export function TerminalView({ tab, visible, focused }: Props) {
     return () => {
       disposed = true
       ro.disconnect()
+      unsubStarts()
       window.clearTimeout(fitTimer)
       markSized()
       osc7.dispose()
@@ -565,7 +642,16 @@ export function TerminalView({ tab, visible, focused }: Props) {
   )
 
   return (
-    <div className="term" data-terminal-tab={tab.id} onContextMenu={onContextMenu}>
+    <div
+      className="term" data-terminal-tab={tab.id} onContextMenu={onContextMenu}
+      onMouseDown={claimSize}
+    >
+      {remoteSized && (
+        <button className="term__remote" onClick={claimSize} title={t('remote.reclaimHint')}>
+          <Smartphone size={12} />
+          {t('remote.sizedForPhone')}
+        </button>
+      )}
       <div className="term__body">
         <div ref={hostRef} className="term__host" />
         {fileDropTarget && <div className="dropzone dropzone--center" aria-hidden />}

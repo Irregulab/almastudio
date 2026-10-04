@@ -22,6 +22,8 @@ import { SettingsPanel } from './components/SettingsPanel'
 import { UpdateWatcher } from './components/Updater'
 import { ExitGuard } from './components/ExitGuard'
 import { DragPreview } from './components/DragPreview'
+import { RemoteBridge } from './components/RemoteBridge'
+import { PairRequestDialog, RemoteIndicator } from './components/RemoteSettings'
 import './styles/global.css'
 import './styles/app.css'
 
@@ -108,12 +110,10 @@ export default function App() {
   // another project is in front. Mounting them afresh meant new terminals
   // replaying their programs' raw output at a single width, which garbles
   // everything an agent drew at any other.
-  const [openedProjects, setOpenedProjects] = useState<string[]>([])
+  const openedProjects = useUi((s) => s.mountedProjects)
   useEffect(() => {
-    if (activeProjectId && !openedProjects.includes(activeProjectId)) {
-      setOpenedProjects((ids) => [...ids, activeProjectId])
-    }
-  }, [activeProjectId, openedProjects])
+    if (activeProjectId) useUi.getState().mountProject(activeProjectId)
+  }, [activeProjectId])
 
   // Tabs can be opened anywhere, so the panel has two candidate folders: the
   // project's, and whatever the active tab is working in.
@@ -190,6 +190,7 @@ export default function App() {
               <span className="subtle">{t('app.name')}</span>
             )}
           </div>
+          <RemoteIndicator />
           <button
             className="icon-btn" aria-label={t('menu.togglePanel')}
             title={`${t('menu.togglePanel')} (⌘⌥B)`}
@@ -231,6 +232,8 @@ export default function App() {
       <UpdateWatcher />
       <ExitGuard />
       <DragPreview />
+      <RemoteBridge />
+      <PairRequestDialog />
     </div>
   )
 }

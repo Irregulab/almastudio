@@ -24,6 +24,7 @@
     "os:allow-platform",
     "os:allow-version",
     "os:allow-arch",
+    "os:allow-hostname",
     "process:allow-restart",
     "process:allow-exit",
     "updater:default"

@@ -4,6 +4,6 @@ export default defineConfig({
   test: {
     // Theme tests apply tokens to a real element; syntax tests parse markup.
     environment: 'jsdom',
-    include: ['src/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'packages/*/src/**/*.test.ts'],
   },
 })

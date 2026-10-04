@@ -59,8 +59,32 @@ export function claudeSessionSettings(): string {
           ],
         },
       ],
+      // When a turn ends or Claude waits on the user, so the companion app
+      // can say so; see remote/agent_events.rs.
+      Notification: [{ hooks: [{ type: 'command', command: AGENT_EVENT_HOOK }] }],
+      Stop: [{ hooks: [{ type: 'command', command: AGENT_EVENT_HOOK }] }],
     },
   })
+}
+
+/**
+ * Appends a hook's input, as one line, to the file the backend gives every
+ * tab in ALMASTUDIO_EVENTS_FILE. Always exits 0: a failing Stop hook would
+ * keep Claude from stopping.
+ */
+export const AGENT_EVENT_HOOK =
+  '[ -n "$ALMASTUDIO_EVENTS_FILE" ] && mkdir -p "$(dirname "$ALMASTUDIO_EVENTS_FILE")" && ' +
+  '{ tr -d \'\\n\'; echo; } >> "$ALMASTUDIO_EVENTS_FILE"; exit 0'
+
+/**
+ * Codex's `notify` program, set with `-c` for a tab: Codex runs it at the end
+ * of every turn with the event as its last argument, which goes to the same
+ * file as Claude's hooks. Only when the companion app wants notifications,
+ * since it replaces a `notify` set in ~/.codex/config.toml.
+ */
+export function codexNotifyArgs(): string[] {
+  const script = 'printf \'%s\\n\' "$1" >> "$ALMASTUDIO_EVENTS_FILE"'
+  return ['-c', `notify=${JSON.stringify(['sh', '-c', script, 'almastudio'])}`]
 }
 
 /**
@@ -134,7 +158,10 @@ export function buildSpawnOptions(ctx: LaunchContext): SpawnOptions {
     args = [...(resume ? resumeArgs : cfg.args)]
   }
   // `codex resume` takes the same flags, so a restored tab keeps its mode.
-  if (tab.kind === 'codex') args.push(...CODEX_APPROVAL_ARGS[cfg.approval ?? 'config'])
+  if (tab.kind === 'codex') {
+    args.push(...CODEX_APPROVAL_ARGS[cfg.approval ?? 'config'])
+    if (settings.remote?.enabled && settings.remote.notify) args.push(...codexNotifyArgs())
+  }
   if (instructions && cfg.instructionsMode === 'flag' && cfg.instructionsFlag.trim()) {
     args.push(cfg.instructionsFlag.trim(), instructions)
   }

@@ -108,7 +108,7 @@ pub struct ReplaceResults {
     pub replacements: usize,
 }
 
-type IsCurrent = Arc<dyn Fn() -> bool + Send + Sync>;
+pub(crate) type IsCurrent = Arc<dyn Fn() -> bool + Send + Sync>;
 
 #[tauri::command]
 pub async fn search_text(query: SearchQuery) -> Result<SearchResults, String> {
@@ -292,7 +292,7 @@ fn rel_path(root: &Path, path: &Path) -> String {
     path.strip_prefix(root).unwrap_or(path).to_string_lossy().replace('\\', "/")
 }
 
-fn search(query: &SearchQuery, is_current: IsCurrent) -> Result<SearchResults, String> {
+pub(crate) fn search(query: &SearchQuery, is_current: IsCurrent) -> Result<SearchResults, String> {
     if query.pattern.is_empty() {
         return Ok(SearchResults::default());
     }

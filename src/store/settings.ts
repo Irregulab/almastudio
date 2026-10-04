@@ -86,6 +86,14 @@ export const DEFAULT_SETTINGS: Settings = {
     confirmOnExit: true,
   },
   updates: { autoCheck: true, intervalHours: 6 },
+  remote: {
+    enabled: false,
+    port: 47821,
+    relay: false,
+    relayUrl: 'wss://relay.almastudio.almaware.net',
+    notify: true,
+    hideNames: false,
+  },
 }
 
 interface SettingsStore {

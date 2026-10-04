@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 
-export type SettingsSection = 'appearance' | 'terminal' | 'harness' | 'workspace' | 'updates' | 'about'
+export type SettingsSection =
+  | 'appearance' | 'terminal' | 'harness' | 'workspace' | 'remote' | 'updates' | 'about'
 
 /** Transient UI state — never persisted. */
 interface UiState {
@@ -24,6 +25,13 @@ interface UiState {
   overlays: number
   /** Current webview zoom; positions reported by native events are unzoomed. */
   zoom: number
+  /**
+   * Projects whose tabs are mounted. A project's tabs mount the first time it
+   * comes to front — or when a remote client starts one of its terminals —
+   * and stay mounted, hidden, from then on.
+   */
+  mountedProjects: string[]
+  mountProject: (id: string) => void
   /** Opening starts on `section`, or on Appearance when none is given. */
   setSettingsOpen: (v: boolean, section?: SettingsSection) => void
   setSettingsSection: (section: SettingsSection) => void
@@ -44,6 +52,9 @@ export const useUi = create<UiState>((set) => ({
   dirtyTabs: {},
   overlays: 0,
   zoom: 1,
+  mountedProjects: [],
+  mountProject: (id) =>
+    set((s) => (s.mountedProjects.includes(id) ? s : { mountedProjects: [...s.mountedProjects, id] })),
   setZoom: (zoom) => set({ zoom }),
   setSettingsOpen: (v, section) =>
     set(v ? { settingsOpen: true, settingsSection: section ?? 'appearance' } : { settingsOpen: false }),

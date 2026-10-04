@@ -164,6 +164,12 @@ pub struct Session {
     last_output: Arc<AtomicU64>,
     /// Last state broadcast to the frontend, so only transitions are emitted.
     busy: Arc<AtomicBool>,
+    /// The size the desktop terminal last asked for. Kept while a remote
+    /// client has the pty sized for its own screen, so the desktop gets its
+    /// width back the moment it is used again.
+    desktop_size: (u16, u16),
+    /// The remote client the pty is currently sized for, if any.
+    remote_owner: Option<u64>,
 }
 
 impl Session {
@@ -209,7 +215,13 @@ impl PtyManager {
             pixel_height: 0,
         })?;
 
-        let cmd = build_command(&opts)?;
+        let mut cmd = build_command(&opts)?;
+        // Where the tab's agent reports turns that ended or wait on the user;
+        // read by `remote::agent_events`.
+        if let Ok(dir) = crate::store::state_dir(app) {
+            let file = dir.join("events").join(format!("{}.jsonl", crate::store::safe_key(&opts.id)));
+            cmd.env("ALMASTUDIO_EVENTS_FILE", file);
+        }
         let child = pair.slave.spawn_command(cmd)?;
         // The slave handle must be dropped, otherwise the master never sees EOF
         // when the child exits and the reader thread would hang forever.
@@ -252,6 +264,8 @@ impl PtyManager {
                 exit_code,
                 last_output,
                 busy,
+                desktop_size: (opts.cols, opts.rows),
+                remote_owner: None,
             },
         );
         Ok(())
@@ -267,18 +281,87 @@ impl PtyManager {
         Ok(())
     }
 
+    /// A resize from the desktop terminal. While a remote client owns the
+    /// size it is only recorded, and applied once the desktop takes it back.
     pub fn resize(&self, id: &str, cols: u16, rows: u16) -> anyhow::Result<()> {
-        let guard = self.sessions.lock();
+        let mut guard = self.sessions.lock();
         let s = guard
-            .get(id)
+            .get_mut(id)
             .ok_or_else(|| anyhow::anyhow!("no session {id}"))?;
-        s.master.resize(PtySize {
-            rows: rows.max(2),
-            cols: cols.max(10),
-            pixel_width: 0,
-            pixel_height: 0,
-        })?;
+        s.desktop_size = (cols, rows);
+        if s.remote_owner.is_none() {
+            apply_size(s, cols, rows)?;
+        }
         Ok(())
+    }
+
+    /// A resize from a remote client, which takes the size over from the
+    /// desktop. Returns true when ownership changed hands.
+    pub fn resize_remote(
+        &self,
+        id: &str,
+        client: u64,
+        cols: u16,
+        rows: u16,
+    ) -> anyhow::Result<bool> {
+        let mut guard = self.sessions.lock();
+        let s = guard
+            .get_mut(id)
+            .ok_or_else(|| anyhow::anyhow!("no session {id}"))?;
+        let changed = s.remote_owner != Some(client);
+        s.remote_owner = Some(client);
+        apply_size(s, cols, rows)?;
+        Ok(changed)
+    }
+
+    /// Gives the size back to the desktop when `client` holds it. Returns true
+    /// when it did.
+    pub fn release_remote(&self, id: &str, client: u64) -> bool {
+        let mut guard = self.sessions.lock();
+        match guard.get_mut(id) {
+            Some(s) if s.remote_owner == Some(client) => restore_desktop(s),
+            _ => false,
+        }
+    }
+
+    /// Gives back every size `client` holds; returns the tabs that changed.
+    pub fn release_client(&self, client: u64) -> Vec<String> {
+        let mut guard = self.sessions.lock();
+        guard
+            .iter_mut()
+            .filter(|(_, s)| s.remote_owner == Some(client))
+            .filter_map(|(id, s)| restore_desktop(s).then(|| id.clone()))
+            .collect()
+    }
+
+    /// The desktop is being used again: take the size back from whichever
+    /// remote client holds it. Returns true when one did.
+    pub fn claim(&self, id: &str) -> bool {
+        let mut guard = self.sessions.lock();
+        match guard.get_mut(id) {
+            Some(s) if s.remote_owner.is_some() => restore_desktop(s),
+            _ => false,
+        }
+    }
+
+    /// The size the desktop terminal asked for last.
+    pub fn desktop_size(&self, id: &str) -> Option<(u16, u16)> {
+        self.sessions.lock().get(id).map(|s| s.desktop_size)
+    }
+
+    /// The remote client the session is sized for, if any.
+    pub fn size_owner(&self, id: &str) -> Option<u64> {
+        self.sessions.lock().get(id).and_then(|s| s.remote_owner)
+    }
+
+    /// Sessions producing output right now.
+    pub fn busy_ids(&self) -> Vec<String> {
+        self.sessions
+            .lock()
+            .iter()
+            .filter(|(_, s)| s.busy.load(Ordering::Relaxed))
+            .map(|(id, _)| id.clone())
+            .collect()
     }
 
     pub fn kill(&self, id: &str) {
@@ -294,6 +377,42 @@ impl PtyManager {
             .get(id)
             .map(|s| (s.is_alive(), s.exit_code.load(Ordering::Relaxed)))
     }
+}
+
+fn apply_size(s: &Session, cols: u16, rows: u16) -> anyhow::Result<()> {
+    s.master.resize(PtySize {
+        rows: rows.max(2),
+        cols: cols.max(10),
+        pixel_width: 0,
+        pixel_height: 0,
+    })?;
+    Ok(())
+}
+
+fn restore_desktop(s: &mut Session) -> bool {
+    s.remote_owner = None;
+    let (cols, rows) = s.desktop_size;
+    let _ = apply_size(s, cols, rows);
+    true
+}
+
+/// Who the pty is sized for, as told to the desktop terminal.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SizeOwnerPayload {
+    pub id: String,
+    /// True while a remote client has the pty sized for its screen.
+    pub remote: bool,
+}
+
+/// Tells the desktop terminal and the remote clients that the size changed
+/// hands.
+pub fn emit_size_owner(app: &AppHandle, id: &str, remote: bool) {
+    let _ = app.emit(
+        &format!("pty://size-owner/{id}"),
+        SizeOwnerPayload { id: id.to_string(), remote },
+    );
+    crate::remote::on_size_owner(app, id);
 }
 
 // ---------------------------------------------------------------------------
@@ -378,8 +497,9 @@ fn spawn_emitter(app: AppHandle, id: String, shared: Shared) {
                 continue;
             }
             emitted += batch.len() as u64;
-            let payload =
-                DataPayload { id: id.clone(), b64: engine.encode(&batch), end: emitted };
+            let b64 = engine.encode(&batch);
+            crate::remote::on_pty_data(&app, &id, &b64, emitted);
+            let payload = DataPayload { id: id.clone(), b64, end: emitted };
             if app.emit(&event, payload).is_err() {
                 let (lock, cv) = &*shared;
                 lock.lock().closed = true;
@@ -420,6 +540,7 @@ fn spawn_reaper(
         cv.notify_all();
 
         let _ = app.emit(&format!("pty://exit/{id}"), ExitPayload { id: id.clone(), code });
+        crate::remote::on_pty_exit(&app, &id, code);
     });
 }
 
@@ -450,6 +571,7 @@ pub fn spawn_activity_monitor(app: AppHandle) {
                             "pty://activity",
                             ActivityPayload { id: id.clone(), busy: false },
                         );
+                        crate::remote::on_activity(&app, id, false);
                     }
                     continue;
                 }
@@ -458,6 +580,7 @@ pub fn spawn_activity_monitor(app: AppHandle) {
                 if s.busy.swap(busy, Ordering::Relaxed) != busy {
                     let _ = app
                         .emit("pty://activity", ActivityPayload { id: id.clone(), busy });
+                    crate::remote::on_activity(&app, id, busy);
                 }
             }
         }
@@ -597,6 +720,21 @@ pub fn pty_resize(
     mgr.resize(&id, cols, rows).map_err(|e| e.to_string())
 }
 
+/// The desktop terminal is in use again: it takes the pty's size back from a
+/// remote client that holds it.
+#[tauri::command]
+pub fn pty_claim(app: AppHandle, mgr: tauri::State<'_, PtyManager>, id: String) {
+    if mgr.claim(&id) {
+        emit_size_owner(&app, &id, false);
+    }
+}
+
+/// True while a remote client has the pty sized for its own screen.
+#[tauri::command]
+pub fn pty_size_owner_remote(mgr: tauri::State<'_, PtyManager>, id: String) -> bool {
+    mgr.size_owner(&id).is_some()
+}
+
 #[tauri::command]
 pub fn pty_kill(mgr: tauri::State<'_, PtyManager>, id: String) {
     mgr.kill(&id);
@@ -672,6 +810,72 @@ mod tests {
         r.push(b"x");
         assert!(r.take_if_dirty().is_some());
         assert!(r.take_if_dirty().is_none());
+    }
+
+    /// A session around a real pty running `sleep`, without the reader,
+    /// emitter and reaper threads, which need an app.
+    #[cfg(not(windows))]
+    fn bare_session(cols: u16, rows: u16) -> Session {
+        let pair = native_pty_system()
+            .openpty(PtySize { rows, cols, pixel_width: 0, pixel_height: 0 })
+            .unwrap();
+        let mut cmd = CommandBuilder::new("sleep");
+        cmd.arg("30");
+        let child = pair.slave.spawn_command(cmd).unwrap();
+        drop(pair.slave);
+        let writer = pair.master.take_writer().unwrap();
+        Session {
+            master: pair.master,
+            writer,
+            child: Arc::new(Mutex::new(child)),
+            ring: Arc::new(Mutex::new(Ring::default())),
+            alive: Arc::new(AtomicBool::new(true)),
+            exit_code: Arc::new(AtomicI32::new(0)),
+            last_output: Arc::new(AtomicU64::new(0)),
+            busy: Arc::new(AtomicBool::new(false)),
+            desktop_size: (cols, rows),
+            remote_owner: None,
+        }
+    }
+
+    #[cfg(not(windows))]
+    fn size_of(mgr: &PtyManager, id: &str) -> (u16, u16) {
+        let s = mgr.sessions.lock();
+        let size = s.get(id).unwrap().master.get_size().unwrap();
+        (size.cols, size.rows)
+    }
+
+    /// The phone takes the size while it shows the tab, and the desktop gets
+    /// its own back — including a resize made in the meantime — the moment it
+    /// is used again or the phone lets go.
+    #[test]
+    #[cfg(not(windows))]
+    fn size_ownership_returns_to_the_desktop() {
+        let mgr = PtyManager::default();
+        mgr.sessions.lock().insert("t".into(), bare_session(120, 40));
+
+        assert!(mgr.resize_remote("t", 7, 45, 30).unwrap());
+        assert_eq!(size_of(&mgr, "t"), (45, 30));
+        assert_eq!(mgr.size_owner("t"), Some(7));
+        // The same client resizing again is not a change of hands.
+        assert!(!mgr.resize_remote("t", 7, 46, 30).unwrap());
+
+        // A desktop resize while the phone owns the size is only recorded.
+        mgr.resize("t", 150, 50).unwrap();
+        assert_eq!(size_of(&mgr, "t"), (46, 30));
+
+        // Another client cannot release what it does not hold.
+        assert!(!mgr.release_remote("t", 8));
+        assert!(mgr.claim("t"));
+        assert_eq!(size_of(&mgr, "t"), (150, 50));
+        assert_eq!(mgr.size_owner("t"), None);
+        assert!(!mgr.claim("t"));
+
+        // A client going away hands back everything it held.
+        mgr.resize_remote("t", 9, 40, 20).unwrap();
+        assert_eq!(mgr.release_client(9), vec!["t".to_string()]);
+        assert_eq!(size_of(&mgr, "t"), (150, 50));
+        mgr.kill_all();
     }
 
     /// Reads from a pty on a worker thread until `needle` shows up or the

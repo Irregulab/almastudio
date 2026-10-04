@@ -342,7 +342,8 @@
     "autoFetch": "Fetch automatically",
     "autoFetchHint": "Every so many minutes, for the repository in the panel. 0 turns it off.",
     "autoFetchUnit": "min",
-    "notInstalled": "Not installed: this command was not found, so the harness is left out of the menus."
+    "notInstalled": "Not installed: this command was not found, so the harness is left out of the menus.",
+    "remote": "Companion app"
   },
   "update": {
     "checking": "Checking for updates…",
@@ -516,5 +517,41 @@
     "count": "{n} conflicts",
     "markResolved": "Mark as resolved",
     "resolved": "Marked as resolved"
+  },
+  "remote": {
+    "intro": "Drive this computer's terminals and agents from your phone or tablet. Everything still runs here; the app only shows the output and sends what you type.",
+    "enable": "Allow the companion app",
+    "enableHint": "Listen on the local network for paired devices. Only devices you have allowed can connect, and every connection is end-to-end encrypted.",
+    "port": "Port",
+    "portHint": "The port the app connects to on the local network.",
+    "listening": "Listening on {where}",
+    "starting": "Starting…",
+    "error": "Could not start: {error}",
+    "relay": "Reachable from anywhere",
+    "relayHint": "Also connect through the AlmaStudio relay when the phone is away from this network. The relay only forwards encrypted data it cannot read.",
+    "relayUrl": "Relay address",
+    "relayConnected": "Connected to the relay",
+    "relayOffline": "Relay unreachable: {error}",
+    "notify": "Notifications",
+    "notifyHint": "Notify paired devices when an agent finishes or is waiting for you.",
+    "hideNames": "Hide project names in notifications",
+    "hideNamesHint": "Notifications pass through Apple and Google; leave out what they are about.",
+    "devices": "Paired devices",
+    "pair": "Pair a device…",
+    "noDevices": "No devices paired yet.",
+    "unnamed": "Unnamed device",
+    "connectedNow": "Connected now",
+    "lastSeen": "Last seen {when}",
+    "revoke": "Remove",
+    "revokeConfirm": "Remove {name}? It will be disconnected and will have to be paired again.",
+    "pairTitle": "Pair a device",
+    "pairHint": "Open the AlmaStudio app on your phone or tablet and scan this code. You will be asked to allow the device here.",
+    "pairExpires": "This code expires in {time}.",
+    "allowTitle": "Allow a new device?",
+    "allowMessage": "{name} wants to control this computer's terminals and agents. Allow it only if it is yours.",
+    "allow": "Allow",
+    "connectedDevices": "Connected: {names}",
+    "sizedForPhone": "Sized for a phone · use here",
+    "reclaimHint": "A phone or tablet is showing this terminal at its size. Type or click here to give it the desktop's size back."
   }
 }

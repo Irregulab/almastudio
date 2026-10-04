@@ -65,6 +65,11 @@ of blocked threads — no Electron, no per-tab browser process.
   English and Italian. Everything configurable lives in Settings, reachable
   from the app menu (⌘,).
 - **Updates** — signed over-the-air updates served from almaware.net.
+- **Companion app** — an iPhone, iPad and Android app (`mobile/`) that drives
+  the computer's terminals and agents: watch and type into any tab, open and
+  restart harnesses, get notified when an agent needs you, and browse files,
+  git and search. Paired by QR code, end-to-end encrypted, on the local
+  network or through the relay (`relay/`). See [mobile/README.md](mobile/README.md).
 
 ## Requirements
 
@@ -101,6 +106,14 @@ src-tauri/src/           Rust backend
   watcher.rs   debounced filesystem watching
   store.rs     crash-safe persistence + scrollback flushing
   menu.rs      native menu, labels supplied by the frontend
+  remote/      the companion app's server: Noise channel, pairing, relay
+               client, agent events and push
+
+packages/protocol/       messages, Noise and connection client shared with the app
+packages/shared/         pure TypeScript both apps use (word diff)
+packages/terminal-web/   the xterm.js page the app shows in a WebView
+mobile/                  the companion app (Expo / React Native)
+relay/                   the relay service (Rust, axum)
 ```
 
 ### Design notes worth knowing

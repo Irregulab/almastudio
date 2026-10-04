@@ -12,7 +12,7 @@ export default defineConfig({
     strictPort: true,
     host: host || false,
     hmr: host ? { protocol: 'ws', host, port: 1421 } : undefined,
-    watch: { ignored: ['**/src-tauri/**'] },
+    watch: { ignored: ['**/src-tauri/**', '**/mobile/**', '**/relay/**'] },
   },
   // Tauri targets a known webview: skip legacy transpilation to keep the bundle small.
   build: {

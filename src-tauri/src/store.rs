@@ -23,7 +23,7 @@ use crate::pty::PtyManager;
 /// How often dirty scrollback rings are written out.
 const SCROLLBACK_FLUSH_SECS: u64 = 5;
 
-fn state_dir(app: &AppHandle) -> anyhow::Result<PathBuf> {
+pub(crate) fn state_dir(app: &AppHandle) -> anyhow::Result<PathBuf> {
     let dir = app.path().app_data_dir()?.join("state");
     fs::create_dir_all(&dir)?;
     Ok(dir)
@@ -38,12 +38,12 @@ fn scrollback_dir(app: &AppHandle) -> anyhow::Result<PathBuf> {
 /// One record per Claude Code tab, written by the tab's own SessionStart hook
 /// (see `claudeSessionSettings` in the frontend), naming the session it is on.
 /// Not created here: the hook creates it on first use.
-fn sessions_dir(app: &AppHandle) -> anyhow::Result<PathBuf> {
+pub(crate) fn sessions_dir(app: &AppHandle) -> anyhow::Result<PathBuf> {
     Ok(state_dir(app)?.join("sessions"))
 }
 
 /// Tab ids come from the frontend, so never let one escape its directory.
-fn safe_key(key: &str) -> String {
+pub(crate) fn safe_key(key: &str) -> String {
     let cleaned: String = key
         .chars()
         .map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
@@ -55,7 +55,7 @@ fn safe_key(key: &str) -> String {
     }
 }
 
-fn atomic_write(path: &Path, bytes: &[u8]) -> anyhow::Result<()> {
+pub(crate) fn atomic_write(path: &Path, bytes: &[u8]) -> anyhow::Result<()> {
     let dir = path.parent().ok_or_else(|| anyhow::anyhow!("no parent dir"))?;
     fs::create_dir_all(dir)?;
     let tmp = path.with_extension("tmp");
@@ -148,8 +148,13 @@ pub fn scrollback_load(
     mgr: tauri::State<'_, PtyManager>,
     id: String,
 ) -> Result<Scrollback, String> {
+    scrollback_of(&app, &mgr, &id)
+}
+
+/// The retained output for a tab; shared with remote clients attaching to it.
+pub fn scrollback_of(app: &AppHandle, mgr: &PtyManager, id: &str) -> Result<Scrollback, String> {
     let engine = base64::engine::general_purpose::STANDARD;
-    if let Some(ring) = mgr.ring_of(&id) {
+    if let Some(ring) = mgr.ring_of(id) {
         let guard = ring.lock();
         return Ok(Scrollback {
             b64: engine.encode(guard.snapshot()),
@@ -157,8 +162,8 @@ pub fn scrollback_load(
             live: true,
         });
     }
-    let dir = scrollback_dir(&app).map_err(|e| e.to_string())?;
-    let path = dir.join(format!("{}.bin", safe_key(&id)));
+    let dir = scrollback_dir(app).map_err(|e| e.to_string())?;
+    let path = dir.join(format!("{}.bin", safe_key(id)));
     Ok(Scrollback {
         b64: fs::read(path).map(|b| engine.encode(b)).unwrap_or_default(),
         end: 0,
@@ -174,6 +179,9 @@ pub fn scrollback_prune(app: AppHandle, keep: Vec<String>) -> Result<(), String>
     prune_dir(&dir, "bin", &keep);
     if let Ok(dir) = sessions_dir(&app) {
         prune_dir(&dir, "json", &keep);
+    }
+    if let Ok(dir) = state_dir(&app) {
+        prune_dir(&dir.join("events"), "jsonl", &keep);
     }
     Ok(())
 }
@@ -196,6 +204,9 @@ pub fn scrollback_forget(app: AppHandle, id: String) -> Result<(), String> {
     let _ = fs::remove_file(dir.join(format!("{}.bin", safe_key(&id))));
     if let Ok(dir) = sessions_dir(&app) {
         let _ = fs::remove_file(dir.join(format!("{}.json", safe_key(&id))));
+    }
+    if let Ok(dir) = state_dir(&app) {
+        let _ = fs::remove_file(dir.join("events").join(format!("{}.jsonl", safe_key(&id))));
     }
     Ok(())
 }

@@ -342,7 +342,8 @@
     "autoFetch": "Fetch automatico",
     "autoFetchHint": "Ogni tanti minuti, per il repository nel pannello. 0 lo disattiva.",
     "autoFetchUnit": "min",
-    "notInstalled": "Non installato: questo comando non è stato trovato, quindi l'harness non compare nei menu."
+    "notInstalled": "Non installato: questo comando non è stato trovato, quindi l'harness non compare nei menu.",
+    "remote": "App companion"
   },
   "update": {
     "checking": "Controllo aggiornamenti…",
@@ -516,5 +517,41 @@
     "count": "{n} conflitti",
     "markResolved": "Segna come risolto",
     "resolved": "Segnato come risolto"
+  },
+  "remote": {
+    "intro": "Controlla i terminali e gli agenti di questo computer dal telefono o dal tablet. Tutto continua a girare qui: l'app mostra solo l'output e invia ciò che scrivi.",
+    "enable": "Consenti l'app companion",
+    "enableHint": "Resta in ascolto sulla rete locale per i dispositivi abbinati. Possono connettersi solo i dispositivi che hai autorizzato e ogni connessione è cifrata end-to-end.",
+    "port": "Porta",
+    "portHint": "La porta a cui l'app si collega sulla rete locale.",
+    "listening": "In ascolto su {where}",
+    "starting": "Avvio…",
+    "error": "Impossibile avviare: {error}",
+    "relay": "Raggiungibile ovunque",
+    "relayHint": "Collegati anche tramite il relay di AlmaStudio quando il telefono non è su questa rete. Il relay inoltra solo dati cifrati che non può leggere.",
+    "relayUrl": "Indirizzo del relay",
+    "relayConnected": "Connesso al relay",
+    "relayOffline": "Relay non raggiungibile: {error}",
+    "notify": "Notifiche",
+    "notifyHint": "Avvisa i dispositivi abbinati quando un agente finisce o ti sta aspettando.",
+    "hideNames": "Nascondi i nomi dei progetti nelle notifiche",
+    "hideNamesHint": "Le notifiche passano da Apple e Google: non dire di cosa parlano.",
+    "devices": "Dispositivi abbinati",
+    "pair": "Abbina un dispositivo…",
+    "noDevices": "Nessun dispositivo abbinato.",
+    "unnamed": "Dispositivo senza nome",
+    "connectedNow": "Connesso ora",
+    "lastSeen": "Visto l'ultima volta {when}",
+    "revoke": "Rimuovi",
+    "revokeConfirm": "Rimuovere {name}? Verrà disconnesso e dovrà essere abbinato di nuovo.",
+    "pairTitle": "Abbina un dispositivo",
+    "pairHint": "Apri l'app AlmaStudio sul telefono o sul tablet e inquadra questo codice. Ti verrà chiesto qui di autorizzare il dispositivo.",
+    "pairExpires": "Il codice scade tra {time}.",
+    "allowTitle": "Autorizzare un nuovo dispositivo?",
+    "allowMessage": "{name} vuole controllare i terminali e gli agenti di questo computer. Autorizzalo solo se è tuo.",
+    "allow": "Autorizza",
+    "connectedDevices": "Connessi: {names}",
+    "sizedForPhone": "Dimensionato per il telefono · usa qui",
+    "reclaimHint": "Un telefono o un tablet sta mostrando questo terminale alla sua dimensione. Scrivi o clicca qui per ridare al desktop la sua dimensione."
   }
 }

@@ -14,7 +14,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check": "npm run typecheck && npm run test && cargo test --manifest-path src-tauri/Cargo.toml"
+    "check": "npm run typecheck && npm run test && cargo test --manifest-path src-tauri/Cargo.toml",
+    "build:terminal": "node scripts/build-terminal-web.mjs"
   },
   "dependencies": {
     "@codemirror/commands": "^6.11.0",
@@ -58,6 +59,9 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@noble/ciphers": "^2.4.0",
+    "@noble/curves": "^2.4.0",
+    "@noble/hashes": "^2.4.0",
     "@tauri-apps/cli": "^2.11.4",
     "@types/node": "^26.5.0",
     "@types/react": "^19.2.18",

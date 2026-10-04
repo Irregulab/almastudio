@@ -6,6 +6,7 @@ mod git_cli;
 mod harness;
 mod menu;
 mod pty;
+mod remote;
 mod search;
 mod store;
 mod watcher;
@@ -20,6 +21,7 @@ use tauri::{Emitter, LogicalSize, Manager, PhysicalPosition, PhysicalSize, RunEv
 use tauri_plugin_window_state::{AppHandleExt as _, StateFlags};
 
 use pty::PtyManager;
+use remote::RemoteHub;
 use watcher::WatchManager;
 
 /// Gates shutdown behind the frontend's confirmation.
@@ -303,6 +305,8 @@ pub fn run() {
     builder
         .manage(PtyManager::default())
         .manage(WatchManager::default())
+        .manage(RemoteHub::default())
+        .manage(remote::agent_events::AgentEvents::default())
         .manage(ExitGate::default())
         .manage(GeometryDirty::default())
         .invoke_handler(tauri::generate_handler![
@@ -319,6 +323,15 @@ pub fn run() {
             pty::pty_resize,
             pty::pty_kill,
             pty::pty_status,
+            pty::pty_claim,
+            pty::pty_size_owner_remote,
+            remote::remote_configure,
+            remote::remote_status,
+            remote::remote_pairing,
+            remote::remote_pair_respond,
+            remote::remote_revoke,
+            remote::remote_publish_state,
+            remote::remote_command_result,
             store::state_load,
             store::state_save,
             store::state_dir_path,
@@ -412,6 +425,7 @@ pub fn run() {
             menu::build(&handle, HashMap::new(), &all)?;
             store::spawn_scrollback_flusher(handle.clone());
             pty::spawn_activity_monitor(handle.clone());
+            remote::agent_events::start(&handle);
             spawn_geometry_flusher(handle.clone());
 
             // The window starts hidden so the user never sees an unstyled
@@ -490,6 +504,7 @@ pub fn run() {
                     mgr.kill_all();
                 }
                 browser::close_all(app);
+                remote::shutdown(app);
                 if let Some(w) = app.try_state::<WatchManager>() {
                     w.stop_all();
                 }
