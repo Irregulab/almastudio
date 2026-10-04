@@ -9,6 +9,32 @@ release cannot be cut without one.
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-10-04
+
+### Added
+
+- **Companion app for iPhone, iPad and Android.** Turn it on in Settings →
+  Companion app and pair a phone by scanning a QR code; the computer asks
+  before it lets a new device in, and paired devices can be removed at any
+  time. Everything still runs on the computer: the app shows every project's
+  terminals live and lets you type into them, with keys a phone lacks (Esc,
+  Ctrl, Tab, arrows) and a sheet for writing longer prompts.
+- From the phone, open a Claude Code, Codex, OpenCode or shell tab in any
+  project, or start, restart, stop and close one. New tabs show up on the
+  computer too.
+- A terminal the phone is showing is sized for the phone's screen, and gets
+  the computer's size back as soon as you type or click in it on the
+  computer — or when the phone leaves it. A small badge on the terminal says
+  while a phone has it.
+- Reachable from anywhere, optionally, through the AlmaStudio relay. The
+  connection is end-to-end encrypted on the local network and through the
+  relay alike, so the relay only ever forwards data it cannot read.
+- Notifications on the phone when an agent finishes a turn or is waiting for
+  permission or input — from Claude Code's and Codex's own hooks — and an
+  option to leave project names out of them.
+- Files, Git changes and history with diffs, and search, each as a page of
+  its own in the app, read-only and limited to the project's folders.
+
 ## [1.7.2] - 2026-09-23
 
 ### Changed
