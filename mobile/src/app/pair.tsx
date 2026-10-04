@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { ActivityIndicator, StyleSheet, Text, TextInput, View } from 'react-native'
+import {
+  ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View,
+  useWindowDimensions,
+} from 'react-native'
 import { CameraView, useCameraPermissions } from 'expo-camera'
 import { router, useLocalSearchParams } from 'expo-router'
 
@@ -21,6 +24,9 @@ export default function Pair() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const handled = useRef<string | null>(null)
+  const { width } = useWindowDimensions()
+  // As large as the screen allows, but no larger than a code needs on a tablet.
+  const side = Math.min(width - 48, 360)
 
   const start = async (input: string) => {
     if (busy || handled.current === input) return
@@ -63,48 +69,79 @@ export default function Pair() {
   }
 
   return (
-    <View style={[styles.fill, { backgroundColor: p.bg }]}>
-      <View style={styles.camera}>
-        {permission?.granted ? (
-          <CameraView
-            style={StyleSheet.absoluteFill}
-            facing="back"
-            barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-            onBarcodeScanned={({ data }) => void start(data)}
+    <KeyboardAvoidingView
+      style={[styles.fill, { backgroundColor: p.bg }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <View style={[styles.camera, { width: side, height: side, backgroundColor: p.panel }]}>
+          {permission?.granted ? (
+            <>
+              <CameraView
+                style={StyleSheet.absoluteFill}
+                facing="back"
+                barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+                onBarcodeScanned={({ data }) => void start(data)}
+              />
+              <Frame color={p.accent} />
+            </>
+          ) : (
+            <View style={styles.center}>
+              <Text style={{ color: p.muted, marginBottom: 12, textAlign: 'center' }}>
+                AlmaStudio needs the camera to read the pairing code.
+              </Text>
+              <Button title="Allow the camera" onPress={() => void requestPermission()} />
+            </View>
+          )}
+        </View>
+        <Text style={[styles.hint, { color: p.muted, maxWidth: side }]}>
+          On the computer: Settings → Companion app → Pair a device. Point the camera at the code.
+        </Text>
+        {error && <Message tone="error">{error}</Message>}
+        <View style={[styles.paste, { width: side }]}>
+          <Text style={{ color: p.subtle, textAlign: 'center' }}>Or paste the pairing link</Text>
+          <TextInput
+            value={link}
+            onChangeText={setLink}
+            placeholder="almastudio://pair?d=…"
+            placeholderTextColor={p.subtle}
+            autoCapitalize="none"
+            autoCorrect={false}
+            style={[styles.input, { color: p.fg, borderColor: p.border, backgroundColor: p.panel }]}
+            onSubmitEditing={() => void start(link)}
           />
-        ) : (
-          <View style={[styles.center, { backgroundColor: p.panel }]}>
-            <Text style={{ color: p.muted, marginBottom: 12, textAlign: 'center' }}>
-              Scan the code shown in AlmaStudio → Settings → Companion app.
-            </Text>
-            <Button title="Allow the camera" onPress={() => void requestPermission()} />
-          </View>
-        )}
-      </View>
-      {error && <Message tone="error">{error}</Message>}
-      <View style={styles.paste}>
-        <Text style={{ color: p.muted }}>Or paste the pairing link</Text>
-        <TextInput
-          value={link}
-          onChangeText={setLink}
-          placeholder="almastudio://pair?d=…"
-          placeholderTextColor={p.subtle}
-          autoCapitalize="none"
-          autoCorrect={false}
-          style={[styles.input, { color: p.fg, borderColor: p.border, backgroundColor: p.panel }]}
-          onSubmitEditing={() => void start(link)}
-        />
-        <Button title="Pair" kind="plain" disabled={!link} onPress={() => void start(link)} />
-      </View>
+          {link ? <Button title="Pair" kind="plain" onPress={() => void start(link)} /> : null}
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
+  )
+}
+
+/** Corner marks showing where the code should sit. */
+function Frame({ color }: { color: string }) {
+  const corner = (pos: object) => (
+    <View style={[styles.corner, { borderColor: color }, pos]} />
+  )
+  return (
+    <View style={styles.frame} pointerEvents="none">
+      {corner({ top: 0, left: 0, borderTopWidth: 4, borderLeftWidth: 4, borderTopLeftRadius: 14 })}
+      {corner({ top: 0, right: 0, borderTopWidth: 4, borderRightWidth: 4, borderTopRightRadius: 14 })}
+      {corner({ bottom: 0, left: 0, borderBottomWidth: 4, borderLeftWidth: 4, borderBottomLeftRadius: 14 })}
+      {corner({ bottom: 0, right: 0, borderBottomWidth: 4, borderRightWidth: 4, borderBottomRightRadius: 14 })}
     </View>
   )
 }
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
+  // Centred on the screen, both ways; scrolls only when the keyboard is up.
+  content: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 18 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 12 },
   wait: { fontSize: 18, fontWeight: '600', textAlign: 'center' },
-  camera: { aspectRatio: 1, margin: 20, borderRadius: 18, overflow: 'hidden' },
-  paste: { paddingHorizontal: 20, gap: 10 },
+  camera: { borderRadius: 22, overflow: 'hidden' },
+  frame: { position: 'absolute', top: '15%', left: '15%', right: '15%', bottom: '15%' },
+  corner: { position: 'absolute', width: 34, height: 34 },
+  hint: { textAlign: 'center', lineHeight: 20 },
+  paste: { gap: 10 },
   input: { height: 44, borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, fontSize: 14 },
 })
