@@ -18,9 +18,12 @@
       "supportsTablet": true,
       "infoPlist": {
         "NSLocalNetworkUsageDescription": "AlmaStudio connects to your computer on the local network to show its terminals and agents.",
-        "NSAppTransportSecurity": { "NSAllowsLocalNetworking": true },
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true
+        },
         "ITSAppUsesNonExemptEncryption": false
-      }
+      },
+      "appleTeamId": "TH963HHSMC"
     },
     "android": {
       "package": "net.almaware.almastudio.companion",
@@ -47,16 +50,25 @@
       ],
       [
         "expo-local-authentication",
-        { "faceIDPermission": "AlmaStudio can ask for Face ID before showing your computer's terminals." }
+        {
+          "faceIDPermission": "AlmaStudio can ask for Face ID before showing your computer's terminals."
+        }
       ],
       [
         "expo-notifications",
-        { "color": "#7cb518" }
+        {
+          "color": "#7cb518"
+        }
       ],
       [
         "expo-build-properties",
         {
-          "android": { "usesCleartextTraffic": true }
+          "android": {
+            "usesCleartextTraffic": true
+          },
+          "ios": {
+            "enableSceneSupport": true
+          }
         }
       ]
     ],
