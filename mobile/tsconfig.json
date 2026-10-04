@@ -1,0 +1,14 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "paths": {
+      "@/*": ["./src/*"],
+      "@almastudio/protocol": ["../packages/protocol/src/index.ts"],
+      "@almastudio/protocol/*": ["../packages/protocol/*"],
+      "@almastudio/shared/*": ["../packages/shared/*"]
+    }
+  },
+  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
+  "exclude": ["node_modules", "../packages/protocol/src/*.test.ts"]
+}

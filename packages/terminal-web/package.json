@@ -1,0 +1,7 @@
+{
+  "name": "@almastudio/terminal-web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The xterm.js page the companion app shows in a WebView",
+  "type": "module"
+}
