@@ -33,6 +33,8 @@ export interface Prefs {
   fontSize: number
   /** `phone`: the terminal takes this screen's size; `desktop`: shows the desktop's width. */
   fitMode: 'phone' | 'desktop'
+  /** The screen neither dims nor locks while the app is open. */
+  keepAwake: boolean
   /** Ask for Face ID / fingerprint when the app opens. */
   biometric: boolean
   /** Send notifications through Apple and Google when an agent needs you. */
@@ -46,6 +48,7 @@ export const DEFAULT_PREFS: Prefs = {
   theme: 'auto',
   fontSize: isTablet ? 14 : 12,
   fitMode: 'phone',
+  keepAwake: false,
   biometric: false,
   notifications: true,
 }

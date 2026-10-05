@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { AppState, Appearance, StyleSheet, Text, View, useColorScheme } from 'react-native'
 import { Stack } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake'
 import * as LocalAuthentication from 'expo-local-authentication'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 
@@ -13,6 +14,7 @@ import { useNotifications } from '../lib/notifications'
 
 /** Away for longer than this, the app asks for Face ID again. */
 const LOCK_AFTER_MS = 30_000
+const KEEP_AWAKE = 'almastudio.keepAwake'
 
 export default function RootLayout() {
   const p = usePalette()
@@ -20,6 +22,7 @@ export default function RootLayout() {
   const booted = useConnection((s) => s.booted)
   const biometric = useConnection((s) => s.prefs.biometric)
   const theme = useConnection((s) => s.prefs.theme)
+  const keepAwake = useConnection((s) => s.prefs.keepAwake)
   const [locked, setLocked] = useState(true)
   const lockedRef = useRef(true)
   const authenticating = useRef(false)
@@ -35,6 +38,14 @@ export default function RootLayout() {
   useEffect(() => {
     Appearance.setColorScheme(theme === 'auto' ? 'unspecified' : theme)
   }, [theme])
+
+  // Watching an agent work shouldn't mean tapping the screen to keep it lit.
+  // Only holds while the app is in front; the system takes over again after.
+  useEffect(() => {
+    if (!keepAwake) return
+    void activateKeepAwakeAsync(KEEP_AWAKE).catch(() => {})
+    return () => void deactivateKeepAwake(KEEP_AWAKE).catch(() => {})
+  }, [keepAwake])
 
   const setLock = useCallback((value: boolean) => {
     lockedRef.current = value

@@ -16,6 +16,7 @@
     "expo-dev-client": "~57.0.19",
     "expo-device": "~57.0.2",
     "expo-haptics": "~57.0.3",
+    "expo-keep-awake": "~57.0.2",
     "expo-linking": "~57.0.11",
     "expo-local-authentication": "~57.0.3",
     "expo-notifications": "~57.0.21",

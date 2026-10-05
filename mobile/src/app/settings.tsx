@@ -89,6 +89,16 @@ export default function Settings() {
         />
       </View>
 
+      <View style={[styles.item, { borderBottomColor: p.border }]}>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.label, { color: p.fg }]}>Keep the screen on</Text>
+          <Text style={{ color: p.muted, fontSize: 12.5, marginTop: 2 }}>
+            The screen stays bright and unlocked while AlmaStudio is open.
+          </Text>
+        </View>
+        <Switch value={prefs.keepAwake} onValueChange={(v) => setPrefs({ keepAwake: v })} />
+      </View>
+
       <SectionTitle>Security</SectionTitle>
       <View style={[styles.item, { borderBottomColor: p.border }]}>
         <Text style={[styles.label, { color: p.fg, flex: 1 }]}>Require Face ID / fingerprint</Text>
