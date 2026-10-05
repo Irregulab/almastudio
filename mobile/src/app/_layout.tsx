@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { AppState, StyleSheet, Text, View, useColorScheme } from 'react-native'
+import { AppState, Appearance, StyleSheet, Text, View, useColorScheme } from 'react-native'
 import { Stack } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import * as LocalAuthentication from 'expo-local-authentication'
@@ -19,6 +19,7 @@ export default function RootLayout() {
   const scheme = useColorScheme()
   const booted = useConnection((s) => s.booted)
   const biometric = useConnection((s) => s.prefs.biometric)
+  const theme = useConnection((s) => s.prefs.theme)
   const [locked, setLocked] = useState(true)
   const lockedRef = useRef(true)
   const authenticating = useRef(false)
@@ -28,6 +29,12 @@ export default function RootLayout() {
     void useConnection.getState().boot()
   }, [])
   useNotifications()
+
+  // Dark or light for the whole app — colours, terminal, status bar, and the
+  // system's own alerts and keyboard — or back to following the system.
+  useEffect(() => {
+    Appearance.setColorScheme(theme === 'auto' ? 'unspecified' : theme)
+  }, [theme])
 
   const setLock = useCallback((value: boolean) => {
     lockedRef.current = value

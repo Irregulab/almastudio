@@ -1,9 +1,10 @@
-import { Alert, ScrollView, StyleSheet, Switch, Text, View } from 'react-native'
+import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native'
 import { router } from 'expo-router'
 
 import { useConnection } from '../lib/connection'
 import { pushProjectId } from '../lib/notifications'
 import { usePalette } from '../lib/theme'
+import type { ThemeMode } from '../lib/storage'
 import { Row, SectionTitle } from '../components/ui'
 
 /** App settings, and the way back to the list of computers. */
@@ -35,6 +36,29 @@ export default function Settings() {
           router.dismissAll()
         }}
       />
+
+      <SectionTitle>Appearance</SectionTitle>
+      <View style={[styles.item, { borderBottomColor: p.border }]}>
+        <Text style={[styles.label, { color: p.fg }]}>Theme</Text>
+        <View style={[styles.segments, { backgroundColor: p.panel, borderColor: p.border }]}>
+          {THEMES.map(({ value, label }) => {
+            const on = prefs.theme === value
+            return (
+              <Pressable
+                key={value}
+                onPress={() => setPrefs({ theme: value })}
+                accessibilityRole="button"
+                accessibilityState={{ selected: on }}
+                style={[styles.segment, on && { backgroundColor: p.accent }]}
+              >
+                <Text style={{ color: on ? p.accentFg : p.fg, fontWeight: on ? '600' : '400' }}>
+                  {label}
+                </Text>
+              </Pressable>
+            )
+          })}
+        </View>
+      </View>
 
       <SectionTitle>Terminal</SectionTitle>
       <View style={[styles.item, { borderBottomColor: p.border }]}>
@@ -93,6 +117,12 @@ export default function Settings() {
   )
 }
 
+const THEMES: Array<{ value: ThemeMode; label: string }> = [
+  { value: 'auto', label: 'Auto' },
+  { value: 'dark', label: 'Dark' },
+  { value: 'light', label: 'Light' },
+]
+
 const styles = StyleSheet.create({
   item: {
     flexDirection: 'row',
@@ -104,6 +134,14 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   label: { fontSize: 15.5 },
+  segments: {
+    flexDirection: 'row',
+    marginLeft: 'auto',
+    borderRadius: 9,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 2,
+  },
+  segment: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 7 },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: 8, marginLeft: 'auto' },
   step: { borderWidth: 1, borderRadius: 7, paddingHorizontal: 10, paddingVertical: 4, overflow: 'hidden' },
 })

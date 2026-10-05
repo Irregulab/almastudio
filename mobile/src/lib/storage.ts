@@ -25,7 +25,11 @@ export interface Desktop {
   lastConnectedAt?: number
 }
 
+export type ThemeMode = 'auto' | 'dark' | 'light'
+
 export interface Prefs {
+  /** `auto` follows the system's appearance. */
+  theme: ThemeMode
   fontSize: number
   /** `phone`: the terminal takes this screen's size; `desktop`: shows the desktop's width. */
   fitMode: 'phone' | 'desktop'
@@ -39,6 +43,7 @@ export interface Prefs {
 const isTablet = Platform.OS === 'ios' ? Platform.isPad : false
 
 export const DEFAULT_PREFS: Prefs = {
+  theme: 'auto',
   fontSize: isTablet ? 14 : 12,
   fitMode: 'phone',
   biometric: false,
