@@ -27,11 +27,13 @@ interface Props {
   onCtrl: () => void
   onKey: (seq: string) => void
   onCompose: () => void
+  /** The soft keyboard is up: the button then puts it away. */
+  keyboardOpen: boolean
   onKeyboard: () => void
   onEnter: () => void
 }
 
-export function KeyBar({ ctrl, onCtrl, onKey, onCompose, onKeyboard, onEnter }: Props) {
+export function KeyBar({ ctrl, onCtrl, onKey, onCompose, keyboardOpen, onKeyboard, onEnter }: Props) {
   const p = usePalette()
   const tap = (fn: () => void) => () => {
     void Haptics.selectionAsync().catch(() => {})
@@ -39,8 +41,16 @@ export function KeyBar({ ctrl, onCtrl, onKey, onCompose, onKeyboard, onEnter }: 
   }
   return (
     <View style={[styles.bar, { backgroundColor: p.panel, borderTopColor: p.border }]}>
-      <Pressable style={styles.icon} onPress={tap(onKeyboard)} accessibilityLabel="Keyboard">
-        <Ionicons name="keypad-outline" size={18} color={p.muted} />
+      <Pressable
+        style={styles.icon}
+        onPress={tap(onKeyboard)}
+        accessibilityLabel={keyboardOpen ? 'Hide keyboard' : 'Show keyboard'}
+      >
+        <Ionicons
+          name={keyboardOpen ? 'chevron-down' : 'keypad-outline'}
+          size={keyboardOpen ? 20 : 18}
+          color={keyboardOpen ? p.accent : p.muted}
+        />
       </Pressable>
       <ScrollView
         horizontal

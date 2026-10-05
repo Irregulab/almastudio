@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  ActionSheetIOS, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable,
+  ActionSheetIOS, ActivityIndicator, Alert, Keyboard, KeyboardAvoidingView, Platform, Pressable,
   ScrollView, StyleSheet, Text, View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -40,6 +40,17 @@ export default function Session() {
   const term = useRef<TerminalHandle>(null)
   const [ctrl, setCtrl] = useState(false)
   const [compose, setCompose] = useState(false)
+  const [keyboardOpen, setKeyboardOpen] = useState(false)
+
+  // Whether the soft keyboard is up, so its button can show or hide it.
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', () => setKeyboardOpen(true))
+    const hide = Keyboard.addListener('keyboardDidHide', () => setKeyboardOpen(false))
+    return () => {
+      show.remove()
+      hide.remove()
+    }
+  }, [])
   const [state, setState] = useState<{ alive: boolean; exitCode: number } | null>(null)
 
   const project = workspace?.projects.find((x) => x.id === projectId) ?? null
@@ -214,7 +225,17 @@ export default function Session() {
               onKey={(seq) => term.current?.send(seq)}
               onEnter={() => term.current?.send('\r')}
               onCompose={() => setCompose(true)}
-              onKeyboard={() => term.current?.focus()}
+              keyboardOpen={keyboardOpen}
+              onKeyboard={() => {
+                // The keyboard belongs to the terminal's text field inside the
+                // WebView, so it is put away by taking that field's focus.
+                if (keyboardOpen) {
+                  term.current?.blur()
+                  Keyboard.dismiss()
+                } else {
+                  term.current?.focus()
+                }
+              }}
             />
           </SafeAreaView>
         )}
