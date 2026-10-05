@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { AppState, StyleSheet, Text, View, useColorScheme } from 'react-native'
 import { Stack } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
@@ -11,36 +11,72 @@ import { usePalette } from '../lib/theme'
 import { Button } from '../components/ui'
 import { useNotifications } from '../lib/notifications'
 
+/** Away for longer than this, the app asks for Face ID again. */
+const LOCK_AFTER_MS = 30_000
+
 export default function RootLayout() {
   const p = usePalette()
   const scheme = useColorScheme()
   const booted = useConnection((s) => s.booted)
   const biometric = useConnection((s) => s.prefs.biometric)
   const [locked, setLocked] = useState(true)
+  const lockedRef = useRef(true)
+  const authenticating = useRef(false)
+  const backgroundAt = useRef<number | null>(null)
 
   useEffect(() => {
     void useConnection.getState().boot()
   }, [])
   useNotifications()
 
+  const setLock = useCallback((value: boolean) => {
+    lockedRef.current = value
+    setLocked(value)
+  }, [])
+
+  /**
+   * Asks for Face ID once. The system sheet itself takes the app to
+   * `inactive` and back to `active`, so this must neither run while a prompt
+   * is up nor when the app is already unlocked — or every success would
+   * start the next prompt.
+   */
+  const unlock = useCallback(async () => {
+    if (authenticating.current || !lockedRef.current) return
+    authenticating.current = true
+    try {
+      const r = await LocalAuthentication.authenticateAsync({ promptMessage: 'Unlock AlmaStudio' })
+      if (r.success) setLock(false)
+    } finally {
+      authenticating.current = false
+    }
+  }, [setLock])
+
   // Optional lock: the terminals of a computer are worth a Face ID.
   useEffect(() => {
     if (!booted) return
     if (!biometric) {
-      setLocked(false)
+      setLock(false)
       return
     }
-    const unlock = () =>
-      void LocalAuthentication.authenticateAsync({ promptMessage: 'Unlock AlmaStudio' }).then((r) =>
-        setLocked(!r.success),
-      )
-    unlock()
-    const sub = AppState.addEventListener('change', (s) => {
-      if (s === 'background') setLocked(true)
-      if (s === 'active') unlock()
+    if (lockedRef.current) void unlock()
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'background') {
+        // Covered straight away, so the app switcher shows no terminal. A
+        // lock that was already on stays on however short the trip.
+        backgroundAt.current = lockedRef.current ? 0 : Date.now()
+        setLock(true)
+      } else if (state === 'active' && backgroundAt.current !== null) {
+        // Only on coming back from the background: the Face ID sheet also
+        // passes through `active`, and asking then — after a success or a
+        // cancel — is what kept the prompt coming back.
+        const away = Date.now() - backgroundAt.current
+        backgroundAt.current = null
+        if (away <= LOCK_AFTER_MS) setLock(false)
+        else void unlock()
+      }
     })
     return () => sub.remove()
-  }, [booted, biometric])
+  }, [booted, biometric, setLock, unlock])
 
   const header = {
     headerStyle: { backgroundColor: p.panel },
@@ -56,18 +92,6 @@ export default function RootLayout() {
       <StatusBar style={scheme === 'light' ? 'dark' : 'light'} />
       {!booted ? (
         <View style={[styles.fill, { backgroundColor: p.bg }]} />
-      ) : locked && biometric ? (
-        <View style={[styles.fill, styles.center, { backgroundColor: p.bg }]}>
-          <Text style={{ color: p.muted, marginBottom: 16 }}>AlmaStudio is locked</Text>
-          <Button
-            title="Unlock"
-            onPress={() =>
-              void LocalAuthentication.authenticateAsync({ promptMessage: 'Unlock AlmaStudio' }).then(
-                (r) => setLocked(!r.success),
-              )
-            }
-          />
-        </View>
       ) : (
         <Stack screenOptions={header}>
           <Stack.Screen name="index" options={{ title: 'Computers' }} />
@@ -83,6 +107,14 @@ export default function RootLayout() {
           <Stack.Screen name="search" options={{ title: 'Search' }} />
           <Stack.Screen name="settings" options={{ title: 'Settings' }} />
         </Stack>
+      )}
+      {/* Over the app rather than instead of it, so unlocking returns to the
+          same screen and terminal with the connection still up. */}
+      {booted && biometric && locked && (
+        <View style={[StyleSheet.absoluteFill, styles.center, { backgroundColor: p.bg }]}>
+          <Text style={{ color: p.muted, marginBottom: 16 }}>AlmaStudio is locked</Text>
+          <Button title="Unlock" onPress={() => void unlock()} />
+        </View>
       )}
     </SafeAreaProvider>
   )
