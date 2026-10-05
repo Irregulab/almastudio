@@ -78,6 +78,9 @@ of blocked threads — no Electron, no per-tab browser process.
 - Platform toolchain: Xcode CLT on macOS, MSVC + WebView2 on Windows,
   `libwebkit2gtk-4.1-dev` and friends on Linux (`scripts/linux-build.Dockerfile`
   has the exact package list).
+- For the companion app (`mobile/`): Xcode with an iOS simulator, and
+  CocoaPods, for iOS; Android Studio's SDK and a JDK 17 for Android. An
+  iPhone or iPad needs a signing team in Xcode.
 
 ## Development
 
@@ -87,6 +90,58 @@ npm start          # tauri dev: vite + the Rust backend, hot reloading
 npm run typecheck  # tsc
 npm run bundle     # tauri build: installers in src-tauri/target/release/bundle
 ```
+
+### Companion app
+
+The app lives in `mobile/` with its own `node_modules`; it is an Expo
+development build, not an Expo Go app.
+
+```bash
+cd mobile
+npm install
+npx expo run:ios                     # build, install and open in the iOS simulator
+npx expo run:android                 # the same on a running Android emulator
+npx expo run:ios --device            # on a connected iPhone or iPad
+npx expo run:ios --device --configuration Release   # standalone, no Metro needed
+npm run typecheck
+```
+
+`run:ios` and `run:android` start Metro on port 8081; pass `--port` when another
+project already uses it. Native settings — permissions, iOS 27's scene life
+cycle, the signing team — live in `mobile/app.json`; `ios/` and `android/` are
+generated from it and not committed.
+
+The terminal the app shows is the desktop's xterm.js, built from
+`packages/terminal-web` into `mobile/src/terminal/terminalHtml.ts`. Rebuild it
+after changing that package:
+
+```bash
+npm run build:terminal
+```
+
+To pair a simulator without scanning a code, run the desktop in development
+with a fixed pairing code, which only debug builds accept:
+
+```bash
+ALMASTUDIO_REMOTE_DEV_TOKEN=devtoken npm start
+```
+
+Turn the companion app on in Settings, then open a pairing link in the
+simulator — `xcrun simctl openurl booted 'almastudio://pair?d=…'`, where `d` is
+base64url JSON `{"v":1,"n":"Mac","k":"<key>","a":["127.0.0.1:47821"],"t":"devtoken","r":null}`
+and the key is `public` in `state/remote/identity.json`. An Android emulator
+reaches the desktop after `adb reverse tcp:47821 tcp:47821`.
+
+The relay runs locally the same way it runs in production; point the
+desktop's relay address at `ws://127.0.0.1:8090`:
+
+```bash
+cd relay
+RELAY_ADDR=127.0.0.1:8090 cargo run
+```
+
+See [mobile/README.md](mobile/README.md) for notifications and for shipping to
+TestFlight and Play.
 
 ## How the pieces fit
 
@@ -224,6 +279,39 @@ npm run check                               # typecheck + both suites
 
 The Rust suite includes a real PTY spawn through a login shell, which is the
 thing most likely to break silently on a packaged build.
+
+The companion app's pieces are covered by the same suites, plus their own:
+
+```bash
+npm test                                    # also: the app's Noise client against
+                                            # snow's vectors, relay room names,
+                                            # the agent hooks run in a real shell
+cargo test --manifest-path relay/Cargo.toml # the relay: piping, desktop sign-in
+cd mobile && npm run typecheck              # the app itself
+```
+
+`cargo test` for the desktop covers the encrypted channel, terminal size
+ownership, keeping the app's file and git requests inside the project, and
+reading agent events. Two of its tests need the network and are ignored by
+default — TLS to a public WebSocket and a request to Expo's push service:
+
+```bash
+cargo test --manifest-path src-tauri/Cargo.toml -- --ignored
+```
+
+An end-to-end test drives a running desktop the way the app does: it pairs,
+opens a shell, types into it, takes the terminal's size and gives it back, and
+receives an agent event. Start the desktop with the development pairing code
+(see Development above) and the companion app turned on, then:
+
+```bash
+ALMASTUDIO_SMOKE_KEY=<public key from state/remote/identity.json> \
+  npx vitest run packages/protocol/src/smoke.test.ts
+```
+
+`ALMASTUDIO_SMOKE_RELAY=ws://127.0.0.1:8090` runs it through a local relay
+instead, and `ALMASTUDIO_SMOKE_TOKEN=<code from the pairing QR>` pairs the real
+way, waiting for someone to click Allow on the desktop.
 
 ## Configuration
 
