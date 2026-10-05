@@ -46,23 +46,63 @@ The desktop key is in `state/remote/identity.json`.
 
 While connected, the computer tells the app directly when an agent finishes
 or waits, and the app shows a banner for tabs other than the one on screen.
-With the app closed, the computer sends them through Expo's push service,
-which needs the app built with an EAS project:
+With the app closed, the computer sends them through Expo's push service
+straight to the token the app registered. Expo then needs the store
+credentials of each platform:
+
+- **iOS** — an APNs key, created by EAS during the first iOS build (answer yes
+  when it offers a push key) or later with `eas credentials -p ios`.
+- **Android** — a Firebase project with an Android app for
+  `net.almaware.almastudio.companion`. Its `google-services.json` goes to EAS
+  as a file variable, which `app.config.js` hands to the build; a copy next to
+  `app.config.js` serves local builds and is ignored by git:
+
+  ```sh
+  eas env:create --name GOOGLE_SERVICES_JSON --type file --value ./google-services.json \
+    --visibility secret --environment development --environment preview --environment production
+  ```
+
+  Its service account key (Firebase → Project settings → Service accounts →
+  Generate new private key) goes to `eas credentials -p android` → Google
+  Service Account → *Push Notifications (FCM V1)*.
+
+Leave *enhanced push security* off in the Expo project: the computer sends
+without an access token, since a token shipped with the desktop app would not
+stay secret.
+
+## Build and ship with EAS
+
+The app is the EAS project `@irregulab/almastudio-companion`; its id is in
+`app.json`. Builds run on expo.dev from this directory — EAS uploads the
+whole repository, so `../packages` comes along.
+
+The version and the build number live in `app.json` (`appVersionSource:
+local`) and are set before every build: `version` is what the stores show,
+and one build number goes to both iOS `buildNumber` and Android
+`versionCode`, higher each time, since neither store takes a number twice.
+Release builds come from the same private pipeline as the desktop, which asks
+for both, commits `app.json` and starts the build; the commands below do the
+same by hand once `app.json` is set.
+
+| Profile | What it makes |
+| --- | --- |
+| `development` | development client for registered devices (`eas device:create`) |
+| `development-simulator` | development client for the iOS simulator |
+| `preview` | standalone internal build: ad hoc for iOS, an APK for Android |
+| `production` | store build for TestFlight and Play |
 
 ```sh
-npx eas-cli@latest init        # writes extra.eas.projectId to the app config
-npx eas-cli@latest credentials # APNs key and FCM credentials
+npm install -g eas-cli                       # once; then `eas login`
+eas build -p ios --profile production        # first run: Apple sign-in, certificate, profile, push key
+eas submit -p ios --latest                   # to App Store Connect, then TestFlight
+eas build -p android --profile production
+eas submit -p android --latest               # to the internal testing track
 ```
 
-## Ship to TestFlight and Play internal testing
-
-```sh
-npx eas-cli@latest build --platform ios --profile production --local
-npx eas-cli@latest submit --platform ios --path <the .ipa>
-npx eas-cli@latest build --platform android --profile production --local
-npx eas-cli@latest submit --platform android --path <the .aab>
-```
-
-`--local` builds on this Mac, as the desktop releases are. Set
-`submit.production.ios.ascAppId` in `eas.json` once the app exists in App
-Store Connect.
+The first iOS build and submit are interactive: EAS signs in to the Apple
+developer account (team `TH963HHSMC`), creates the certificate and profiles,
+and `submit` creates the app in App Store Connect if it is missing. Play does
+not accept an app's first upload through its API: upload the first `.aab`
+from the Play Console by hand, then give `eas submit` a Google service account
+with access to the app. `--local` builds the same profile on this Mac
+instead, with no build minutes spent.

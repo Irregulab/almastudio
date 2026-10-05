@@ -4,22 +4,43 @@
     "appVersionSource": "local"
   },
   "build": {
+    "base": {
+      "node": "24.11.0"
+    },
     "development": {
+      "extends": "base",
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "environment": "development"
+    },
+    "development-simulator": {
+      "extends": "development",
+      "ios": {
+        "simulator": true
+      }
     },
     "preview": {
+      "extends": "base",
       "distribution": "internal",
-      "android": { "buildType": "apk" }
+      "environment": "preview",
+      "android": {
+        "buildType": "apk"
+      }
     },
     "production": {
-      "autoIncrement": true
+      "extends": "base",
+      "environment": "production"
     }
   },
   "submit": {
     "production": {
-      "ios": { "ascAppId": "SET_AFTER_CREATING_THE_APP_IN_APP_STORE_CONNECT" },
-      "android": { "track": "internal" }
+      "ios": {
+        "appleTeamId": "TH963HHSMC"
+      },
+      "android": {
+        "track": "internal",
+        "releaseStatus": "draft"
+      }
     }
   }
 }

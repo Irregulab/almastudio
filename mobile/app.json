@@ -2,6 +2,7 @@
   "expo": {
     "name": "AlmaStudio",
     "slug": "almastudio-companion",
+    "owner": "irregulab",
     "version": "1.0.0",
     "scheme": "almastudio",
     "orientation": "default",
@@ -23,7 +24,8 @@
         },
         "ITSAppUsesNonExemptEncryption": false
       },
-      "appleTeamId": "TH963HHSMC"
+      "appleTeamId": "TH963HHSMC",
+      "buildNumber": "1"
     },
     "android": {
       "package": "net.almaware.almastudio.companion",
@@ -34,7 +36,8 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "softwareKeyboardLayoutMode": "resize",
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "versionCode": 1
     },
     "plugins": [
       "expo-router",
@@ -74,6 +77,12 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "168a6010-63bf-4807-822c-9fe05150d70a"
+      }
     }
   }
 }
