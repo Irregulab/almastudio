@@ -229,6 +229,37 @@
     "discardLinesConfirm": "Annullare le {n} righe scelte? Non si potrà tornare indietro.",
     "pickLinesHint": "Clic per scegliere questa riga, Maiusc-clic per un intervallo"
   },
+  "review": {
+    "open": "Rivedi le modifiche",
+    "viewed": "Visto",
+    "viewedCount": "{n} di {total} visti",
+    "previousFile": "File precedente (K)",
+    "nextFile": "File successivo (J)",
+    "finish": "Termina review",
+    "commentHint": "Clic per commentare questa riga, Maiusc-clic per un intervallo",
+    "hint": "Clic su un numero di riga per commentare, Maiusc-clic per un intervallo.\nJ / K file · N / P blocco · V visto · ⌘↵ termina",
+    "placeholder": "Scrivi un commento",
+    "kind": {
+      "fix": "correggi",
+      "question": "domanda",
+      "nit": "nit"
+    },
+    "edit": "Modifica",
+    "outdated": "Commenti su righe che il diff non mostra più",
+    "general": "Commento generale",
+    "generalPlaceholder": "Un commento sulle modifiche nel loro insieme (facoltativo)",
+    "summary": "{n} commenti su {files} file",
+    "sendTo": "Invia a",
+    "sendHint": "La review viene incollata in questo tab e inviata subito.",
+    "noHarness": "Nessun agente in esecuzione in questo progetto. Apri un tab Claude Code, Codex o OpenCode, oppure copia la review.",
+    "send": "Invia review",
+    "copy": "Copia",
+    "copied": "Copiata",
+    "prompt": {
+      "intro": "Review del codice sulle modifiche non committate di questo repository. Esamina ogni commento qui sotto. [{fix}]: applica la modifica. [{nit}]: un dettaglio minore, sistemalo se costa poco. [{question}]: rispondi, senza modificare il codice per quel commento. Se un commento non è chiaro, o non sei d'accordo, chiedimelo prima di modificare qualcosa per quel commento.",
+      "removed": "riga rimossa"
+    }
+  },
   "view": {
     "preview": "Anteprima",
     "source": "Sorgente",

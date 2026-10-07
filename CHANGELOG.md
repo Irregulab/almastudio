@@ -9,6 +9,18 @@ release cannot be cut without one.
 
 ## [Unreleased]
 
+### Added
+
+- **Review of uncommitted changes.** "Review changes" in the Changes panel
+  opens a repository's changes as a pull request reads: one file at a time,
+  with arrows and J / K to move between files and N / P between hunks. Click
+  a line number to comment on it, Shift-click for a range; each comment is a
+  fix, a question or a nit. Mark files as viewed (V) to keep track — a file
+  that changes afterwards asks for another look. Finishing the review (⌘↵)
+  adds a general comment and sends everything to a running Claude Code,
+  Codex or OpenCode tab, which is told to ask before acting on a comment it
+  finds unclear or disagrees with. Comments are kept across restarts.
+
 ## [1.8.0] - 2026-10-04
 
 ### Added

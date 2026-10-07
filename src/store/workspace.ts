@@ -85,6 +85,8 @@ interface WorkspaceStore extends WorkspaceState {
   }) => Tab
   /** A repository's commit graph, in a tab of its own; one per repository. */
   openGraphTab: (opts: { projectId: string; root: string }) => Tab
+  /** A review of a repository's uncommitted changes; one per repository. */
+  openReviewTab: (opts: { projectId: string; root: string }) => Tab
   /**
    * With `line` (and `column`, `length`), the file opens with that spot
    * selected. With `preview` it opens as the project's preview, file or
@@ -432,6 +434,28 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
       projectId,
       kind: 'graph',
       title: `Git Graph · ${root.split(/[/\\]/).filter(Boolean).pop() ?? root}`,
+      root,
+    }
+    set((s) => ({
+      tabs: { ...s.tabs, [tab.id]: tab },
+      ...withWorkspace(s, projectId, (w) => place(w, tab.id)),
+    }))
+    return tab
+  },
+
+  openReviewTab: ({ projectId, root }) => {
+    const existing = Object.values(get().tabs).find(
+      (t) => t.kind === 'review' && t.projectId === projectId && t.root === root,
+    )
+    if (existing) {
+      get().focusTab(existing.id)
+      return existing
+    }
+    const tab: Tab = {
+      id: uid('tab'),
+      projectId,
+      kind: 'review',
+      title: `Review · ${root.split(/[/\\]/).filter(Boolean).pop() ?? root}`,
       root,
     }
     set((s) => ({

@@ -229,6 +229,37 @@
     "discardLinesConfirm": "Discard the {n} chosen lines? This cannot be undone.",
     "pickLinesHint": "Click to choose this line, shift-click for a range"
   },
+  "review": {
+    "open": "Review changes",
+    "viewed": "Viewed",
+    "viewedCount": "{n} of {total} viewed",
+    "previousFile": "Previous file (K)",
+    "nextFile": "Next file (J)",
+    "finish": "Finish review",
+    "commentHint": "Click to comment on this line, Shift-click for a range",
+    "hint": "Click a line number to comment, Shift-click for a range.\nJ / K file · N / P hunk · V viewed · ⌘↵ finish",
+    "placeholder": "Leave a comment",
+    "kind": {
+      "fix": "fix",
+      "question": "question",
+      "nit": "nit"
+    },
+    "edit": "Edit",
+    "outdated": "Comments on lines the diff no longer shows",
+    "general": "General comment",
+    "generalPlaceholder": "A comment on the changes as a whole (optional)",
+    "summary": "{n} comments on {files} files",
+    "sendTo": "Send to",
+    "sendHint": "The review is pasted into this tab and sent straight away.",
+    "noHarness": "No agent is running in this project. Open a Claude Code, Codex or OpenCode tab, or copy the review.",
+    "send": "Send review",
+    "copy": "Copy",
+    "copied": "Copied",
+    "prompt": {
+      "intro": "Code review of the uncommitted changes in this repository. Go through every comment below. [{fix}]: make the change. [{nit}]: a minor point, fix it if it is cheap. [{question}]: answer it, and do not change code for it. If a comment is unclear, or you disagree with it, ask me before changing anything for that comment.",
+      "removed": "removed line"
+    }
+  },
   "view": {
     "preview": "Preview",
     "source": "Source",
