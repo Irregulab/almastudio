@@ -9,6 +9,8 @@ release cannot be cut without one.
 
 ## [Unreleased]
 
+## [1.8.1] - 2026-10-07
+
 ### Added
 
 - **Review of uncommitted changes.** "Review changes" in the Changes panel
@@ -20,6 +22,11 @@ release cannot be cut without one.
   adds a general comment and sends everything to a running Claude Code,
   Codex or OpenCode tab, which is told to ask before acting on a comment it
   finds unclear or disagrees with. Comments are kept across restarts.
+
+### Fixed
+
+- A browser tab no longer sits in the wrong place when the app is zoomed in
+  or out, or when its pane moves without changing size.
 
 ## [1.8.0] - 2026-10-04
 
