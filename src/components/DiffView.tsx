@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { revealItemInDir } from '@tauri-apps/plugin-opener'
 import { ExternalLink, FileText, Minus, Plus, RefreshCw, Undo2 } from 'lucide-react'
 
@@ -245,7 +245,7 @@ type HunkSyntax = Map<number, SynLine>
  * HEAD as well as the working copy, for a payoff that only shows up in that
  * rare case, so the fragment is what gets highlighted.
  */
-function useDiffSyntax(diff: FileDiff | null, path: string): Map<number, HunkSyntax> {
+export function useDiffSyntax(diff: FileDiff | null, path: string): Map<number, HunkSyntax> {
   const [syntax, setSyntax] = useState<Map<number, HunkSyntax>>(new Map())
 
   useEffect(() => {
@@ -351,8 +351,8 @@ function Line({
   )
 }
 
-function UnifiedHunk({
-  hunk, syntax, actions, picked, onPick, pickHint,
+export function UnifiedHunk({
+  hunk, syntax, actions, picked, onPick, pickHint, pickContext, after,
 }: {
   hunk: DiffHunk
   syntax?: HunkSyntax
@@ -361,6 +361,10 @@ function UnifiedHunk({
   picked?: number[]
   onPick?: (line: number, range: boolean) => void
   pickHint?: string
+  /** Unchanged lines can be picked too, as a review comments on any of them. */
+  pickContext?: boolean
+  /** What goes under a line, by index: a review's comments on it. */
+  after?: (line: number) => React.ReactNode
 }) {
   const segs = useWordPairs(hunk)
   return (
@@ -373,7 +377,7 @@ function UnifiedHunk({
         <tbody>
           {hunk.lines.map((line, i) => {
             // A changed line is picked by clicking its line numbers.
-            const pickable = picked !== undefined && line.origin !== ' '
+            const pickable = picked !== undefined && (pickContext || line.origin !== ' ')
             const numCell = pickable
               ? {
                   className: 'dl__num dl__num--pick',
@@ -381,22 +385,29 @@ function UnifiedHunk({
                   onClick: (e: React.MouseEvent) => onPick?.(i, e.shiftKey),
                 }
               : { className: 'dl__num' }
+            const below = after?.(i)
             return (
-              <tr
-                key={i}
-                className={`dl dl--${originClass(line.origin)}${picked?.includes(i) ? ' dl--picked' : ''}`}
-              >
-                <td {...numCell}>{line.oldLineno ?? ''}</td>
-                <td {...numCell}>{line.newLineno ?? ''}</td>
-                <td className="dl__sign">{line.origin === ' ' ? '' : line.origin}</td>
-                <td className="dl__text mono">
-                  <Line
-                    segments={segs.get(i)}
-                    syntax={syntax?.get(i)}
-                    content={line.content}
-                  />
-                </td>
-              </tr>
+              <Fragment key={i}>
+                <tr
+                  className={`dl dl--${originClass(line.origin)}${picked?.includes(i) ? ' dl--picked' : ''}`}
+                >
+                  <td {...numCell}>{line.oldLineno ?? ''}</td>
+                  <td {...numCell}>{line.newLineno ?? ''}</td>
+                  <td className="dl__sign">{line.origin === ' ' ? '' : line.origin}</td>
+                  <td className="dl__text mono">
+                    <Line
+                      segments={segs.get(i)}
+                      syntax={syntax?.get(i)}
+                      content={line.content}
+                    />
+                  </td>
+                </tr>
+                {below && (
+                  <tr className="dl__after">
+                    <td colSpan={4}>{below}</td>
+                  </tr>
+                )}
+              </Fragment>
             )
           })}
         </tbody>

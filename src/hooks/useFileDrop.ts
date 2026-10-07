@@ -54,7 +54,7 @@ export function useFileDrop() {
             const paneId = term.closest<HTMLElement>('[data-drop-pane]')?.dataset.paneId
             if (paneId) useWorkspace.getState().setActivePane(paneId)
             window.dispatchEvent(
-              new CustomEvent('almastudio:paste-paths', {
+              new CustomEvent('almastudio:paste', {
                 detail: { tabId, text: quotePaths(payload.paths, os) },
               }),
             )

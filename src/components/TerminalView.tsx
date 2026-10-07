@@ -558,19 +558,24 @@ export function TerminalView({ tab, visible, focused }: Props) {
     return () => window.removeEventListener('almastudio:tab-restart', onRestart)
   }, [spawn, tab.id, tab.kind])
 
-  // Paths of files dropped on this terminal from Finder or Explorer. Pasted
-  // rather than written straight to the pty, so the program receives them as
+  // Text sent to this terminal from elsewhere in the app: the paths of files
+  // dropped on it from Finder or Explorer, or a finished review. Pasted
+  // rather than written straight to the pty, so the program receives it as
   // a paste — bracketed when it asked for that — exactly as from a native
   // terminal's drop.
   useEffect(() => {
-    const onPastePaths = (e: Event) => {
-      const { tabId, text } = (e as CustomEvent<{ tabId: string; text: string }>).detail
+    const onPaste = (e: Event) => {
+      const { tabId, text, submit } =
+        (e as CustomEvent<{ tabId: string; text: string; submit?: boolean }>).detail
       if (tabId !== tab.id) return
       termRef.current?.paste(text)
       termRef.current?.focus()
+      // Enter goes on its own, a moment later: sent with the paste, a harness
+      // takes it for one more line of it. The companion app waits as long.
+      if (submit) window.setTimeout(() => void ptyWrite(tab.id, '\r').catch(() => {}), 150)
     }
-    window.addEventListener('almastudio:paste-paths', onPastePaths)
-    return () => window.removeEventListener('almastudio:paste-paths', onPastePaths)
+    window.addEventListener('almastudio:paste', onPaste)
+    return () => window.removeEventListener('almastudio:paste', onPaste)
   }, [tab.id])
 
   // --------------------------------------------------------------- find ---

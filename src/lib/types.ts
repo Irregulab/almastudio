@@ -1,7 +1,7 @@
 /** Shared domain types. Mirrors the serde structs in src-tauri. */
 
 export type HarnessKind = 'claude' | 'codex' | 'opencode' | 'shell'
-export type TabKind = HarnessKind | 'diff' | 'file' | 'browser' | 'graph'
+export type TabKind = HarnessKind | 'diff' | 'file' | 'browser' | 'graph' | 'review'
 export type DiffSide = 'worktree' | 'index' | 'head'
 export type PanelView = 'changes' | 'files' | 'git' | 'search'
 export type ThemeMode = 'system' | 'dark' | 'light'
@@ -114,7 +114,13 @@ export interface GraphTab extends TabBase {
   root: string
 }
 
-export type Tab = TerminalTab | DiffTab | FileTab | BrowserTab | GraphTab
+/** A review of a repository's uncommitted changes, as a tab of its own. */
+export interface ReviewTab extends TabBase {
+  kind: 'review'
+  root: string
+}
+
+export type Tab = TerminalTab | DiffTab | FileTab | BrowserTab | GraphTab | ReviewTab
 
 export const isTerminalTab = (t: Tab): t is TerminalTab =>
   t.kind === 'claude' || t.kind === 'codex' || t.kind === 'opencode' || t.kind === 'shell'

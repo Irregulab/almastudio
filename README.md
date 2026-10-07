@@ -46,6 +46,10 @@ of blocked threads — no Electron, no per-tab browser process.
   repositories and the panel shows them as an accordion — each with its branch,
   its change count, and its own changes when expanded — instead of reporting
   that the folder itself is not one. Pinned repositories are listed first.
+- **Review** — go through a repository's uncommitted changes as through a pull
+  request: file by file from the keyboard, commenting on lines and marking
+  files as viewed, then send the whole review to the agent, which fixes what
+  you asked and asks back where it is unsure or disagrees.
 - **Code and Markdown** — syntax highlighting in the editor and in diffs,
   themed from the same tokens as the rest of the app. Files are editable, with
   explicit save and a conflict check. Markdown opens as a rendered preview with

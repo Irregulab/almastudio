@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import {
   Bot, ChevronDown, Columns2, FileDiff, FileText, FolderOpen, GitGraph, Globe, Loader2,
-  PanelsTopLeft, RotateCw, Rows2, Sparkles, Square, SquareCode, Terminal, X,
+  MessageSquareDiff, PanelsTopLeft, RotateCw, Rows2, Sparkles, Square, SquareCode, Terminal, X,
 } from 'lucide-react'
 
 import { ptyKill } from '../lib/ipc'
@@ -18,6 +18,7 @@ import { BrowserView } from './BrowserView'
 import { DiffView } from './DiffView'
 import { FileView } from './FileView'
 import { GitGraphView } from './GitGraphView'
+import { ReviewView } from './ReviewView'
 import { ConfirmDialog, MenuItem, MenuSeparator, Popover } from './ui'
 import type { HarnessKind, LeafNode, Tab, TabGroup, TerminalStatus } from '../lib/types'
 import { isPreview, isTerminalTab } from '../lib/types'
@@ -32,6 +33,7 @@ export function tabIcon(kind: Tab['kind'], size = 13) {
     case 'file': return <FileText size={size} />
     case 'browser': return <Globe size={size} />
     case 'graph': return <GitGraph size={size} />
+    case 'review': return <MessageSquareDiff size={size} />
   }
 }
 
@@ -76,6 +78,7 @@ function TabContent({
   if (tab.kind === 'diff') return <DiffView key={tab.id} tab={tab} visible={visible} />
   if (tab.kind === 'browser') return <BrowserView tab={tab} visible={visible} />
   if (tab.kind === 'graph') return <GitGraphView tab={tab} visible={visible} />
+  if (tab.kind === 'review') return <ReviewView tab={tab} visible={visible} focused={focused} />
   // Files and diffs are keyed: a preview's pane goes on to show the next one.
   return <FileView key={tab.id} tab={tab} visible={visible} />
 }
@@ -281,7 +284,10 @@ export function TabStatus({ status, busy }: { status: TerminalStatus; busy: bool
 function autoTitle(tab: Tab, projectRoot: string | undefined): string {
   if (isTerminalTab(tab)) return defaultTabTitle(tab.cwd, projectRoot, KIND_LABEL[tab.kind])
   if (tab.kind === 'browser') return hostOf(tab.url)
-  if (tab.kind === 'graph') return `Git Graph · ${tab.root.split(/[/\\]/).filter(Boolean).pop() ?? tab.root}`
+  if (tab.kind === 'graph' || tab.kind === 'review') {
+    const repo = tab.root.split(/[/\\]/).filter(Boolean).pop() ?? tab.root
+    return `${tab.kind === 'graph' ? 'Git Graph' : 'Review'} · ${repo}`
+  }
   return tab.path.split('/').pop() ?? tab.path
 }
 
@@ -292,7 +298,7 @@ export const sessionLabel = (tab: Tab, projectRoot: string | undefined) =>
 export function tabTooltip(tab: Tab): string {
   if (isTerminalTab(tab)) return tab.cwd
   if (tab.kind === 'browser') return tab.url
-  return tab.kind === 'graph' ? tab.root : tab.path
+  return tab.kind === 'graph' || tab.kind === 'review' ? tab.root : tab.path
 }
 
 function hostOf(url: string): string {

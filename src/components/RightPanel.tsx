@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { revealItemInDir } from '@tauri-apps/plugin-opener'
 import {
   ArrowLeft, Check, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, Eye, EyeOff,
-  FileDiff, FilePlus2, FolderPlus, GitBranch, ListTree, Minus, Pencil, Plus, RefreshCw, Search,
-  Terminal, Trash2, Undo2, X,
+  FileDiff, FilePlus2, FolderPlus, GitBranch, ListTree, MessageSquareDiff, Minus, Pencil, Plus,
+  RefreshCw, Search, Terminal, Trash2, Undo2, X,
 } from 'lucide-react'
 
 import {
@@ -313,6 +313,7 @@ function ChangesView({
   const t = useT()
   const openDiffTab = useWorkspace((s) => s.openDiffTab)
   const openFileTab = useWorkspace((s) => s.openFileTab)
+  const openReviewTab = useWorkspace((s) => s.openReviewTab)
   /** Files about to be discarded; `untracked` ones are deleted instead. */
   const [confirm, setConfirm] = useState<{ files: ChangedFile[]; untracked: boolean } | null>(null)
 
@@ -369,6 +370,15 @@ function ChangesView({
   return (
     <>
       <CommitBox root={status.root} status={status} onChanged={onChanged} />
+      {status.files.length > 0 && (
+        <button
+          className="btn btn--sm review__open"
+          onClick={() => openReviewTab({ projectId, root: status.root })}
+        >
+          <MessageSquareDiff size={13} />
+          {t('review.open')}
+        </button>
+      )}
       {status.files.length === 0 && (
         <div className="empty">
           <div>{t('panel.noChanges')}</div>
@@ -535,7 +545,7 @@ const parentDir = (p: string) => {
   const i = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'))
   return i <= 0 ? p.slice(0, i + 1) || p : p.slice(0, i)
 }
-const codeClass = (f: ChangedFile) =>
+export const codeClass = (f: ChangedFile) =>
   f.conflicted ? 'conflict' : f.untracked ? 'new' : f.deleted ? 'del' : 'mod'
 
 // ----------------------------------------------------------------- files ---

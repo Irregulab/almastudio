@@ -7,6 +7,7 @@ import { findLeaf } from './lib/layout'
 import { isTerminalTab } from './lib/types'
 import { loadSettings, startSettingsPersistence, useSettings } from './store/settings'
 import { loadWorkspace, startWorkspacePersistence, useWorkspace } from './store/workspace'
+import { loadReviews, startReviewPersistence } from './store/review'
 import { useUi } from './store/ui'
 import { menuLabels, resolveLocale, useI18n, useT } from './i18n'
 import { readableAccent } from './lib/color'
@@ -56,7 +57,7 @@ export default function App() {
   // ------------------------------------------------------------- startup --
   useEffect(() => {
     void (async () => {
-      const [loaded] = await Promise.all([loadSettings(), loadWorkspace()])
+      const [loaded] = await Promise.all([loadSettings(), loadWorkspace(), loadReviews()])
       // Projects always come back; tabs only if the user wants them to.
       if (!loaded.startup.restoreTabs) useWorkspace.getState().discardRestoredTabs()
       const sys = await osLocale().catch(() => null)
@@ -64,6 +65,7 @@ export default function App() {
       setPlatform(osPlatform())
       startSettingsPersistence()
       startWorkspacePersistence()
+      startReviewPersistence()
       setBooted(true)
       // Reveal the window now that the theme and layout are known. This must
       // not go through requestAnimationFrame: a hidden webview never runs one.
@@ -124,8 +126,7 @@ export default function App() {
     const active = pane ? tabs[pane.tabId] : undefined
     if (!active) return null
     if (isTerminalTab(active)) return active.cwd
-    if (active.kind === 'diff' || active.kind === 'file' || active.kind === 'graph') return active.root
-    return null
+    return active.kind === 'browser' ? null : active.root
   }, [tabs, ws])
 
   const inspectRoot = useMemo(() => {
