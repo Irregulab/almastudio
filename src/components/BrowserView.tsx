@@ -30,13 +30,16 @@ export function BrowserView({ tab, visible }: { tab: BrowserTab; visible: boolea
 
   const shown = visible && overlays === 0
 
+  // The native view is placed in window points, while the page lays out in
+  // CSS pixels that the app's zoom scales.
+  const zoom = useUi((s) => s.zoom)
   const measure = useCallback((): Bounds | null => {
     const el = slotRef.current
     if (!el) return null
     const r = el.getBoundingClientRect()
     if (r.width < 1 || r.height < 1) return null
-    return { x: r.left, y: r.top, width: r.width, height: r.height }
-  }, [])
+    return { x: r.left * zoom, y: r.top * zoom, width: r.width * zoom, height: r.height * zoom }
+  }, [zoom])
 
   // Create the webview once the placeholder has real dimensions.
   useEffect(() => {
@@ -57,23 +60,32 @@ export function BrowserView({ tab, visible }: { tab: BrowserTab; visible: boolea
   }, [measure, tab.id, tab.url, visible])
 
   // Keep the native view aligned with the pane through every layout change.
+  // A ResizeObserver misses a pane that moves without changing size, so the
+  // position is also checked on a timer while the tab is visible.
   useEffect(() => {
     const el = slotRef.current
     if (!el) return
+    let last = ''
     const sync = () => {
       if (!openedRef.current) return
       const bounds = measure()
-      if (bounds) void browserSetBounds(tab.id, bounds).catch(() => {})
+      if (!bounds) return
+      const key = `${bounds.x},${bounds.y},${bounds.width},${bounds.height}`
+      if (key === last) return
+      last = key
+      void browserSetBounds(tab.id, bounds).catch(() => { last = '' })
     }
     const ro = new ResizeObserver(sync)
     ro.observe(el)
     window.addEventListener('resize', sync)
+    const timer = visible ? window.setInterval(sync, 250) : undefined
     sync()
     return () => {
       ro.disconnect()
       window.removeEventListener('resize', sync)
+      window.clearInterval(timer)
     }
-  }, [measure, tab.id])
+  }, [measure, tab.id, visible])
 
   useEffect(() => {
     if (!openedRef.current) return
