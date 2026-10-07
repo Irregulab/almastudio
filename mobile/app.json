@@ -15,7 +15,7 @@
       "backgroundColor": "#1e1e1e"
     },
     "ios": {
-      "bundleIdentifier": "net.almaware.almastudio.companion",
+      "bundleIdentifier": "com.irregulab.almastudio.app",
       "supportsTablet": true,
       "infoPlist": {
         "NSLocalNetworkUsageDescription": "AlmaStudio connects to your computer on the local network to show its terminals and agents.",
@@ -25,10 +25,10 @@
         "ITSAppUsesNonExemptEncryption": false
       },
       "appleTeamId": "TH963HHSMC",
-      "buildNumber": "2"
+      "buildNumber": "3"
     },
     "android": {
-      "package": "net.almaware.almastudio.companion",
+      "package": "com.irregulab.almastudio.app",
       "adaptiveIcon": {
         "backgroundColor": "#1e1e1e",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -37,7 +37,7 @@
       },
       "softwareKeyboardLayoutMode": "resize",
       "predictiveBackGestureEnabled": false,
-      "versionCode": 2
+      "versionCode": 3
     },
     "plugins": [
       "expo-router",

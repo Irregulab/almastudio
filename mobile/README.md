@@ -53,7 +53,7 @@ credentials of each platform:
 - **iOS** — an APNs key, created by EAS during the first iOS build (answer yes
   when it offers a push key) or later with `eas credentials -p ios`.
 - **Android** — a Firebase project with an Android app for
-  `net.almaware.almastudio.companion`. Its `google-services.json` goes to EAS
+  `com.irregulab.almastudio.app`. Its `google-services.json` goes to EAS
   as a file variable, which `app.config.js` hands to the build; a copy next to
   `app.config.js` serves local builds and is ignored by git:
 
