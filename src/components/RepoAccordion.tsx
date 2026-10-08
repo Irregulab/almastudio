@@ -99,7 +99,9 @@ export function RepoAccordion({
                 {isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
                 <GitBranch size={12} />
                 <span className="repo__name truncate">{repo.name}</span>
-                {repo.branch && <span className="chip">{repo.branch}</span>}
+                {repo.branch && (
+                  <span className="chip repo__branch" title={repo.branch}>{repo.branch}</span>
+                )}
                 {repo.dirty > 0 && <span className="chip chip--dirty">{repo.dirty}</span>}
               </button>
               <button

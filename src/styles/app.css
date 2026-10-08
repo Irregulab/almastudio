@@ -1209,6 +1209,22 @@ img, a { -webkit-user-drag: none; }
 .panel__scoperow .panel__scope { border-bottom: none; }
 
 .repo__name { font-weight: 600; text-transform: none; letter-spacing: 0; font-size: 12px; }
+/* One line however long the branch: the name and the branch share the row and
+   both give way with an ellipsis, the branch first. */
+.repo .group__toggle { min-width: 0; }
+.repo .group__toggle > svg { flex: none; }
+.repo .repo__name { flex: 0 1 auto; min-width: 3em; }
+.repo__branch {
+  display: block;
+  flex: 0 100 auto;
+  min-width: 2.5em;
+  line-height: 16px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-transform: none;
+  letter-spacing: 0;
+}
 .repo .group__head { gap: var(--sp-2); }
 .repo__body { border-top: 1px solid var(--border); }
 .repo__loading { padding: var(--sp-3) var(--sp-4); font-size: 11.5px; }
