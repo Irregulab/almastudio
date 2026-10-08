@@ -9,6 +9,23 @@ release cannot be cut without one.
 
 ## [Unreleased]
 
+## [1.8.2] - 2026-10-08
+
+### Fixed
+
+- On Windows, the Git panel no longer fills up with the same repository over
+  and over when it cannot open a project's repository. It shows why the
+  repository could not be opened instead.
+- On Windows, pasting into a terminal with the right mouse button no longer
+  pastes the text twice.
+- On Windows, coming back to AlmaStudio with Alt-Tab puts the cursor back in
+  the terminal you were using, instead of on its tab, so you can type right
+  away.
+- A long branch name in the repository list stays on one line, shortened
+  with an ellipsis, instead of wrapping onto several.
+- A worktree or submodule beneath a project folder is now listed among its
+  repositories.
+
 ## [1.8.1] - 2026-10-07
 
 ### Added
