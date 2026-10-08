@@ -141,6 +141,7 @@
     "refresh": "Aggiorna",
     "noRepo": "Non è un repository git",
     "noRepoHint": "{folder} non si trova in un repository git.",
+    "repoOpenFailed": "Impossibile aprire il repository git",
     "noChanges": "Nessuna modifica",
     "noChangesHint": "L'area di lavoro è pulita.",
     "staged": "In stage",

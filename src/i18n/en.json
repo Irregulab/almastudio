@@ -141,6 +141,7 @@
     "refresh": "Refresh",
     "noRepo": "Not a git repository",
     "noRepoHint": "{folder} is not inside a git repository.",
+    "repoOpenFailed": "Could not open the git repository",
     "noChanges": "No changes",
     "noChangesHint": "The working tree is clean.",
     "staged": "Staged",

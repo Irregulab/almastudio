@@ -49,6 +49,7 @@ const status: RepoStatus = {
   detached: false,
   files: [],
   operation: null,
+  error: null,
 }
 
 const commit: GraphCommit = {

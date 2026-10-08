@@ -17,11 +17,13 @@ import type { RepoStatus } from '../lib/types'
  * of them at once, not one at a time.
  */
 export function RepoAccordion({
-  projectId, root, render, onFocus,
+  projectId, root, error, render, onFocus,
 }: {
   /** Whose pinned repositories are listed first. */
   projectId: string
   root: string
+  /** Why `root` could not be opened, when it is a repository after all. */
+  error?: string | null
   /** Body for one repository, rendered only while its section is open. */
   render: (repo: RepoEntry) => React.ReactNode
   onFocus: (path: string) => void
@@ -80,15 +82,7 @@ export function RepoAccordion({
     )
   }
 
-  if (repos.length === 0) {
-    return (
-      <div className="empty">
-        <GitBranch size={22} />
-        <div>{t('panel.noRepo')}</div>
-        <div className="subtle">{t('panel.noRepoHint', { folder: root })}</div>
-      </div>
-    )
-  }
+  if (repos.length === 0) return <RepoUnavailable root={root} error={error} />
 
   return (
     <>
@@ -129,6 +123,22 @@ export function RepoAccordion({
         )
       })}
     </>
+  )
+}
+
+/**
+ * A folder with no repository, or one libgit2 refused to open. The reason is
+ * shown as is — "not owned by current user" or an unsupported extension is
+ * something the user can act on, a bare "not a repository" is not.
+ */
+export function RepoUnavailable({ root, error }: { root: string; error?: string | null }) {
+  const t = useT()
+  return (
+    <div className="empty">
+      <GitBranch size={22} />
+      <div>{t(error ? 'panel.repoOpenFailed' : 'panel.noRepo')}</div>
+      <div className="subtle">{error ?? t('panel.noRepoHint', { folder: root })}</div>
+    </div>
   )
 }
 

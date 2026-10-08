@@ -18,7 +18,7 @@ import { ConfirmDialog, MenuItem, MenuSeparator, Popover, PromptDialog } from '.
 import { CommitBox } from './CommitBox'
 import { DirIcon, FileIcon } from './FileIcon'
 import { GitView } from './GitView'
-import { RepoAccordion, useRepoStatus } from './RepoAccordion'
+import { RepoAccordion, RepoUnavailable, useRepoStatus } from './RepoAccordion'
 import { SearchView } from './SearchView'
 import type { ChangedFile, DirEntryInfo, PanelView, RepoStatus } from '../lib/types'
 
@@ -289,6 +289,7 @@ function RepoChanges({
   const t = useT()
   const status = useRepoStatus(root, revision)
   if (!status) return <div className="repo__loading subtle">{t('common.loading')}</div>
+  if (!status.isRepo) return <RepoUnavailable root={root} error={status.error} />
   if (status.files.length === 0) {
     return (
       <div className="empty">
@@ -333,6 +334,7 @@ function ChangesView({
       <RepoAccordion
         projectId={projectId}
         root={status.root}
+        error={status.error}
         onFocus={onPickRepo ?? (() => {})}
         render={(repo) => (
           <RepoChanges

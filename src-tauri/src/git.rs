@@ -9,7 +9,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use git2::{Delta, DiffOptions, Repository, Status, StatusOptions, StatusShow};
+use git2::{Delta, DiffOptions, ErrorCode, Repository, Status, StatusOptions, StatusShow};
 use serde::{Deserialize, Serialize};
 
 /// Diffs larger than this are truncated; nobody reads a 40k-line diff and it
@@ -52,6 +52,9 @@ pub struct RepoStatus {
     /// "merge", "rebase", "cherry-pick", "revert" or "bisect" while one is
     /// under way, waiting on conflicts or a decision.
     pub operation: Option<&'static str>,
+    /// Why a repository that is there could not be opened (ownership, an
+    /// unsupported extension…); `None` when there simply is no repository.
+    pub error: Option<String>,
 }
 
 fn status_code(s: Status) -> String {
@@ -105,10 +108,11 @@ fn operation_of(repo: &Repository) -> Option<&'static str> {
 
 #[tauri::command]
 pub fn git_status(root: String) -> Result<RepoStatus, String> {
-    let repo = match open(&root) {
+    let repo = match Repository::discover(&root) {
         Ok(r) => r,
-        Err(_) => {
+        Err(e) => {
             return Ok(RepoStatus {
+                error: (e.code() != ErrorCode::NotFound).then(|| e.message().to_string()),
                 is_repo: false,
                 root,
                 branch: None,
@@ -213,6 +217,7 @@ pub fn git_status(root: String) -> Result<RepoStatus, String> {
 
     Ok(RepoStatus {
         is_repo: true,
+        error: None,
         root: workdir,
         branch,
         upstream,
@@ -998,15 +1003,19 @@ pub fn find_git_repos(root: String, max_depth: Option<usize>) -> Result<Vec<Repo
         for entry in entries.flatten() {
             let path = entry.path();
             let name = entry.file_name().to_string_lossy().to_string();
-            if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
-                continue;
-            }
             // `.git` is a directory in a normal clone and a file in a worktree
-            // or submodule, so its mere presence is the signal.
+            // or submodule, so its mere presence is the signal. The folder
+            // searched is never reported as found beneath itself: the caller
+            // only searches because it could not open it as a repository.
             if name == ".git" {
-                found.push(dir.clone());
+                if depth > 0 {
+                    found.push(dir.clone());
+                }
                 children.clear();
                 break;
+            }
+            if !entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                continue;
             }
             if name.starts_with('.') || SKIP_DIRS.contains(&name.as_str()) {
                 continue;
@@ -1067,6 +1076,24 @@ mod tests {
             parents.iter().map(|id| repo.find_commit(*id).unwrap()).collect();
         let parents: Vec<&git2::Commit> = parents.iter().collect();
         repo.commit(Some(refname), &sig, &sig, message, &tree, &parents).unwrap()
+    }
+
+    #[test]
+    fn discovery_never_reports_the_searched_folder_itself() {
+        // The panel only searches a folder it could not open; listing that
+        // folder again made each section search it once more, forever.
+        let dir = tempfile::tempdir().unwrap();
+        Repository::init(dir.path()).unwrap();
+        let root = dir.path().to_string_lossy().into_owned();
+        assert!(find_git_repos(root, None).unwrap().is_empty());
+
+        let parent = tempfile::tempdir().unwrap();
+        Repository::init(parent.path().join("a")).unwrap();
+        std::fs::create_dir(parent.path().join("wt")).unwrap();
+        std::fs::write(parent.path().join("wt/.git"), "gitdir: elsewhere").unwrap();
+        let found = find_git_repos(parent.path().to_string_lossy().into_owned(), None).unwrap();
+        let names: Vec<_> = found.iter().map(|r| r.name.as_str()).collect();
+        assert_eq!(names, ["a", "wt"]);
     }
 
     #[test]

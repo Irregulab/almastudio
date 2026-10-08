@@ -17,7 +17,7 @@ import { useT } from '../i18n'
 import { CommitBox, setCommitMessage } from './CommitBox'
 import { CommitGraph } from './CommitGraph'
 import { FileList } from './GitGraphView'
-import { RepoAccordion, useRepoStatus } from './RepoAccordion'
+import { RepoAccordion, RepoUnavailable, useRepoStatus } from './RepoAccordion'
 import { useGitActions, type GitDialog } from './gitActions'
 import { MenuItem, MenuSeparator, Popover } from './ui'
 import type { BranchInfo, CommitDetails, GraphCommit, RepoStatus, StashInfo, TagInfo } from '../lib/types'
@@ -45,6 +45,9 @@ function RepoGit({
   const t = useT()
   const status = useRepoStatus(root, revision)
   if (!status) return <div className="repo__loading subtle">{t('common.loading')}</div>
+  // A section never falls back to discovery: that would search the section's
+  // own folder and nest another accordion inside it.
+  if (!status.isRepo) return <RepoUnavailable root={root} error={status.error} />
   return <GitView projectId={projectId} root={root} status={status} onChanged={onChanged} />
 }
 
@@ -123,6 +126,7 @@ export function GitView({
       <RepoAccordion
         projectId={projectId}
         root={root}
+        error={status?.error}
         onFocus={onPickRepo ?? (() => {})}
         render={(repo) => (
           <RepoGit

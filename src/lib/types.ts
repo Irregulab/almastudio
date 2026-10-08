@@ -305,6 +305,8 @@ export interface RepoStatus {
   files: ChangedFile[]
   /** An operation under way, waiting on conflicts or a decision. */
   operation: 'merge' | 'rebase' | 'cherry-pick' | 'revert' | 'bisect' | null
+  /** Why a repository that is there could not be opened; null when there is none. */
+  error: string | null
 }
 
 export interface StashInfo {
