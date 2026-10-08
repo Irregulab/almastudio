@@ -546,6 +546,30 @@ export function TerminalView({ tab, visible, focused }: Props) {
     return () => cancelAnimationFrame(id)
   }, [visible, focused])
 
+  // Back from another window (Alt-Tab), the webview refocuses whatever had
+  // focus last — on Windows that is often the tab button just clicked, since
+  // WebView2 focuses buttons on click. Typing should go to the terminal, so
+  // it takes focus back unless a text field had it.
+  useEffect(() => {
+    if (!visible || !focused) return
+    let frame = 0
+    const onWindowFocus = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        const el = document.activeElement as HTMLElement | null
+        const typing = el?.closest(
+          'input, select, [contenteditable=""], [contenteditable="true"], textarea:not(.xterm-helper-textarea)',
+        )
+        if (!typing) termRef.current?.focus()
+      })
+    }
+    window.addEventListener('focus', onWindowFocus)
+    return () => {
+      cancelAnimationFrame(frame)
+      window.removeEventListener('focus', onWindowFocus)
+    }
+  }, [visible, focused])
+
   // Restart requested from the tab's context menu.
   useEffect(() => {
     const onRestart = (e: Event) => {
@@ -628,22 +652,29 @@ export function TerminalView({ tab, visible, focused }: Props) {
     return () => sub.dispose()
   }, [settings.terminal.copyOnSelect])
 
+  const lastRightClick = useRef(0)
   const onContextMenu = useCallback(
     async (e: React.MouseEvent) => {
       if (!settings.terminal.rightClickPaste) return
       e.preventDefault()
       const term = termRef.current
       if (!term) return
+      // WebView2 can deliver one right click as two context-menu events;
+      // a second paste a moment later is never what was meant.
+      if (e.timeStamp - lastRightClick.current < 400) return
+      lastRightClick.current = e.timeStamp
       const sel = term.getSelection()
       if (sel) {
         await navigator.clipboard.writeText(sel).catch(() => {})
         term.clearSelection()
         return
       }
+      // Through xterm, like Ctrl+V: the program gets it as one paste —
+      // bracketed when it asked for that — rather than as typed keys.
       const text = await navigator.clipboard.readText().catch(() => '')
-      if (text) void ptyWrite(tab.id, text).catch(() => {})
+      if (text) term.paste(text)
     },
-    [settings.terminal.rightClickPaste, tab.id],
+    [settings.terminal.rightClickPaste],
   )
 
   return (
