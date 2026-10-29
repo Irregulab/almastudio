@@ -9,6 +9,8 @@ release cannot be cut without one.
 
 ## [Unreleased]
 
+## [1.9.7] - 2026-10-29
+
 ### Fixed
 
 - On Windows, Claude Code tabs start. They stopped at once with "argument
