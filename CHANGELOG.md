@@ -9,6 +9,26 @@ release cannot be cut without one.
 
 ## [Unreleased]
 
+### Fixed
+
+- On Windows, Claude Code tabs start. They stopped at once with "argument
+  contains characters unsupported by the Windows shell wrapper", so Claude
+  Code could only be run by typing `claude` in a terminal tab. A harness
+  installed as an `.exe` is now started directly rather than through
+  `cmd.exe`, which could not pass its arguments on.
+- On Windows, Ctrl+C copies the selected text and Ctrl+V pastes in
+  terminals, as in Windows Terminal. With nothing selected, Ctrl+C still
+  interrupts the program; with no text to paste — an image, say — Ctrl+V
+  still reaches it, so Claude Code can attach the image.
+- Pasting with the right mouse button no longer pastes twice in Claude Code.
+  When Claude Code reads the mouse it pastes on a right click itself, so the
+  terminal now leaves the click to any program that reads the mouse. On
+  Windows and Linux, hold Shift to paste with the terminal instead.
+- On Windows, coming back to AlmaStudio with Alt-Tab or from the taskbar
+  lets you type in the terminal you were using right away. The window took
+  the keyboard focus back but never passed it on to its contents, so what
+  you typed went nowhere until you clicked in the window.
+
 ## [1.9.6] - 2026-10-25
 
 ### Added

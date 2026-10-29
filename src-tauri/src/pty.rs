@@ -645,6 +645,14 @@ fn windows_cmd_arg(value: &str) -> anyhow::Result<String> {
     Ok(out)
 }
 
+/// A file Windows runs itself, rather than through cmd.exe as it does a
+/// `.cmd` or `.bat` script.
+fn is_windows_exe(path: &std::path::Path) -> bool {
+    path.extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| e.eq_ignore_ascii_case("exe") || e.eq_ignore_ascii_case("com"))
+}
+
 fn build_command(opts: &SpawnOptions) -> anyhow::Result<CommandBuilder> {
     let shell = opts.shell.clone().filter(|s| !s.trim().is_empty()).unwrap_or_else(default_shell);
 
@@ -662,19 +670,31 @@ fn build_command(opts: &SpawnOptions) -> anyhow::Result<CommandBuilder> {
         }
         c
     } else if cfg!(windows) {
-        // cmd.exe resolves the `.cmd` shims that npm-installed CLIs ship with,
-        // which a bare CreateProcess does not.
-        let mut line = windows_cmd_arg(&opts.program)?;
-        for a in &opts.args {
-            line.push(' ');
-            line.push_str(&windows_cmd_arg(a)?);
+        if let Some(exe) = crate::harness::resolve(&opts.program).filter(|p| is_windows_exe(p)) {
+            // An executable is started directly. CreateProcess hands it every
+            // argument intact, which the cmd.exe wrapper cannot: a Claude tab's
+            // --settings is JSON, full of quotes, and project instructions run
+            // over several lines. Either one used to stop the tab from starting.
+            let mut c = CommandBuilder::new(exe);
+            for a in &opts.args {
+                c.arg(a);
+            }
+            c
+        } else {
+            // cmd.exe resolves the `.cmd` shims that npm-installed CLIs ship
+            // with, which a bare CreateProcess does not.
+            let mut line = windows_cmd_arg(&opts.program)?;
+            for a in &opts.args {
+                line.push(' ');
+                line.push_str(&windows_cmd_arg(a)?);
+            }
+            let mut c = CommandBuilder::new(shell);
+            c.arg("/d");
+            c.arg("/s");
+            c.arg("/c");
+            c.arg(line);
+            c
         }
-        let mut c = CommandBuilder::new(shell);
-        c.arg("/d");
-        c.arg("/s");
-        c.arg("/c");
-        c.arg(line);
-        c
     } else {
         // A login shell so nvm / mise / asdf / homebrew PATH entries exist.
         // Bundled macOS apps otherwise inherit a bare PATH from launchd.
@@ -828,6 +848,30 @@ mod tests {
         r.push(b"x");
         assert!(r.take_if_dirty().is_some());
         assert!(r.take_if_dirty().is_none());
+    }
+
+    /// On Windows an executable is started directly, so arguments cmd.exe
+    /// cannot carry — a Claude tab's JSON settings, instructions on several
+    /// lines — reach it as they were given.
+    #[test]
+    #[cfg(windows)]
+    fn windows_starts_an_executable_directly() {
+        let settings = r#"{"hooks":{"Stop":[{"hooks":[]}]}}"#;
+        let notes = "first line\nsecond line, 100% \"quoted\"!";
+        let cmd = build_command(&opts("cmd", &["--settings", settings, notes], true)).unwrap();
+        let argv = cmd.get_argv();
+        assert!(is_windows_exe(std::path::Path::new(&argv[0])), "got: {argv:?}");
+        assert_eq!(argv[1..], ["--settings", settings, notes].map(std::ffi::OsString::from));
+    }
+
+    #[test]
+    fn only_exe_and_com_files_run_without_cmd() {
+        use std::path::Path;
+        assert!(is_windows_exe(Path::new(r"C:\Users\me\.local\bin\claude.exe")));
+        assert!(is_windows_exe(Path::new(r"C:\Windows\System32\MORE.COM")));
+        assert!(!is_windows_exe(Path::new(r"C:\Users\me\AppData\Roaming\npm\codex.cmd")));
+        assert!(!is_windows_exe(Path::new(r"C:\tools\run.bat")));
+        assert!(!is_windows_exe(Path::new("claude")));
     }
 
     /// A session around a real pty running `sleep`, without the reader,

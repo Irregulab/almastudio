@@ -19,7 +19,7 @@ pub async fn installed_harnesses(commands: Vec<String>) -> Vec<String> {
 /// What a command name runs, if anything. It is looked up on the login
 /// shell's PATH — the PATH a tab's program is started with — rather than on
 /// the bare one the app itself was launched with.
-fn resolve(command: &str) -> Option<PathBuf> {
+pub(crate) fn resolve(command: &str) -> Option<PathBuf> {
     let command = command.trim();
     if command.is_empty() {
         return None;

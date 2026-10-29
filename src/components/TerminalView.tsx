@@ -7,6 +7,7 @@ import { Unicode11Addon } from '@xterm/addon-unicode11'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { WebglAddon } from '@xterm/addon-webgl'
 import { openUrl } from '@tauri-apps/plugin-opener'
+import { platform } from '@tauri-apps/plugin-os'
 import '@xterm/xterm/css/xterm.css'
 
 import {
@@ -437,6 +438,8 @@ export function TerminalView({ tab, visible, focused }: Props) {
       setNeedsStart(true)
     })()
 
+    const windows = platform() === 'windows'
+
     // The hint says "press Enter to start"; make that true. Nothing is
     // listening on the other end until a process exists, so the keystroke is
     // free to reuse.
@@ -448,6 +451,33 @@ export function TerminalView({ tab, visible, focused }: Props) {
       if (e.type === 'keydown' && e.key === 'Enter' && needsStartRef.current) {
         spawnRef.current(tab.resumeOnRestore && tab.kind !== 'shell')
         return false
+      }
+      // Ctrl+C and Ctrl+V copy and paste on Windows, as in Windows Terminal;
+      // xterm would send the program both as control characters. Ctrl+C
+      // copies only a selection and is the interrupt otherwise. The default
+      // is prevented so the webview cannot paste a second time on its own.
+      if (windows && e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey) {
+        const key = e.key.toLowerCase()
+        if (key === 'c' && term.hasSelection()) {
+          if (e.type === 'keydown') {
+            e.preventDefault()
+            void navigator.clipboard.writeText(term.getSelection()).catch(() => {})
+            term.clearSelection()
+          }
+          return false
+        }
+        if (key === 'v') {
+          if (e.type === 'keydown') {
+            e.preventDefault()
+            void navigator.clipboard.readText().catch(() => '').then((text) => {
+              // Through xterm, so the program gets one (bracketed) paste.
+              if (text) term.paste(text)
+              // No text — an image, say: Claude Code reads that itself on ^V.
+              else void ptyWrite(tab.id, '\x16').catch(() => {})
+            })
+          }
+          return false
+        }
       }
       // xterm sends Shift+Enter as a plain Enter, so an agent would submit
       // instead of starting a new line. Send what Option+Enter sends (ESC CR),
@@ -794,6 +824,11 @@ export function TerminalView({ tab, visible, focused }: Props) {
       e.preventDefault()
       const term = termRef.current
       if (!term) return
+      // A program that reads the mouse has been sent this click already —
+      // xterm holds it back only with Shift, and never on macOS — and Claude
+      // Code pastes on a right click itself: pasting here too typed it twice.
+      const heldBack = e.shiftKey && platform() !== 'macos'
+      if (term.modes.mouseTrackingMode !== 'none' && !heldBack) return
       // WebView2 can deliver one right click as two context-menu events;
       // a second paste a moment later is never what was meant.
       if (e.timeStamp - lastRightClick.current < 400) return

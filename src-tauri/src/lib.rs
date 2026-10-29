@@ -11,6 +11,8 @@ mod remote;
 mod search;
 mod store;
 mod watcher;
+#[cfg(windows)]
+mod window_focus;
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -419,6 +421,8 @@ pub fn run() {
                     let _ = window.set_size(LogicalSize::new(1440.0, 900.0));
                     let _ = window.center();
                 }
+                #[cfg(windows)]
+                window_focus::follow(&handle, &window);
             }
             // Sized by hand instead; see `fit_main_webview`.
             if let Some(webview) = handle.get_webview("main") {
