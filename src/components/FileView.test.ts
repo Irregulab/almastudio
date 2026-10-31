@@ -222,6 +222,32 @@ describe('FileView', () => {
     expect(document.querySelector('.stub-editor')?.getAttribute('data-readonly')).toBe('false')
   })
 
+  it('saves a file with the line endings it came with', async () => {
+    root.unmount()
+    io.disk = 'one\r\ntwo\r\n'
+    root = createRoot(document.getElementById('host')!)
+    await show(true)
+
+    await type('one!\ntwo\n')
+    await click('editor.save')
+
+    expect(io.writes).toEqual(['one!\r\ntwo\r\n'])
+    expect(isDirty()).toBe(false)
+  })
+
+  it('is not dirty once an edit to a CRLF file is undone', async () => {
+    root.unmount()
+    io.disk = 'one\r\ntwo\r\n'
+    root = createRoot(document.getElementById('host')!)
+    await show(true)
+
+    await type('one!\ntwo\n')
+    expect(isDirty()).toBe(true)
+
+    await type('one\ntwo\n')
+    expect(isDirty()).toBe(false)
+  })
+
   it('saves without asking when the file has not moved', async () => {
     await type('mine')
     await click('editor.save')

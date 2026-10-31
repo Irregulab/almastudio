@@ -8,6 +8,26 @@ export interface FileBuffer {
   original: string
 }
 
+/** Whether a text's lines mostly end in \r\n, for a file that mixes the two. */
+function usesCrlf(text: string): boolean {
+  let lines = 0
+  let crlf = 0
+  for (let i = text.indexOf('\n'); i !== -1; i = text.indexOf('\n', i + 1)) {
+    lines++
+    if (text[i - 1] === '\r') crlf++
+  }
+  return crlf * 2 > lines
+}
+
+/**
+ * Takes in text from the editor, which holds line ends as \n whatever the file
+ * uses. They go back to the file's own here, or changing one line of a CRLF file
+ * would rewrite all of them, and undoing the change would not leave it clean.
+ */
+export function applyEdit(buffer: FileBuffer, text: string): FileBuffer {
+  return { ...buffer, content: usesCrlf(buffer.original) ? text.replace(/\n/g, '\r\n') : text }
+}
+
 /**
  * Brings a buffer up to date with what was just read from the disk.
  *

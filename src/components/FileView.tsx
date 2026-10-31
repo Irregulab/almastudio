@@ -8,7 +8,7 @@ import {
 import { GIT_CHANGED_EVENT } from '../hooks/useAutoFetch'
 import { useFileChanges } from '../hooks/useFileChanges'
 import { findConflicts } from '../lib/conflicts'
-import { followDisk, type FileBuffer } from '../lib/fileBuffer'
+import { applyEdit, followDisk, type FileBuffer } from '../lib/fileBuffer'
 import { findRanges } from '../lib/findText'
 import { allowPreview, gitMarkResolved, readTextFile, readTextHead, writeTextFile } from '../lib/ipc'
 import { languageOf, previewKindOf } from '../lib/syntax'
@@ -309,7 +309,7 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
                   incoming: t('conflicts.acceptIncoming'),
                   both: t('conflicts.acceptBoth'),
                 } : undefined}
-                onChange={(text) => setBuffer((b) => ({ ...b, content: text }))}
+                onChange={(text) => setBuffer((b) => applyEdit(b, text))}
                 onSave={() => void save()}
                 findNonce={findNonce}
                 wordWrap={wordWrap}
