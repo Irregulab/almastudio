@@ -9,6 +9,18 @@ release cannot be cut without one.
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-10-31
+
+### Added
+
+- The commit box can write the commit message for you. Turn it on in
+  Settings → AI harnesses and pick Claude Code, Codex or OpenCode; a ✦
+  button then appears in the message box. The harness runs out of sight
+  with its own login, so no API key is needed, and describes what Commit
+  would take — the staged changes, or every change — in the style of the
+  repository's recent commits. A band of colour runs round the box while it
+  writes.
+
 ## [1.9.7] - 2026-10-29
 
 ### Fixed
