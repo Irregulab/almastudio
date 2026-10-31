@@ -361,7 +361,7 @@
     "diffView": "Disposizione delle differenze",
     "contextLines": "Righe di contesto",
     "watch": "Monitora le modifiche sul filesystem",
-    "watchHint": "Aggiorna il pannello automaticamente. Disattiva su repository molto grandi.",
+    "watchHint": "Aggiorna il pannello e i file aperti automaticamente. Disattiva su repository molto grandi.",
     "restoreTabs": "Ripristina le schede all'avvio",
     "restoreScrollback": "Ripristina l'output precedente dei terminali",
     "autoStartTabs": "Avvia automaticamente le schede ripristinate",

@@ -4,11 +4,13 @@ import { openUrl, revealItemInDir } from '@tauri-apps/plugin-opener'
 import { ArrowDown, ArrowUp, Check, Code2, ExternalLink, Eye, RefreshCw, Save, Search, X } from 'lucide-react'
 
 import { GIT_CHANGED_EVENT } from '../hooks/useAutoFetch'
+import { useFileChanges } from '../hooks/useFileChanges'
 import { findConflicts } from '../lib/conflicts'
 import { followDisk, type FileBuffer } from '../lib/fileBuffer'
 import { findRanges } from '../lib/findText'
 import { allowPreview, gitMarkResolved, readTextFile, writeTextFile } from '../lib/ipc'
 import { languageOf, previewKindOf } from '../lib/syntax'
+import { useSettings } from '../store/settings'
 import { useUi } from '../store/ui'
 import { useWorkspace } from '../store/workspace'
 import { useT } from '../i18n'
@@ -39,6 +41,8 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
   /** Bumped when the file changes, so previews that read it from disk reload. */
   const [version, setVersion] = useState(0)
   const seen = useRef<string | null>(null)
+  /** Reads overlap now the watcher starts them too; only the newest counts. */
+  const latestRead = useRef(0)
   /** Bumped to open the editor's search panel. */
   const [findNonce, setFindNonce] = useState(0)
   /** Non-zero while the preview's find bar is open; bumped to refocus it. */
@@ -72,8 +76,10 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
   const load = useCallback(
     async (discardEdits = false, force = false) => {
       setLoading(true)
+      const read = ++latestRead.current
       try {
         const f = await readTextFile(absolute, tab.root)
+        if (read !== latestRead.current) return
         setFile(f)
         // Reload disk-backed previews only when the file changed (or on an
         // explicit refresh), so coming back to the tab keeps a PDF's page.
@@ -84,6 +90,7 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
         // Reloading must not silently throw away work in progress.
         setBuffer((b) => followDisk(b, f.content, discardEdits))
       } catch (e) {
+        if (read !== latestRead.current) return
         setError(String(e))
         setFile(null)
       } finally {
@@ -96,6 +103,10 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
   useEffect(() => {
     if (visible) void load(false)
   }, [visible, load])
+
+  // A tab behind another is read when it comes back, so only this one watches.
+  const watching = useSettings((s) => s.settings.panel.watch)
+  useFileChanges(absolute, visible && watching, () => void load(false))
 
   useEffect(() => {
     setTabDirty(tab.id, dirty)

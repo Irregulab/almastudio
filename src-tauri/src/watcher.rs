@@ -1,4 +1,4 @@
-//! Filesystem watching that drives the right-hand panel.
+//! Filesystem watching that drives the right-hand panel and open file tabs.
 //!
 //! Refreshes are event-driven rather than polled, so an idle project costs
 //! nothing. Events are coalesced over a short window because a single `npm
@@ -18,7 +18,7 @@ use tauri::{AppHandle, Emitter};
 
 /// Events are collected for this long before one notification is emitted.
 const DEBOUNCE_MS: u64 = 350;
-/// Paths listed in the payload; the frontend only uses them for logging.
+/// Paths listed in the payload; `count` tells when there were more than this.
 const MAX_REPORTED_PATHS: usize = 40;
 
 /// Directory names that generate huge amounts of churn and never need to be
@@ -86,7 +86,16 @@ impl WatchManager {
         self.watches.lock().clear();
     }
 
-    pub fn start(&self, app: &AppHandle, id: String, path: String) -> anyhow::Result<()> {
+    /// `recursive` covers a whole tree, leaving out `NOISY_DIRS`. Otherwise only
+    /// the folder itself is watched, and everything in it counts: someone asked
+    /// for that folder, wherever it happens to be.
+    pub fn start(
+        &self,
+        app: &AppHandle,
+        id: String,
+        path: String,
+        recursive: bool,
+    ) -> anyhow::Result<()> {
         // Re-watching the same id replaces the previous subscription.
         self.watches.lock().remove(&id);
 
@@ -103,7 +112,8 @@ impl WatchManager {
             },
             Config::default(),
         )?;
-        watcher.watch(&root, RecursiveMode::Recursive)?;
+        let mode = if recursive { RecursiveMode::Recursive } else { RecursiveMode::NonRecursive };
+        watcher.watch(&root, mode)?;
 
         let app = app.clone();
         let event_name = format!("fs://changed/{id}");
@@ -126,7 +136,7 @@ impl WatchManager {
                                   count: &mut usize| {
                     let Ok(ev) = ev else { return };
                     for p in ev.paths {
-                        if is_noise(&p) {
+                        if recursive && is_noise(&p) {
                             continue;
                         }
                         if is_git_meta(&p) {
@@ -176,8 +186,9 @@ pub fn watch_start(
     mgr: tauri::State<'_, WatchManager>,
     id: String,
     path: String,
+    recursive: Option<bool>,
 ) -> Result<(), String> {
-    mgr.start(&app, id, path).map_err(|e| e.to_string())
+    mgr.start(&app, id, path, recursive.unwrap_or(true)).map_err(|e| e.to_string())
 }
 
 #[tauri::command]

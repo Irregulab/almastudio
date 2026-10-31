@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react'
+import type { ChangeSpec } from '@codemirror/state'
 import type { EditorView } from '@codemirror/view'
 
+import { changedRange } from '../lib/textChange'
 import type { FileReveal } from '../lib/types'
 import type { ConflictLabels } from './conflictMarkers'
 
@@ -75,6 +77,10 @@ export function CodeEditor({
 }: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
+  const valueRef = useRef(value)
+  valueRef.current = value
+  /** Applies text from outside the editor; set up with it. */
+  const applyExternalRef = useRef<((view: EditorView, changes: ChangeSpec) => void) | null>(null)
   // The callbacks are read through refs so the editor is built once per file
   // rather than torn down whenever the parent re-renders.
   const onChangeRef = useRef(onChange)
@@ -128,7 +134,7 @@ export function CodeEditor({
 
     void (async () => {
       const [
-        { EditorState, Prec },
+        { Annotation, EditorState, Prec, Transaction },
         { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection, rectangularSelection, crosshairCursor },
         { defaultKeymap, history, historyKeymap, indentWithTab },
         { HighlightStyle, syntaxHighlighting, indentOnInput, bracketMatching, foldGutter, foldKeymap },
@@ -284,8 +290,10 @@ export function CodeEditor({
         { tag: tags.invalid, color: 'var(--red)' },
       ])
 
+      const external = Annotation.define<boolean>()
       const state = EditorState.create({
-        doc: value,
+        // The text may have changed while the editor was loading.
+        doc: valueRef.current,
         extensions: [
           lineNumbers(),
           highlightActiveLineGutter(),
@@ -329,7 +337,11 @@ export function CodeEditor({
             indentWithTab,
           ]),
           EditorView.updateListener.of((u) => {
-            if (u.docChanged) onChangeRef.current(u.state.doc.toString())
+            // Text from outside is not an edit, and reporting it back would
+            // make it one: the editor holds line ends as \n, so a CRLF file
+            // would come back different from the disk.
+            if (!u.docChanged || u.transactions.some((tr) => tr.annotation(external))) return
+            onChangeRef.current(u.state.doc.toString())
           }),
         ],
       })
@@ -337,6 +349,9 @@ export function CodeEditor({
       viewRef.current = new EditorView({ state, parent: host })
       viewClassRef.current = EditorView
       openSearchRef.current = openSearchPanel
+      // Out of the undo history, so undoing cannot take back an agent's edit.
+      applyExternalRef.current = (view, changes) =>
+        view.dispatch({ changes, annotations: [external.of(true), Transaction.addToHistory.of(false)] })
       revealNow()
       openFindNow()
     })()
@@ -350,14 +365,14 @@ export function CodeEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path, readOnly])
 
-  // External changes (a reload from disk) replace the document without
-  // disturbing the editor when the user is simply typing.
+  // External changes (a reload from disk) replace only what differs, so the
+  // view stays where it is, and do not disturb the user simply typing.
   useEffect(() => {
     const view = viewRef.current
     if (!view) return
     const current = view.state.doc.toString()
-    if (current === value) return
-    view.dispatch({ changes: { from: 0, to: current.length, insert: value } })
+    const next = value.replace(/\r\n?/g, '\n')
+    if (current !== next) applyExternalRef.current?.(view, changedRange(current, next))
   }, [value])
 
   // A new request on an editor that already exists; a first one is carried

@@ -361,7 +361,7 @@
     "diffView": "Diff layout",
     "contextLines": "Diff context lines",
     "watch": "Watch the filesystem for changes",
-    "watchHint": "Refreshes the panel automatically. Turn off on very large repositories.",
+    "watchHint": "Refreshes the panel and open files automatically. Turn off on very large repositories.",
     "restoreTabs": "Restore tabs on start",
     "restoreScrollback": "Restore previous terminal output",
     "autoStartTabs": "Start restored tabs automatically",

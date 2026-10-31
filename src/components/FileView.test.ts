@@ -7,22 +7,38 @@ import type { FileTab } from '../lib/types'
 
 const io = vi.hoisted(() => ({
   disk: '',
+  reads: 0,
   writes: [] as string[],
   type: (_text: string) => {},
+  watch: true,
+  watched: [] as Array<[string, boolean]>,
+  notify: (_change: { paths: string[]; count: number }) => {},
 }))
 
 vi.mock('../lib/ipc', () => ({
-  readTextFile: async (path: string) => ({
-    path, content: io.disk, size: io.disk.length, binary: false, truncated: false,
-  }),
+  readTextFile: async (path: string) => {
+    io.reads++
+    return { path, content: io.disk, size: io.disk.length, binary: false, truncated: false }
+  },
   writeTextFile: async (_path: string, content: string) => {
     io.writes.push(content)
     io.disk = content
   },
   allowPreview: async () => {},
   gitMarkResolved: async () => {},
+  onFsChange: async (_id: string, cb: typeof io.notify) => {
+    io.notify = cb
+    return () => {}
+  },
+  watchStart: async (_id: string, path: string, recursive: boolean) => {
+    io.watched.push([path, recursive])
+  },
+  watchStop: async () => {},
 }))
 vi.mock('../hooks/useAutoFetch', () => ({ GIT_CHANGED_EVENT: 'git-changed' }))
+vi.mock('../store/settings', () => ({
+  useSettings: (pick: (s: unknown) => unknown) => pick({ settings: { panel: { watch: io.watch } } }),
+}))
 vi.mock('../store/ui', () => ({
   useUi: (pick: (s: unknown) => unknown) => pick({ setTabDirty: () => {} }),
 }))
@@ -71,7 +87,10 @@ describe('FileView', () => {
 
   beforeEach(async () => {
     io.disk = 'before'
+    io.reads = 0
     io.writes = []
+    io.watch = true
+    io.watched = []
     document.body.innerHTML = '<div id="host"></div>'
     root = createRoot(document.getElementById('host')!)
     await show(true)
@@ -110,6 +129,33 @@ describe('FileView', () => {
 
     expect(editorText()).toBe('agent')
     expect(isDirty()).toBe(false)
+  })
+
+  it('follows the file while it is on screen, watching only its folder', async () => {
+    expect(io.watched).toEqual([['/project', false]])
+
+    io.disk = 'agent'
+    await act(async () => io.notify({ paths: ['/project/a.ts'], count: 1 }))
+
+    expect(editorText()).toBe('agent')
+    expect(isDirty()).toBe(false)
+  })
+
+  it('ignores changes to other files in the folder', async () => {
+    const reads = io.reads
+    await act(async () => io.notify({ paths: ['/project/b.ts'], count: 1 }))
+
+    expect(io.reads).toBe(reads)
+  })
+
+  it('does not watch when watching is turned off', async () => {
+    root.unmount()
+    io.watch = false
+    io.watched = []
+    root = createRoot(document.getElementById('host')!)
+    await show(true)
+
+    expect(io.watched).toEqual([])
   })
 
   it('saves without asking when the file has not moved', async () => {

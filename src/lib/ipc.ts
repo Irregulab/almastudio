@@ -214,8 +214,8 @@ export const writeProjectInstructions = (root: string, contents: string) =>
 
 // -------------------------------------------------------------- watcher ----
 
-export const watchStart = (id: string, path: string) =>
-  invoke<void>('watch_start', { id, path })
+export const watchStart = (id: string, path: string, recursive = true) =>
+  invoke<void>('watch_start', { id, path, recursive })
 export const watchStop = (id: string) => invoke<void>('watch_stop', { id })
 
 export interface ChangePayload {

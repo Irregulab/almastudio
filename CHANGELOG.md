@@ -9,6 +9,12 @@ release cannot be cut without one.
 
 ## [Unreleased]
 
+### Added
+
+- An open file follows the disk while you look at it, so an agent's edits
+  appear as they are made and your place in the file stays put. Unsaved edits
+  are left alone. It goes with the "Watch the filesystem for changes" setting.
+
 ### Fixed
 
 - A file tab shows what is on disk when you come back to it. If an agent had
