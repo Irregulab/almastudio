@@ -250,6 +250,11 @@ export interface Settings {
   }
   defaultHarness: HarnessKind
   harness: Record<HarnessKind, HarnessConfig>
+  /**
+   * The commit box's Generate button: the harness, run headless with its own
+   * login, that writes the message. Off until turned on.
+   */
+  commitMessage: { enabled: boolean; harness: Exclude<HarnessKind, 'shell'> }
   panel: {
     defaultView: PanelView
     showHidden: boolean

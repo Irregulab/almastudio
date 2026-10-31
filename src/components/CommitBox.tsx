@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { Check, ChevronDown, Loader2, RefreshCw } from 'lucide-react'
+import { Check, ChevronDown, Loader2, RefreshCw, Sparkles } from 'lucide-react'
 import { create } from 'zustand'
 
-import { gitCommit, gitPush, gitSync } from '../lib/ipc'
+import { generateCommitMessage, gitCommit, gitPush, gitSync } from '../lib/ipc'
 import { useT } from '../i18n'
+import { useSettings } from '../store/settings'
 import { MenuItem, MenuSeparator, Popover } from './ui'
 import type { RepoStatus } from '../lib/types'
 
@@ -16,6 +17,12 @@ const useMessages = create<Record<string, string>>(() => ({}))
 /** Puts a message in a repository's commit box, as Undo Last Commit does. */
 export const setCommitMessage = (root: string, message: string) =>
   useMessages.setState((s) => ({ ...s, [root]: message }))
+
+/** The repositories whose message a harness is writing right now. */
+const useGenerating = create<Record<string, boolean>>(() => ({}))
+
+const setGenerating = (root: string, on: boolean) =>
+  useGenerating.setState((s) => ({ ...s, [root]: on }))
 
 type Mode = 'staged' | 'all' | 'amend' | 'push' | 'sync'
 
@@ -32,6 +39,9 @@ export function CommitBox({
   const [busy, setBusy] = useState<Mode | 'sync-only' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [menu, setMenu] = useState<HTMLElement | null>(null)
+  const ai = useSettings((s) => s.settings.commitMessage)
+  const aiCommand = useSettings((s) => s.settings.harness[s.settings.commitMessage.harness].command)
+  const generating = useGenerating((s) => !!s[root])
 
   const staged = status.files.filter((f) => f.staged).length
   const changes = status.files.length
@@ -58,6 +68,20 @@ export function CommitBox({
     }
   }
 
+  // What the harness describes is what Commit would take: the staged changes,
+  // or every change when nothing is staged.
+  const generate = async () => {
+    setGenerating(root, true)
+    setError(null)
+    try {
+      setCommitMessage(root, await generateCommitMessage(root, ai.harness, aiCommand, staged > 0))
+    } catch (e) {
+      setError(String(e))
+    } finally {
+      setGenerating(root, false)
+    }
+  }
+
   const sync = async () => {
     setBusy('sync-only')
     setError(null)
@@ -73,21 +97,37 @@ export function CommitBox({
 
   return (
     <div className="git__commit">
-      <textarea
-        className="textarea" rows={3} value={message}
-        placeholder={t('git.messagePlaceholder')}
-        onChange={(e) => setCommitMessage(root, e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-            e.preventDefault()
-            if (canCommit && busy === null) void commit(primary)
-          }
-        }}
-      />
+      <div
+        className={`commitmsg${ai.enabled ? ' commitmsg--ai' : ''}${generating ? ' commitmsg--busy' : ''}`}
+        aria-busy={generating}
+      >
+        <textarea
+          className="textarea" rows={3} value={generating ? '' : message}
+          readOnly={generating}
+          placeholder={generating ? t('git.generating') : t('git.messagePlaceholder')}
+          onChange={(e) => setCommitMessage(root, e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+              e.preventDefault()
+              if (canCommit && busy === null && !generating) void commit(primary)
+            }
+          }}
+        />
+        {ai.enabled && (
+          <button
+            className="icon-btn commitmsg__generate"
+            aria-label={t('git.generateMessage')} title={t('git.generateMessage')}
+            disabled={generating || busy !== null || changes === 0}
+            onClick={() => void generate()}
+          >
+            <Sparkles size={13} />
+          </button>
+        )}
+      </div>
       <div className="commitbtn">
         <button
           className="btn btn--primary btn--sm commitbtn__main"
-          disabled={!canCommit || busy !== null}
+          disabled={!canCommit || busy !== null || generating}
           title={staged > 0 ? t('git.commitHintStaged', { n: staged }) : t('git.commitHintAll')}
           onClick={() => void commit(primary)}
         >

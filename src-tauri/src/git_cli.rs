@@ -71,7 +71,7 @@ fn git_binary(login_path: Option<&str>) -> Option<PathBuf> {
 }
 
 /// Waits for a process, up to `timeout`, collecting what it printed.
-fn finish(mut child: Child, timeout: Duration) -> Result<(ExitStatus, String, String), String> {
+pub(crate) fn finish(mut child: Child, timeout: Duration) -> Result<(ExitStatus, String, String), String> {
     let stdout = drain(child.stdout.take());
     let stderr = drain(child.stderr.take());
     let deadline = Instant::now() + timeout;
@@ -116,8 +116,32 @@ fn run(root: &str, args: &[&str]) -> Result<String, String> {
 /// Runs git in `root`, with `input` on its stdin. What it printed on success;
 /// what it said went wrong otherwise.
 fn run_with(root: &str, args: &[&str], input: Option<&str>) -> Result<String, String> {
-    let path = login_path();
-    let git = git_binary(path).ok_or("git was not found")?;
+    let (status, out, err) = exec(root, args, input)?;
+    // Conflicts are reported on stdout, most errors on stderr: keep both.
+    let said = tidy(&format!("{err}\n{out}"));
+    if status.success() {
+        Ok(said)
+    } else if said.is_empty() {
+        Err(format!("git {} failed ({status})", args[0]))
+    } else {
+        Err(said)
+    }
+}
+
+/// What git printed on stdout, exactly as printed — a diff keeps its blank
+/// context lines, which `run` would tidy away.
+pub(crate) fn output(root: &str, args: &[&str]) -> Result<String, String> {
+    let (status, out, err) = exec(root, args, None)?;
+    if status.success() {
+        Ok(out)
+    } else {
+        let said = tidy(&err);
+        Err(if said.is_empty() { format!("git {} failed ({status})", args[0]) } else { said })
+    }
+}
+
+fn exec(root: &str, args: &[&str], input: Option<&str>) -> Result<(ExitStatus, String, String), String> {
+    let git = git_binary(login_path()).ok_or("git was not found")?;
     let mut command = Command::new(git);
     command
         .current_dir(root)
@@ -136,42 +160,49 @@ fn run_with(root: &str, args: &[&str], input: Option<&str>) -> Result<String, St
         .stdin(if input.is_some() { Stdio::piped() } else { Stdio::null() })
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    if let Some(path) = path {
-        // Keep the login-shell tools first, but retain entries inherited by
-        // the app in case the shell omitted system or app-specific paths.
-        let mut entries: Vec<PathBuf> = std::env::split_paths(path).collect();
-        if let Some(process_path) = std::env::var_os("PATH") {
-            entries.extend(std::env::split_paths(&process_path));
-        }
-        if let Ok(path) = std::env::join_paths(entries) {
-            command.env("PATH", path);
-        }
+    if let Some(path) = command_path() {
+        command.env("PATH", path);
     }
+    hide_window(&mut command);
+    let mut child = command.spawn().map_err(|e| format!("could not run git: {e}"))?;
+    if let Some(input) = input {
+        feed(&mut child, input);
+    }
+    finish(child, TIMEOUT).map_err(|e| format!("git {} {e}", args[0]))
+}
+
+/// The PATH to start a tool with: the login shell's first, but keeping the
+/// entries the app inherited in case the shell omitted system or
+/// app-specific paths. None when there is no login shell to ask.
+pub(crate) fn command_path() -> Option<std::ffi::OsString> {
+    let path = login_path()?;
+    let mut entries: Vec<PathBuf> = std::env::split_paths(path).collect();
+    if let Some(process_path) = std::env::var_os("PATH") {
+        entries.extend(std::env::split_paths(&process_path));
+    }
+    std::env::join_paths(entries).ok()
+}
+
+/// No console window flashing up on Windows for a process run behind the UI.
+pub(crate) fn hide_window(command: &mut Command) {
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         command.creation_flags(CREATE_NO_WINDOW);
     }
-    let mut child = command.spawn().map_err(|e| format!("could not run git: {e}"))?;
-    if let Some(input) = input {
-        let mut stdin = child.stdin.take().expect("stdin is piped");
-        let input = input.to_string();
-        // From its own thread, so a long message cannot block on a full pipe.
-        std::thread::spawn(move || {
-            let _ = stdin.write_all(input.as_bytes());
-        });
-    }
-    let (status, out, err) = finish(child, TIMEOUT).map_err(|e| format!("git {} {e}", args[0]))?;
-    // Conflicts are reported on stdout, most errors on stderr: keep both.
-    let said = tidy(&format!("{err}\n{out}"));
-    if status.success() {
-        Ok(said)
-    } else if said.is_empty() {
-        Err(format!("git {} failed ({status})", args[0]))
-    } else {
-        Err(said)
-    }
+    #[cfg(not(windows))]
+    let _ = command;
+}
+
+/// Writes `input` to a child's piped stdin and closes it, from its own
+/// thread, so a long input cannot block on a full pipe.
+pub(crate) fn feed(child: &mut Child, input: &str) {
+    let mut stdin = child.stdin.take().expect("stdin is piped");
+    let input = input.to_string();
+    std::thread::spawn(move || {
+        let _ = stdin.write_all(input.as_bytes());
+    });
 }
 
 fn open(root: &str) -> Result<Repository, String> {

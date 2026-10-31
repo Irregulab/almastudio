@@ -1,4 +1,5 @@
 mod browser;
+mod commit_message;
 mod editors;
 mod fonts;
 mod fsx;
@@ -359,6 +360,7 @@ pub fn run() {
             git_cli::git_sync,
             git_cli::git_push_tags,
             git_cli::git_commit,
+            commit_message::generate_commit_message,
             git_cli::git_undo_commit,
             git_cli::git_checkout,
             git_cli::git_create_branch,

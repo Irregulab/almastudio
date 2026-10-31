@@ -291,6 +291,9 @@
     "unsaved": "{n} file con modifiche non salvate"
   },
   "settings": {
+    "commitGenerate": "Genera i messaggi di commit",
+    "commitGenerateHint": "Aggiunge al riquadro di commit un pulsante che fa scrivere il messaggio a un harness, a partire dalle modifiche. Gira in background con il login dell'harness: non serve nessuna chiave API.",
+    "commitHarness": "Scritto da",
     "title": "Impostazioni",
     "appearance": "Aspetto",
     "terminal": "Terminale",
@@ -442,6 +445,8 @@
     "failed": "Impossibile aprire {name}: {error}"
   },
   "git": {
+    "generateMessage": "Genera il messaggio di commit",
+    "generating": "Scrittura del messaggio di commit…",
     "commit": "Commit",
     "commitStaged": "Commit delle modifiche in stage",
     "commitAll": "Commit di tutto",

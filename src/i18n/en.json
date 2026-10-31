@@ -291,6 +291,9 @@
     "unsaved": "{n} file(s) with unsaved changes"
   },
   "settings": {
+    "commitGenerate": "Generate commit messages",
+    "commitGenerateHint": "Adds a button to the commit box that has a harness write the message from the changes. It runs out of sight with the harness's own login: no API key is needed.",
+    "commitHarness": "Written by",
     "title": "Settings",
     "appearance": "Appearance",
     "terminal": "Terminal",
@@ -442,6 +445,8 @@
     "failed": "{name} could not be opened: {error}"
   },
   "git": {
+    "generateMessage": "Generate commit message",
+    "generating": "Writing the commit message…",
     "commit": "Commit",
     "commitStaged": "Commit staged",
     "commitAll": "Commit all",

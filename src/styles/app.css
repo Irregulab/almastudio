@@ -1425,6 +1425,59 @@ img, a { -webkit-user-drag: none; }
   border-left-color: color-mix(in srgb, var(--accent-fg) 35%, transparent);
 }
 .git__syncbtn { justify-content: center; }
+
+/* The message, with Generate in its corner while a harness may write it.
+   While one does, a band of colour runs round the box: a conic gradient
+   turning behind the textarea, seen through its transparent border. */
+.commitmsg { position: relative; display: flex; border-radius: var(--radius); }
+.commitmsg > .textarea { flex: 1 1 auto; position: relative; z-index: 1; }
+.commitmsg--ai > .textarea { padding-right: 30px; }
+.commitmsg__generate {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 2;
+  width: 22px;
+  height: 22px;
+}
+.commitmsg__generate:disabled { opacity: 0.45; cursor: default; }
+.commitmsg__generate:disabled:hover { background: none; color: var(--fg-muted); }
+.commitmsg--busy { overflow: hidden; animation: commitmsg-glow 2.4s var(--ease) infinite; }
+.commitmsg--busy::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 160%;
+  aspect-ratio: 1;
+  translate: -50% -50%;
+  background: conic-gradient(
+    transparent 0turn,
+    var(--accent) 0.1turn,
+    var(--purple) 0.25turn,
+    var(--blue) 0.38turn,
+    transparent 0.48turn 0.52turn,
+    var(--accent-strong) 0.62turn,
+    var(--purple) 0.76turn,
+    var(--accent) 0.88turn,
+    transparent 0.98turn
+  );
+  animation: spin 2.4s linear infinite;
+}
+/* A 2px ring, the padding a pixel smaller so the box keeps its size. */
+.commitmsg--busy > .textarea {
+  border: 2px solid transparent;
+  padding: 6px 29px 6px 7px;
+  background-clip: padding-box;
+  cursor: progress;
+}
+.commitmsg--busy > .textarea::placeholder { animation: commitmsg-pulse 1.6s var(--ease) infinite; }
+.commitmsg--busy .commitmsg__generate:disabled { opacity: 1; color: var(--accent-strong); animation: commitmsg-pulse 1.6s var(--ease) infinite; }
+@keyframes commitmsg-glow {
+  0%, 100% { box-shadow: 0 0 0 0 transparent; }
+  50% { box-shadow: 0 0 14px 2px color-mix(in srgb, var(--accent) 45%, transparent); }
+}
+@keyframes commitmsg-pulse { 50% { opacity: 0.45; } }
 .git__error { white-space: pre-wrap; }
 .git__error--block { margin: var(--sp-3) var(--sp-4) 0; }
 .git__meta { flex: 0 0 auto; font-size: 10.5px; }

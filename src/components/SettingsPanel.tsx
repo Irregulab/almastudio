@@ -19,7 +19,9 @@ import { useTheme } from '../hooks/useTheme'
 import { ConfirmDialog, Field, Modal, NumberInput, Segmented, Toggle } from './ui'
 import { UpdateSection } from './Updater'
 import { RemoteSection } from './RemoteSettings'
-import type { AppInfo, CodexApproval, HarnessKind, Language, PanelView, ThemeMode } from '../lib/types'
+import type {
+  AppInfo, CodexApproval, HarnessKind, Language, PanelView, Settings, ThemeMode,
+} from '../lib/types'
 
 type Section = SettingsSection
 
@@ -478,6 +480,43 @@ function HarnessSection() {
             className="input mono" value={cfg.instructionsFlag}
             placeholder="--append-system-prompt"
             onChange={(e) => setHarness(kind, { instructionsFlag: e.target.value })}
+          />
+        </Field>
+      )}
+
+      <div className="settings__sep" />
+
+      <CommitMessageFields />
+    </>
+  )
+}
+
+/** Whether the commit box can have a harness write the message, and which. */
+function CommitMessageFields() {
+  const t = useT()
+  const ai = useSettings((x) => x.settings.commitMessage)
+  const patch = useSettings((x) => x.patch)
+  const harnesses = useInstalledHarnesses()
+
+  return (
+    <>
+      <Field label={t('settings.commitGenerate')} hint={t('settings.commitGenerateHint')} row>
+        <Toggle checked={ai.enabled} onChange={(v) => patch('commitMessage', { enabled: v })} />
+      </Field>
+
+      {ai.enabled && (
+        <Field
+          label={t('settings.commitHarness')}
+          hint={harnesses.includes(ai.harness) ? undefined : t('settings.notInstalled')}
+        >
+          <Segmented<Settings['commitMessage']['harness']>
+            value={ai.harness}
+            onChange={(v) => patch('commitMessage', { harness: v })}
+            options={[
+              { value: 'claude', label: t('tabs.claude'), icon: <Sparkles size={13} /> },
+              { value: 'codex', label: t('tabs.codex'), icon: <Bot size={13} /> },
+              { value: 'opencode', label: t('tabs.opencode'), icon: <SquareCode size={13} /> },
+            ]}
           />
         </Field>
       )}

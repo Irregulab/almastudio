@@ -116,6 +116,13 @@ export const gitDiscard = (root: string, paths: string[]) =>
 /** Through the user's own `git`, so hooks run and signing applies. */
 export const gitCommit = (root: string, message: string, stageAll: boolean, amend = false) =>
   invoke<string>('git_commit', { root, message, stageAll, amend })
+/**
+ * A message for the changes about to be committed — the staged ones, or every
+ * change — written by a harness run out of sight with the user's own login.
+ */
+export const generateCommitMessage = (
+  root: string, harness: string, command: string, stagedOnly: boolean,
+) => invoke<string>('generate_commit_message', { root, harness, command, stagedOnly })
 /** Resolves to the undone commit's message. */
 export const gitUndoCommit = (root: string) => invoke<string>('git_undo_commit', { root })
 /** `refs`, full ref names, limits the history to those branches and HEAD. */
