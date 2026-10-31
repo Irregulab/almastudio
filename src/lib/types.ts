@@ -255,6 +255,7 @@ export interface Settings {
    * login, that writes the message. Off until turned on.
    */
   commitMessage: { enabled: boolean; harness: Exclude<HarnessKind, 'shell'> }
+  editor: { wordWrap: boolean }
   panel: {
     defaultView: PanelView
     showHidden: boolean

@@ -281,7 +281,8 @@
     "overwrite": "Overwrite",
     "discardTitle": "Unsaved changes",
     "discardBody": "“{name}” has unsaved changes. Close it anyway?",
-    "closeAnyway": "Close without saving"
+    "closeAnyway": "Close without saving",
+    "wordWrap": "Word wrap"
   },
   "exit": {
     "title": "Quit AlmaStudio?",

@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { openUrl, revealItemInDir } from '@tauri-apps/plugin-opener'
-import { ArrowDown, ArrowUp, Check, Code2, ExternalLink, Eye, RefreshCw, Save, Search, X } from 'lucide-react'
+import {
+  ArrowDown, ArrowUp, Check, Code2, ExternalLink, Eye, RefreshCw, Save, Search, WrapText, X,
+} from 'lucide-react'
 
 import { GIT_CHANGED_EVENT } from '../hooks/useAutoFetch'
 import { useFileChanges } from '../hooks/useFileChanges'
@@ -107,6 +109,9 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
   // A tab behind another is read when it comes back, so only this one watches.
   const watching = useSettings((s) => s.settings.panel.watch)
   useFileChanges(absolute, visible && watching, () => void load(false))
+
+  const wordWrap = useSettings((s) => s.settings.editor.wordWrap)
+  const patchSettings = useSettings((s) => s.patch)
 
   useEffect(() => {
     setTabDirty(tab.id, dirty)
@@ -215,6 +220,15 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
           </>
         )}
         <span className="spacer" />
+        {showSource && editable && (
+          <button
+            className={`icon-btn${wordWrap ? ' icon-btn--on' : ''}`}
+            onClick={() => patchSettings('editor', { wordWrap: !wordWrap })}
+            aria-label={t('editor.wordWrap')} aria-pressed={wordWrap} title={t('editor.wordWrap')}
+          >
+            <WrapText size={13} />
+          </button>
+        )}
         {findTarget && (
           <button
             className="icon-btn" onClick={openFind}
@@ -289,6 +303,7 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
                 onChange={(text) => setBuffer((b) => ({ ...b, content: text }))}
                 onSave={() => void save()}
                 findNonce={findNonce}
+                wordWrap={wordWrap}
               />
             )}
           </>

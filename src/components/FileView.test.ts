@@ -11,6 +11,7 @@ const io = vi.hoisted(() => ({
   writes: [] as string[],
   type: (_text: string) => {},
   watch: true,
+  wrap: false,
   watched: [] as Array<[string, boolean]>,
   notify: (_change: { paths: string[]; count: number }) => {},
 }))
@@ -37,7 +38,13 @@ vi.mock('../lib/ipc', () => ({
 }))
 vi.mock('../hooks/useAutoFetch', () => ({ GIT_CHANGED_EVENT: 'git-changed' }))
 vi.mock('../store/settings', () => ({
-  useSettings: (pick: (s: unknown) => unknown) => pick({ settings: { panel: { watch: io.watch } } }),
+  useSettings: (pick: (s: unknown) => unknown) =>
+    pick({
+      settings: { panel: { watch: io.watch }, editor: { wordWrap: io.wrap } },
+      patch: (_key: string, value: { wordWrap: boolean }) => {
+        io.wrap = value.wordWrap
+      },
+    }),
 }))
 vi.mock('../store/ui', () => ({
   useUi: (pick: (s: unknown) => unknown) => pick({ setTabDirty: () => {} }),
@@ -57,9 +64,13 @@ vi.mock('./ui', async () => {
 vi.mock('./CodeEditor', async () => {
   const { createElement: h } = await import('react')
   return {
-    CodeEditor: ({ value, onChange }: { value: string; onChange: (text: string) => void }) => {
+    CodeEditor: ({ value, onChange, wordWrap }: {
+      value: string
+      onChange: (text: string) => void
+      wordWrap?: boolean
+    }) => {
       io.type = onChange
-      return h('pre', { className: 'stub-editor' }, value)
+      return h('pre', { className: 'stub-editor', 'data-wrap': String(!!wordWrap) }, value)
     },
   }
 })
@@ -90,6 +101,7 @@ describe('FileView', () => {
     io.reads = 0
     io.writes = []
     io.watch = true
+    io.wrap = false
     io.watched = []
     document.body.innerHTML = '<div id="host"></div>'
     root = createRoot(document.getElementById('host')!)
@@ -156,6 +168,19 @@ describe('FileView', () => {
     await show(true)
 
     expect(io.watched).toEqual([])
+  })
+
+  it('toggles word wrap and hands it to the editor', async () => {
+    const wrapped = () => document.querySelector('.stub-editor')?.getAttribute('data-wrap')
+    expect(wrapped()).toBe('false')
+
+    await act(async () =>
+      document.querySelector<HTMLElement>('[aria-label="editor.wordWrap"]')!.click(),
+    )
+    await show(true)
+
+    expect(io.wrap).toBe(true)
+    expect(wrapped()).toBe('true')
   })
 
   it('saves without asking when the file has not moved', async () => {

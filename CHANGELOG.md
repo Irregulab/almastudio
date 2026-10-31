@@ -18,6 +18,8 @@ release cannot be cut without one.
   Go, Kotlin, C#, Ruby, Swift, shell, TOML, INI, Lua, Dockerfile and many more
   used to open as plain text there, and Vue, Sass, SCSS and Less now have
   grammars of their own. Makefiles are coloured as shell; GraphQL stays plain.
+- A word wrap button in the file toolbar, for Markdown, JSON and logs with
+  long lines. The choice applies to every file and is remembered.
 
 ### Fixed
 

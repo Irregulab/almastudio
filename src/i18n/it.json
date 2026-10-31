@@ -281,7 +281,8 @@
     "overwrite": "Sovrascrivi",
     "discardTitle": "Modifiche non salvate",
     "discardBody": "“{name}” ha modifiche non salvate. Chiudere comunque?",
-    "closeAnyway": "Chiudi senza salvare"
+    "closeAnyway": "Chiudi senza salvare",
+    "wordWrap": "A capo automatico"
   },
   "exit": {
     "title": "Uscire da AlmaStudio?",

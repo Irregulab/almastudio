@@ -26,10 +26,11 @@ interface Props {
   conflictLabels?: ConflictLabels
   /** Bumped to open the search panel (⌘F reaches the app menu, not the editor). */
   findNonce?: number
+  wordWrap?: boolean
 }
 
 export function CodeEditor({
-  value, path, onChange, onSave, readOnly, reveal, conflictLabels, findNonce,
+  value, path, onChange, onSave, readOnly, reveal, conflictLabels, findNonce, wordWrap,
 }: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
@@ -37,6 +38,10 @@ export function CodeEditor({
   valueRef.current = value
   /** Applies text from outside the editor; set up with it. */
   const applyExternalRef = useRef<((view: EditorView, changes: ChangeSpec) => void) | null>(null)
+  const wordWrapRef = useRef(wordWrap)
+  wordWrapRef.current = wordWrap
+  /** Turns wrapping on or off; set up with the editor. */
+  const setWrappingRef = useRef<((view: EditorView, on: boolean) => void) | null>(null)
   // The callbacks are read through refs so the editor is built once per file
   // rather than torn down whenever the parent re-renders.
   const onChangeRef = useRef(onChange)
@@ -90,7 +95,7 @@ export function CodeEditor({
 
     void (async () => {
       const [
-        { Annotation, EditorState, Prec, Transaction },
+        { Annotation, Compartment, EditorState, Prec, Transaction },
         { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection, rectangularSelection, crosshairCursor },
         { defaultKeymap, history, historyKeymap, indentWithTab },
         { HighlightStyle, syntaxHighlighting, indentOnInput, bracketMatching, foldGutter, foldKeymap },
@@ -249,6 +254,8 @@ export function CodeEditor({
       ])
 
       const external = Annotation.define<boolean>()
+      const wrapping = new Compartment()
+      const wrap = (on?: boolean) => (on ? EditorView.lineWrapping : [])
       const state = EditorState.create({
         // The text may have changed while the editor was loading.
         doc: valueRef.current,
@@ -269,6 +276,7 @@ export function CodeEditor({
           syntaxHighlighting(highlight),
           theme,
           language ? [language] : [],
+          wrapping.of(wrap(wordWrapRef.current)),
           conflictLabelsRef.current ? conflictMarkers(conflictLabelsRef.current) : [],
           EditorState.readOnly.of(!!readOnly),
           EditorView.editable.of(!readOnly),
@@ -310,6 +318,8 @@ export function CodeEditor({
       // Out of the undo history, so undoing cannot take back an agent's edit.
       applyExternalRef.current = (view, changes) =>
         view.dispatch({ changes, annotations: [external.of(true), Transaction.addToHistory.of(false)] })
+      setWrappingRef.current = (view, on) =>
+        view.dispatch({ effects: wrapping.reconfigure(wrap(on)) })
       revealNow()
       openFindNow()
     })()
@@ -332,6 +342,10 @@ export function CodeEditor({
     const next = value.replace(/\r\n?/g, '\n')
     if (current !== next) applyExternalRef.current?.(view, changedRange(current, next))
   }, [value])
+
+  useEffect(() => {
+    if (viewRef.current) setWrappingRef.current?.(viewRef.current, !!wordWrap)
+  }, [wordWrap])
 
   // A new request on an editor that already exists; a first one is carried
   // out as the editor is built.

@@ -510,6 +510,7 @@
 .filerow__actions { display: flex; gap: 1px; opacity: 0; flex: 0 0 auto; }
 .filerow:hover .filerow__actions { opacity: 1; }
 .icon-btn--tiny { width: 20px; height: 20px; }
+.icon-btn.icon-btn--on { color: var(--accent); }
 
 .files { display: flex; flex-direction: column; height: 100%; }
 .files__bar {

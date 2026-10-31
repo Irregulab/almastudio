@@ -70,6 +70,7 @@ export const DEFAULT_SETTINGS: Settings = {
     },
   },
   commitMessage: { enabled: false, harness: 'claude' },
+  editor: { wordWrap: false },
   panel: {
     defaultView: 'changes',
     // Dotfiles such as .env are part of the project; hiding them is opt-in.
