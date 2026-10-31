@@ -5,6 +5,7 @@ import { ArrowDown, ArrowUp, Check, Code2, ExternalLink, Eye, RefreshCw, Save, S
 
 import { GIT_CHANGED_EVENT } from '../hooks/useAutoFetch'
 import { findConflicts } from '../lib/conflicts'
+import { followDisk, type FileBuffer } from '../lib/fileBuffer'
 import { findRanges } from '../lib/findText'
 import { allowPreview, gitMarkResolved, readTextFile, writeTextFile } from '../lib/ipc'
 import { languageOf, previewKindOf } from '../lib/syntax'
@@ -23,9 +24,9 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
   const setTabDirty = useUi((s) => s.setTabDirty)
   const pinTab = useWorkspace((s) => s.pinTab)
   const [file, setFile] = useState<FileContent | null>(null)
-  const [content, setContent] = useState('')
-  /** What is on disk as far as we know; the basis for both dirty and conflict. */
-  const [original, setOriginal] = useState('')
+  /** One state, so a read from disk sees the edits as they are when it lands. */
+  const [buffer, setBuffer] = useState<FileBuffer>({ content: '', original: '' })
+  const { content, original } = buffer
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -81,8 +82,7 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
         seen.current = signature
         setError(null)
         // Reloading must not silently throw away work in progress.
-        setOriginal(f.content)
-        setContent((prev) => (discardEdits || prev === '' ? f.content : prev))
+        setBuffer((b) => followDisk(b, f.content, discardEdits))
       } catch (e) {
         setError(String(e))
         setFile(null)
@@ -113,7 +113,8 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
     setSaving(true)
     try {
       await writeTextFile(absolute, content, tab.root)
-      setOriginal(content)
+      // Whatever was typed while this ran stays an edit.
+      setBuffer((b) => ({ ...b, original: content }))
       seen.current = content
       setVersion((v) => v + 1)
       setNotice(t('editor.saved'))
@@ -231,7 +232,7 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
           </button>
         )}
         {editable && showSource && dirty && (
-          <button className="btn btn--sm" onClick={() => setContent(original)}>
+          <button className="btn btn--sm" onClick={() => void load(true)}>
             {t('editor.revert')}
           </button>
         )}
@@ -274,7 +275,7 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
                   incoming: t('conflicts.acceptIncoming'),
                   both: t('conflicts.acceptBoth'),
                 }}
-                onChange={setContent}
+                onChange={(text) => setBuffer((b) => ({ ...b, content: text }))}
                 onSave={() => void save()}
                 findNonce={findNonce}
               />
@@ -305,8 +306,7 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
           danger
           onCancel={() => {
             // Take what is on disk and drop our edits.
-            setOriginal(conflict)
-            setContent(conflict)
+            setBuffer({ content: conflict, original: conflict })
             setConflict(null)
           }}
           onConfirm={() => void write()}

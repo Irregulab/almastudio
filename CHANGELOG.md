@@ -9,6 +9,14 @@ release cannot be cut without one.
 
 ## [Unreleased]
 
+### Fixed
+
+- A file tab shows what is on disk when you come back to it. If an agent had
+  changed the file in the meantime, the tab kept the old text, marked it as
+  unsaved, and saving replaced the agent's work without asking. Your own
+  unsaved edits are still kept, saving them still asks first, and Revert now
+  goes to what is on disk rather than to the text you started from.
+
 ## [1.10.0] - 2026-10-31
 
 ### Added
