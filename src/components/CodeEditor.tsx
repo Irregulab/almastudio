@@ -28,50 +28,6 @@ interface Props {
   findNonce?: number
 }
 
-/** Dynamic import of just the grammar this file needs. */
-async function languageFor(path: string) {
-  const ext = (path.split('.').pop() ?? '').toLowerCase()
-  const name = (path.split(/[/\\]/).pop() ?? '').toLowerCase()
-
-  switch (ext) {
-    case 'ts': case 'mts': case 'cts':
-      return (await import('@codemirror/lang-javascript')).javascript({ typescript: true })
-    case 'tsx':
-      return (await import('@codemirror/lang-javascript')).javascript({ typescript: true, jsx: true })
-    case 'jsx':
-      return (await import('@codemirror/lang-javascript')).javascript({ jsx: true })
-    case 'js': case 'mjs': case 'cjs':
-      return (await import('@codemirror/lang-javascript')).javascript()
-    case 'json': case 'jsonc': case 'json5':
-      return (await import('@codemirror/lang-json')).json()
-    case 'rs':
-      return (await import('@codemirror/lang-rust')).rust()
-    case 'py': case 'pyi':
-      return (await import('@codemirror/lang-python')).python()
-    case 'md': case 'markdown': case 'mdx':
-      return (await import('@codemirror/lang-markdown')).markdown()
-    case 'yml': case 'yaml':
-      return (await import('@codemirror/lang-yaml')).yaml()
-    case 'html': case 'htm': case 'vue': case 'svelte':
-      return (await import('@codemirror/lang-html')).html()
-    case 'css': case 'scss': case 'less': case 'sass':
-      return (await import('@codemirror/lang-css')).css()
-    case 'sql':
-      return (await import('@codemirror/lang-sql')).sql()
-    case 'c': case 'h': case 'cpp': case 'cc': case 'hpp': case 'hh':
-      return (await import('@codemirror/lang-cpp')).cpp()
-    case 'java':
-      return (await import('@codemirror/lang-java')).java()
-    case 'php':
-      return (await import('@codemirror/lang-php')).php()
-    case 'xml': case 'svg':
-      return (await import('@codemirror/lang-xml')).xml()
-    default:
-      if (name.startsWith('dockerfile') || name === 'makefile') return null
-      return null
-  }
-}
-
 export function CodeEditor({
   value, path, onChange, onSave, readOnly, reveal, conflictLabels, findNonce,
 }: Props) {
@@ -142,6 +98,7 @@ export function CodeEditor({
         { closeBrackets, closeBracketsKeymap, autocompletion, completionKeymap },
         { tags },
         { conflictMarkers },
+        { languageFor },
       ] = await Promise.all([
         import('@codemirror/state'),
         import('@codemirror/view'),
@@ -151,6 +108,7 @@ export function CodeEditor({
         import('@codemirror/autocomplete'),
         import('@lezer/highlight'),
         import('./conflictMarkers'),
+        import('../lib/editorLanguage'),
       ])
       if (disposed) return
 

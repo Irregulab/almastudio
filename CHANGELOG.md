@@ -14,6 +14,10 @@ release cannot be cut without one.
 - An open file follows the disk while you look at it, so an agent's edits
   appear as they are made and your place in the file stays put. Unsaved edits
   are left alone. It goes with the "Watch the filesystem for changes" setting.
+- The file editor highlights well over a hundred languages, loaded as needed.
+  Go, Kotlin, C#, Ruby, Swift, shell, TOML, INI, Lua, Dockerfile and many more
+  used to open as plain text there, and Vue, Sass, SCSS and Less now have
+  grammars of their own. Makefiles are coloured as shell; GraphQL stays plain.
 
 ### Fixed
 
