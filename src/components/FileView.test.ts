@@ -7,6 +7,7 @@ import type { FileTab } from '../lib/types'
 
 const io = vi.hoisted(() => ({
   disk: '',
+  gone: false,
   large: false,
   reads: 0,
   writes: [] as string[],
@@ -21,6 +22,7 @@ const io = vi.hoisted(() => ({
 vi.mock('../lib/ipc', () => ({
   readTextFile: async (path: string) => {
     io.reads++
+    if (io.gone) throw new Error('No such file or directory')
     return {
       path,
       content: io.large ? '' : io.disk,
@@ -35,7 +37,9 @@ vi.mock('../lib/ipc', () => ({
   writeTextFile: async (_path: string, content: string) => {
     io.writes.push(content)
     io.disk = content
+    io.gone = false
   },
+  pathExists: async () => !io.gone,
   allowPreview: async () => {},
   gitMarkResolved: async () => {},
   onFsChange: async (_id: string, cb: typeof io.notify) => {
@@ -118,6 +122,7 @@ describe('FileView', () => {
 
   beforeEach(async () => {
     io.disk = 'before'
+    io.gone = false
     io.large = false
     io.reads = 0
     io.writes = []
@@ -176,6 +181,65 @@ describe('FileView', () => {
 
     expect(io.writes).toEqual(['mine'])
     expect(chips()).not.toContain('editor.diskChanged')
+  })
+
+  describe('when the file is deleted', () => {
+    const remove = () => {
+      io.gone = true
+      return act(async () => io.notify({ paths: ['/project/a.ts'], count: 1 }))
+    }
+
+    it('keeps it on screen and says so', async () => {
+      await remove()
+
+      expect(editorText()).toBe('before')
+      expect(chips()).toContain('editor.deleted')
+      expect(document.querySelector('.empty')).toBeNull()
+    })
+
+    it('keeps unsaved edits, and saving them brings the file back', async () => {
+      await type('mine')
+      await remove()
+
+      expect(editorText()).toBe('mine')
+      expect(isDirty()).toBe(true)
+
+      await click('editor.save')
+
+      expect(io.writes).toEqual(['mine'])
+      expect(isDirty()).toBe(false)
+      expect(chips()).not.toContain('editor.deleted')
+    })
+
+    it('reverts to the last version read, as nothing is left on disk', async () => {
+      await type('mine')
+      await remove()
+      await click('editor.revert')
+
+      expect(editorText()).toBe('before')
+      expect(isDirty()).toBe(false)
+      expect(chips()).toContain('editor.deleted')
+    })
+
+    it('follows the file again when it comes back', async () => {
+      await remove()
+      io.gone = false
+      io.disk = 'recreated'
+      await act(async () => io.notify({ paths: ['/project/a.ts'], count: 1 }))
+
+      expect(editorText()).toBe('recreated')
+      expect(chips()).not.toContain('editor.deleted')
+    })
+  })
+
+  it('reports a file that could not be opened at all', async () => {
+    root.unmount()
+    io.gone = true
+    root = createRoot(document.getElementById('host')!)
+    await show(true)
+
+    expect(document.querySelector('.empty')?.textContent).toContain('No such file')
+    expect(editorText()).toBeUndefined()
   })
 
   it('reverts to what is on disk, not to the text the edits started from', async () => {

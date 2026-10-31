@@ -284,6 +284,8 @@
     "closeAnyway": "Close without saving",
     "diskChanged": "Changed on disk",
     "diskChangedHint": "The file changed on disk after you started editing it. Saving asks which version to keep, and Revert loads what is on disk.",
+    "deleted": "Deleted from disk",
+    "deletedHint": "This file no longer exists on disk. What you see is the last version read, and saving your edits brings the file back.",
     "wordWrap": "Word wrap",
     "partial": "Start of file, read-only",
     "tooLarge": "This file is too large to open in full. The source view shows its start, read-only."

@@ -10,7 +10,9 @@ import { useFileChanges } from '../hooks/useFileChanges'
 import { findConflicts } from '../lib/conflicts'
 import { applyEdit, bufferOf, followDisk, type FileBuffer } from '../lib/fileBuffer'
 import { findRanges } from '../lib/findText'
-import { allowPreview, gitMarkResolved, readTextFile, readTextHead, writeTextFile } from '../lib/ipc'
+import {
+  allowPreview, gitMarkResolved, pathExists, readTextFile, readTextHead, writeTextFile,
+} from '../lib/ipc'
 import { languageOf, previewKindOf } from '../lib/syntax'
 import { useSettings } from '../store/settings'
 import { useUi } from '../store/ui'
@@ -45,6 +47,10 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
   const seen = useRef<string | null>(null)
   /** Reads overlap now the watcher starts them too; only the newest counts. */
   const latestRead = useRef(0)
+  /** It has been read once, so a failure now means it went, not that it never was. */
+  const opened = useRef(false)
+  /** The file has gone from the disk while open. */
+  const [deleted, setDeleted] = useState(false)
   /** Bumped to open the editor's search panel. */
   const [findNonce, setFindNonce] = useState(0)
   /** Non-zero while the preview's find bar is open; bumped to refocus it. */
@@ -86,6 +92,8 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
         // Previews of images and PDFs read the file themselves.
         const f = whole.truncated && !viewOnly ? await readTextHead(absolute, tab.root) : whole
         if (read !== latestRead.current) return
+        opened.current = true
+        setDeleted(false)
         setFile(f)
         // Reload disk-backed previews only when the file changed (or on an
         // explicit refresh), so coming back to the tab keeps a PDF's page.
@@ -96,7 +104,14 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
         // Reloading must not silently throw away work in progress.
         setBuffer((b) => followDisk(b, f.content, discardEdits))
       } catch (e) {
+        // What was on screen stays there, unsaved edits above all: agents move
+        // and remove files, and saving brings this one back.
+        const gone = opened.current && !(await pathExists(absolute, tab.root).catch(() => true))
         if (read !== latestRead.current) return
+        if (gone) {
+          setDeleted(true)
+          return
+        }
         setError(String(e))
         setFile(null)
       } finally {
@@ -141,6 +156,7 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
       await writeTextFile(absolute, content, tab.root)
       // Whatever was typed while this ran stays an edit.
       setBuffer((b) => ({ ...b, original: content, diskChanged: false }))
+      setDeleted(false)
       seen.current = content
       setVersion((v) => v + 1)
       setNotice(t('editor.saved'))
@@ -225,6 +241,9 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
         {diskChanged && (
           <span className="chip chip--dirty" title={t('editor.diskChangedHint')}>{t('editor.diskChanged')}</span>
         )}
+        {deleted && (
+          <span className="chip chip--dirty" title={t('editor.deletedHint')}>{t('editor.deleted')}</span>
+        )}
         {inConflict && <span className="chip chip--dirty">{t('conflicts.count', { n: conflicts })}</span>}
         {hadConflicts && !inConflict && !dirty && (
           <button className="btn btn--sm btn--primary" onClick={() => void markResolved()}>
@@ -275,7 +294,11 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
           </button>
         )}
         {editable && showSource && dirty && (
-          <button className="btn btn--sm" onClick={() => void load(true)}>
+          <button
+            className="btn btn--sm"
+            // With no file to read, the last copy of it is all there is.
+            onClick={() => (deleted ? setBuffer((b) => bufferOf(b.original)) : void load(true))}
+          >
             {t('editor.revert')}
           </button>
         )}

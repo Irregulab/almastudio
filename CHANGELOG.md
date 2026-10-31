@@ -33,6 +33,9 @@ release cannot be cut without one.
   unsaved, and saving replaced the agent's work without asking. Your own
   unsaved edits are still kept, saving them still asks first, and Revert now
   goes to what is on disk rather than to the text you started from.
+- A file deleted while open stays on screen, marked "Deleted from disk",
+  instead of giving way to an error that also hid any unsaved edits. Saving
+  them brings the file back, and the tab follows it if something else does.
 - Saving a file keeps its line endings. Any edit to a file using CRLF, as many
   do on Windows, turned every line to LF, so a one-line change showed up in git
   as the whole file. A file mixing the two gets the one it mostly uses.
