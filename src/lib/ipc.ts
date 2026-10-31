@@ -205,6 +205,9 @@ export const listDir = (
 
 export const readTextFile = (path: string, root?: string) =>
   invoke<FileContent>('read_text_file', { path, root: root ?? null })
+/** The start of a file `readTextFile` calls too large, to show and never to save. */
+export const readTextHead = (path: string, root?: string) =>
+  invoke<FileContent>('read_text_head', { path, root: root ?? null })
 export const findFiles = (
   root: string, query: string, limit: number, showHidden: boolean, respectGitignore: boolean,
 ) => invoke<DirEntryInfo[]>('find_files', { root, query, limit, showHidden, respectGitignore })

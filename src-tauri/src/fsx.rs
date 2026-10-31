@@ -4,14 +4,15 @@
 
 use std::collections::HashSet;
 use std::fs;
+use std::io::Read as _;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use ignore::WalkBuilder;
 use serde::Serialize;
 
-/// Above this a file is shown as "too large to display" rather than shipped
-/// into the webview.
+/// Above this a file is not shipped into the webview whole: `read_text_file`
+/// reports it as too large, and `read_text_head` gives its start.
 const MAX_TEXT_BYTES: u64 = 2 * 1024 * 1024;
 static WRITE_TEMP_SEQ: AtomicU64 = AtomicU64::new(0);
 
@@ -179,6 +180,38 @@ pub fn read_text_file(path: String, root: Option<String>) -> Result<FileContent,
         size,
         binary: false,
         truncated: false,
+    })
+}
+
+/// The start of a file too large for `read_text_file`, for a file tab to show
+/// read-only. Separate from it so that anything reading a file to use it, the
+/// companion app included, never mistakes a part of the file for the whole.
+#[tauri::command]
+pub fn read_text_head(path: String, root: Option<String>) -> Result<FileContent, String> {
+    let p = scoped(root.as_deref(), &path)?;
+    let size = fs::metadata(&p).map_err(|e| e.to_string())?.len();
+
+    let mut bytes = Vec::new();
+    fs::File::open(&p)
+        .and_then(|f| f.take(MAX_TEXT_BYTES).read_to_end(&mut bytes))
+        .map_err(|e| e.to_string())?;
+    if looks_binary(&bytes) {
+        return Ok(FileContent { path, content: String::new(), size, binary: true, truncated: false });
+    }
+
+    let truncated = size > MAX_TEXT_BYTES;
+    if truncated {
+        // On a line end, so the last line is whole and no character is split.
+        if let Some(end) = bytes.iter().rposition(|b| *b == b'\n') {
+            bytes.truncate(end + 1);
+        }
+    }
+    Ok(FileContent {
+        content: String::from_utf8_lossy(&bytes).into_owned(),
+        path,
+        size,
+        binary: false,
+        truncated,
     })
 }
 
@@ -499,6 +532,75 @@ mod tests {
     fn list(root: &Path, show_hidden: bool, respect_gitignore: bool) -> Vec<String> {
         let root = root.to_string_lossy().to_string();
         names(list_dir(root, String::new(), show_hidden, respect_gitignore).unwrap())
+    }
+
+    /// A file over the limit, built from `line`, and its path as a string.
+    fn large_file(dir: &Path, line: &str) -> String {
+        let path = dir.join("large.txt");
+        let repeats = MAX_TEXT_BYTES as usize / line.len() + 2;
+        fs::write(&path, line.repeat(repeats)).unwrap();
+        path.to_string_lossy().to_string()
+    }
+
+    #[test]
+    fn a_large_file_is_not_read_whole() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = read_text_file(large_file(dir.path(), "hello\n"), None).unwrap();
+        assert!(file.truncated);
+        assert!(file.content.is_empty());
+    }
+
+    #[test]
+    fn the_head_of_a_large_file_ends_on_a_whole_line() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = large_file(dir.path(), "caffè ☕\n");
+        let size = fs::metadata(&path).unwrap().len();
+
+        let head = read_text_head(path, None).unwrap();
+
+        assert!(head.truncated);
+        assert!(!head.binary);
+        assert_eq!(head.size, size);
+        assert!(head.content.len() as u64 <= MAX_TEXT_BYTES);
+        assert!(head.content.ends_with("caffè ☕\n"));
+        assert!(!head.content.contains('\u{FFFD}'));
+    }
+
+    #[test]
+    fn the_head_of_a_file_without_line_ends_is_as_much_as_fits() {
+        let dir = tempfile::tempdir().unwrap();
+        let head = read_text_head(large_file(dir.path(), "x"), None).unwrap();
+        assert!(head.truncated);
+        assert_eq!(head.content.len() as u64, MAX_TEXT_BYTES);
+    }
+
+    #[test]
+    fn a_large_binary_file_is_reported_as_binary() {
+        let dir = tempfile::tempdir().unwrap();
+        let head = read_text_head(large_file(dir.path(), "a\0"), None).unwrap();
+        assert!(head.binary);
+        assert!(!head.truncated);
+        assert!(head.content.is_empty());
+    }
+
+    #[test]
+    fn the_head_of_a_small_file_is_all_of_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("small.txt");
+        fs::write(&path, "no line end").unwrap();
+        let head = read_text_head(path.to_string_lossy().to_string(), None).unwrap();
+        assert!(!head.truncated);
+        assert_eq!(head.content, "no line end");
+    }
+
+    #[test]
+    fn the_head_stays_inside_the_root() {
+        let dir = tempfile::tempdir().unwrap();
+        let other = tempfile::tempdir().unwrap();
+        let path = other.path().join("secret.txt");
+        fs::write(&path, "secret").unwrap();
+        let root = dir.path().to_string_lossy().to_string();
+        assert!(read_text_head(path.to_string_lossy().to_string(), Some(root)).is_err());
     }
 
     #[test]

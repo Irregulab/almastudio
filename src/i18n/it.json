@@ -282,7 +282,9 @@
     "discardTitle": "Modifiche non salvate",
     "discardBody": "“{name}” ha modifiche non salvate. Chiudere comunque?",
     "closeAnyway": "Chiudi senza salvare",
-    "wordWrap": "A capo automatico"
+    "wordWrap": "A capo automatico",
+    "partial": "Inizio del file, sola lettura",
+    "tooLarge": "Questo file è troppo grande per essere aperto per intero. La vista sorgente ne mostra l'inizio, in sola lettura."
   },
   "exit": {
     "title": "Uscire da AlmaStudio?",

@@ -10,7 +10,7 @@ import { useFileChanges } from '../hooks/useFileChanges'
 import { findConflicts } from '../lib/conflicts'
 import { followDisk, type FileBuffer } from '../lib/fileBuffer'
 import { findRanges } from '../lib/findText'
-import { allowPreview, gitMarkResolved, readTextFile, writeTextFile } from '../lib/ipc'
+import { allowPreview, gitMarkResolved, readTextFile, readTextHead, writeTextFile } from '../lib/ipc'
 import { languageOf, previewKindOf } from '../lib/syntax'
 import { useSettings } from '../store/settings'
 import { useUi } from '../store/ui'
@@ -52,6 +52,8 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
   const bodyRef = useRef<HTMLDivElement>(null)
 
   const dirty = content !== original
+  /** There is text to show, which may be only the start of a very large file. */
+  const readable = !!file && !file.binary
   const editable = !!file && !file.binary && !file.truncated
 
   // A search result points at a line, which only the source shows.
@@ -80,7 +82,9 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
       setLoading(true)
       const read = ++latestRead.current
       try {
-        const f = await readTextFile(absolute, tab.root)
+        const whole = await readTextFile(absolute, tab.root)
+        // Previews of images and PDFs read the file themselves.
+        const f = whole.truncated && !viewOnly ? await readTextHead(absolute, tab.root) : whole
         if (read !== latestRead.current) return
         setFile(f)
         // Reload disk-backed previews only when the file changed (or on an
@@ -99,7 +103,7 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
         setLoading(false)
       }
     },
-    [absolute, tab.root],
+    [absolute, tab.root, viewOnly],
   )
 
   useEffect(() => {
@@ -145,7 +149,8 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
   }, [absolute, content, t, tab.root])
 
   const save = useCallback(async () => {
-    if (!dirty || saving) return
+    // Not `editable` means only part of the file is here to be written back.
+    if (!dirty || saving || !editable) return
     // Agents are editing these same files in the next tab along, so check what
     // is actually on disk before overwriting it.
     try {
@@ -158,7 +163,7 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
       // Unreadable now: fall through and let the write report the real error.
     }
     await write()
-  }, [absolute, dirty, original, saving, write])
+  }, [absolute, dirty, editable, original, saving, write])
 
   const markResolved = async () => {
     try {
@@ -175,7 +180,8 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
   const language = languageOf(tab.path)
   const showSource = !kind || (!viewOnly && mode === 'source')
   /** Where ⌘F searches: the editor, the rendered Markdown, or nowhere. */
-  const findTarget = !editable ? null : showSource ? 'source' : kind === 'markdown' ? 'preview' : null
+  const findTarget =
+    !readable ? null : showSource ? 'source' : kind === 'markdown' && editable ? 'preview' : null
   const openFind = useCallback(() => {
     if (findTarget === 'source') setFindNonce((n) => n + 1)
     if (findTarget === 'preview') setPreviewFind((n) => n + 1)
@@ -207,6 +213,9 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
         {language && <span className="chip">{language}</span>}
         {file && <span className="chip">{formatBytes(file.size)}</span>}
         {notice && <span className="chip chip--ok">{notice}</span>}
+        {file?.truncated && showSource && !viewOnly && (
+          <span className="chip chip--dirty" title={t('editor.tooLarge')}>{t('editor.partial')}</span>
+        )}
         {inConflict && <span className="chip chip--dirty">{t('conflicts.count', { n: conflicts })}</span>}
         {hadConflicts && !inConflict && !dirty && (
           <button className="btn btn--sm btn--primary" onClick={() => void markResolved()}>
@@ -220,7 +229,7 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
           </>
         )}
         <span className="spacer" />
-        {showSource && editable && (
+        {showSource && readable && (
           <button
             className={`icon-btn${wordWrap ? ' icon-btn--on' : ''}`}
             onClick={() => patchSettings('editor', { wordWrap: !wordWrap })}
@@ -289,17 +298,17 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
         {showSource ? (
           <>
             {file?.binary && <div className="empty">{t('diff.binary')}</div>}
-            {file?.truncated && <div className="empty">{t('diff.truncated')}</div>}
-            {editable && (
+            {readable && (
               <CodeEditor
                 value={content}
                 path={tab.path}
+                readOnly={!editable}
                 reveal={tab.reveal}
-                conflictLabels={{
+                conflictLabels={editable ? {
                   current: t('conflicts.acceptCurrent'),
                   incoming: t('conflicts.acceptIncoming'),
                   both: t('conflicts.acceptBoth'),
-                }}
+                } : undefined}
                 onChange={(text) => setBuffer((b) => ({ ...b, content: text }))}
                 onSave={() => void save()}
                 findNonce={findNonce}
@@ -311,7 +320,7 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
           editable ? (
             <MarkdownPreview source={content} path={absolute} root={tab.root} />
           ) : (
-            file?.truncated && <div className="empty">{t('diff.truncated')}</div>
+            file?.truncated && <div className="empty">{t('editor.tooLarge')}</div>
           )
         ) : kind === 'svg' && editable ? (
           // From the editor's text, so the preview follows unsaved edits.

@@ -7,9 +7,11 @@ import type { FileTab } from '../lib/types'
 
 const io = vi.hoisted(() => ({
   disk: '',
+  large: false,
   reads: 0,
   writes: [] as string[],
   type: (_text: string) => {},
+  save: () => {},
   watch: true,
   wrap: false,
   watched: [] as Array<[string, boolean]>,
@@ -19,8 +21,17 @@ const io = vi.hoisted(() => ({
 vi.mock('../lib/ipc', () => ({
   readTextFile: async (path: string) => {
     io.reads++
-    return { path, content: io.disk, size: io.disk.length, binary: false, truncated: false }
+    return {
+      path,
+      content: io.large ? '' : io.disk,
+      size: io.disk.length,
+      binary: false,
+      truncated: io.large,
+    }
   },
+  readTextHead: async (path: string) => ({
+    path, content: io.disk.slice(0, 5), size: io.disk.length, binary: false, truncated: true,
+  }),
   writeTextFile: async (_path: string, content: string) => {
     io.writes.push(content)
     io.disk = content
@@ -64,13 +75,20 @@ vi.mock('./ui', async () => {
 vi.mock('./CodeEditor', async () => {
   const { createElement: h } = await import('react')
   return {
-    CodeEditor: ({ value, onChange, wordWrap }: {
+    CodeEditor: ({ value, onChange, onSave, readOnly, wordWrap }: {
       value: string
       onChange: (text: string) => void
+      onSave: () => void
+      readOnly?: boolean
       wordWrap?: boolean
     }) => {
       io.type = onChange
-      return h('pre', { className: 'stub-editor', 'data-wrap': String(!!wordWrap) }, value)
+      io.save = onSave
+      return h('pre', {
+        className: 'stub-editor',
+        'data-wrap': String(!!wordWrap),
+        'data-readonly': String(!!readOnly),
+      }, value)
     },
   }
 })
@@ -98,6 +116,7 @@ describe('FileView', () => {
 
   beforeEach(async () => {
     io.disk = 'before'
+    io.large = false
     io.reads = 0
     io.writes = []
     io.watch = true
@@ -181,6 +200,26 @@ describe('FileView', () => {
 
     expect(io.wrap).toBe(true)
     expect(wrapped()).toBe('true')
+  })
+
+  it('shows the start of a file too large to load, and never writes it back', async () => {
+    root.unmount()
+    io.disk = 'first second'
+    io.large = true
+    root = createRoot(document.getElementById('host')!)
+    await show(true)
+
+    const editor = document.querySelector('.stub-editor')
+    expect(editor?.textContent).toBe('first')
+    expect(editor?.getAttribute('data-readonly')).toBe('true')
+    expect(button('editor.save')).toBeUndefined()
+
+    await act(async () => io.save())
+    expect(io.writes).toEqual([])
+  })
+
+  it('leaves an ordinary file editable', () => {
+    expect(document.querySelector('.stub-editor')?.getAttribute('data-readonly')).toBe('false')
   })
 
   it('saves without asking when the file has not moved', async () => {

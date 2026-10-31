@@ -386,6 +386,7 @@ pub fn run() {
             git::find_git_repos,
             fsx::list_dir,
             fsx::read_text_file,
+            fsx::read_text_head,
             fsx::find_files,
             fsx::dir_name,
             fsx::write_project_instructions,

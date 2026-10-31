@@ -20,6 +20,9 @@ release cannot be cut without one.
   grammars of their own. Makefiles are coloured as shell; GraphQL stays plain.
 - A word wrap button in the file toolbar, for Markdown, JSON and logs with
   long lines. The choice applies to every file and is remembered.
+- Files over 2 MB show their start, read-only, instead of only a notice, so a
+  large log or data file can be looked at without leaving the app. A large
+  binary file now says it is binary.
 
 ### Fixed
 
