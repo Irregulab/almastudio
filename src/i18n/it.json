@@ -282,6 +282,8 @@
     "discardTitle": "Modifiche non salvate",
     "discardBody": "“{name}” ha modifiche non salvate. Chiudere comunque?",
     "closeAnyway": "Chiudi senza salvare",
+    "diskChanged": "Cambiato su disco",
+    "diskChangedHint": "Il file è cambiato su disco dopo l'inizio delle tue modifiche. Salvando ti verrà chiesto quale versione tenere, e Ripristina carica quella su disco.",
     "wordWrap": "A capo automatico",
     "partial": "Inizio del file, sola lettura",
     "tooLarge": "Questo file è troppo grande per essere aperto per intero. La vista sorgente ne mostra l'inizio, in sola lettura."

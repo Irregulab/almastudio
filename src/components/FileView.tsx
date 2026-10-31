@@ -8,7 +8,7 @@ import {
 import { GIT_CHANGED_EVENT } from '../hooks/useAutoFetch'
 import { useFileChanges } from '../hooks/useFileChanges'
 import { findConflicts } from '../lib/conflicts'
-import { applyEdit, followDisk, type FileBuffer } from '../lib/fileBuffer'
+import { applyEdit, bufferOf, followDisk, type FileBuffer } from '../lib/fileBuffer'
 import { findRanges } from '../lib/findText'
 import { allowPreview, gitMarkResolved, readTextFile, readTextHead, writeTextFile } from '../lib/ipc'
 import { languageOf, previewKindOf } from '../lib/syntax'
@@ -29,8 +29,8 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
   const pinTab = useWorkspace((s) => s.pinTab)
   const [file, setFile] = useState<FileContent | null>(null)
   /** One state, so a read from disk sees the edits as they are when it lands. */
-  const [buffer, setBuffer] = useState<FileBuffer>({ content: '', original: '' })
-  const { content, original } = buffer
+  const [buffer, setBuffer] = useState<FileBuffer>(() => bufferOf(''))
+  const { content, original, diskChanged } = buffer
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -110,6 +110,12 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
     if (visible) void load(false)
   }, [visible, load])
 
+  // Edits undone back to a copy the disk has since left behind: with nothing
+  // left to protect, the tab can catch up.
+  useEffect(() => {
+    if (diskChanged && !dirty) void load(false)
+  }, [diskChanged, dirty, load])
+
   // A tab behind another is read when it comes back, so only this one watches.
   const watching = useSettings((s) => s.settings.panel.watch)
   useFileChanges(absolute, visible && watching, () => void load(false))
@@ -134,7 +140,7 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
     try {
       await writeTextFile(absolute, content, tab.root)
       // Whatever was typed while this ran stays an edit.
-      setBuffer((b) => ({ ...b, original: content }))
+      setBuffer((b) => ({ ...b, original: content, diskChanged: false }))
       seen.current = content
       setVersion((v) => v + 1)
       setNotice(t('editor.saved'))
@@ -215,6 +221,9 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
         {notice && <span className="chip chip--ok">{notice}</span>}
         {file?.truncated && showSource && !viewOnly && (
           <span className="chip chip--dirty" title={t('editor.tooLarge')}>{t('editor.partial')}</span>
+        )}
+        {diskChanged && (
+          <span className="chip chip--dirty" title={t('editor.diskChangedHint')}>{t('editor.diskChanged')}</span>
         )}
         {inConflict && <span className="chip chip--dirty">{t('conflicts.count', { n: conflicts })}</span>}
         {hadConflicts && !inConflict && !dirty && (
@@ -341,7 +350,7 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
           danger
           onCancel={() => {
             // Take what is on disk and drop our edits.
-            setBuffer({ content: conflict, original: conflict })
+            setBuffer(bufferOf(conflict))
             setConflict(null)
           }}
           onConfirm={() => void write()}

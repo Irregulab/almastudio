@@ -282,6 +282,8 @@
     "discardTitle": "Unsaved changes",
     "discardBody": "“{name}” has unsaved changes. Close it anyway?",
     "closeAnyway": "Close without saving",
+    "diskChanged": "Changed on disk",
+    "diskChangedHint": "The file changed on disk after you started editing it. Saving asks which version to keep, and Revert loads what is on disk.",
     "wordWrap": "Word wrap",
     "partial": "Start of file, read-only",
     "tooLarge": "This file is too large to open in full. The source view shows its start, read-only."

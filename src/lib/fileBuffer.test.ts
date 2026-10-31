@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
-import { applyEdit, followDisk } from './fileBuffer'
+import { applyEdit, bufferOf, followDisk } from './fileBuffer'
 
 describe('applyEdit', () => {
-  const edit = (original: string, text: string) => applyEdit({ content: original, original }, text)
+  const edit = (original: string, text: string) => applyEdit(bufferOf(original), text)
 
   it('leaves text alone in a file that uses LF', () => {
     expect(edit('one\ntwo\n', 'one!\ntwo\n').content).toBe('one!\ntwo\n')
@@ -35,33 +35,40 @@ describe('applyEdit', () => {
 
 describe('followDisk', () => {
   it('fills an empty tab on the first read', () => {
-    expect(followDisk({ content: '', original: '' }, 'file')).toEqual({ content: 'file', original: 'file' })
+    expect(followDisk(bufferOf(''), 'file')).toEqual(bufferOf('file'))
   })
 
   it('follows the file when there are no edits', () => {
-    const buffer = { content: 'old', original: 'old' }
-    expect(followDisk(buffer, 'new')).toEqual({ content: 'new', original: 'new' })
+    expect(followDisk(bufferOf('old'), 'new')).toEqual(bufferOf('new'))
   })
 
   it('keeps edits and the base they started from when the file moves on', () => {
-    const buffer = { content: 'mine', original: 'old' }
-    expect(followDisk(buffer, 'agent')).toEqual(buffer)
+    const buffer = { ...bufferOf('old'), content: 'mine' }
+    expect(followDisk(buffer, 'agent')).toEqual({ ...buffer, diskChanged: true })
+  })
+
+  it('does not report a change when the file has stayed put', () => {
+    const buffer = { ...bufferOf('old'), content: 'mine' }
+    expect(followDisk(buffer, 'old').diskChanged).toBe(false)
+  })
+
+  it('stops reporting a change once the file is back where the edits started', () => {
+    const buffer = { ...bufferOf('old'), content: 'mine', diskChanged: true }
+    expect(followDisk(buffer, 'old').diskChanged).toBe(false)
   })
 
   it('treats a tab emptied on purpose as an edit', () => {
-    const buffer = { content: '', original: 'old' }
+    const buffer = { ...bufferOf('old'), content: '' }
     expect(followDisk(buffer, 'old')).toEqual(buffer)
   })
 
   it('is clean again once the disk matches the edits', () => {
-    expect(followDisk({ content: 'saved', original: 'old' }, 'saved')).toEqual({
-      content: 'saved',
-      original: 'saved',
-    })
+    const buffer = { ...bufferOf('old'), content: 'saved' }
+    expect(followDisk(buffer, 'saved')).toEqual(bufferOf('saved'))
   })
 
   it('takes the disk when asked to discard edits', () => {
-    const buffer = { content: 'mine', original: 'old' }
-    expect(followDisk(buffer, 'agent', true)).toEqual({ content: 'agent', original: 'agent' })
+    const buffer = { ...bufferOf('old'), content: 'mine' }
+    expect(followDisk(buffer, 'agent', true)).toEqual(bufferOf('agent'))
   })
 })

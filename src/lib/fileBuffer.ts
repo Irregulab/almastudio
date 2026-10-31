@@ -6,7 +6,16 @@ export interface FileBuffer {
    * they started from, so saving can tell when the file has moved on since.
    */
   original: string
+  /** The file on disk is no longer `original`, under edits that are in the way. */
+  diskChanged: boolean
 }
+
+/** A buffer with no edits, in step with the file. */
+export const bufferOf = (text: string): FileBuffer => ({
+  content: text,
+  original: text,
+  diskChanged: false,
+})
 
 /** Whether a text's lines mostly end in \r\n, for a file that mixes the two. */
 function usesCrlf(text: string): boolean {
@@ -37,6 +46,8 @@ export function applyEdit(buffer: FileBuffer, text: string): FileBuffer {
  */
 export function followDisk(buffer: FileBuffer, disk: string, discardEdits = false): FileBuffer {
   const edited = buffer.content !== buffer.original
-  if (edited && !discardEdits && buffer.content !== disk) return buffer
-  return { content: disk, original: disk }
+  if (edited && !discardEdits && buffer.content !== disk) {
+    return { ...buffer, diskChanged: disk !== buffer.original }
+  }
+  return bufferOf(disk)
 }

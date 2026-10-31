@@ -68,7 +68,8 @@ vi.mock('./FileIcon', () => ({ FileIcon: () => null }))
 vi.mock('./ui', async () => {
   const { createElement: h } = await import('react')
   return {
-    ConfirmDialog: ({ title }: { title: string }) => h('div', { className: 'conflict' }, title),
+    ConfirmDialog: ({ title, onConfirm }: { title: string; onConfirm: () => void }) =>
+      h('button', { className: 'conflict', onClick: onConfirm }, title),
     Segmented: () => null,
   }
 })
@@ -104,6 +105,7 @@ const tab = { id: 'tab', kind: 'file', root: '/project', path: 'a.ts' } as FileT
 
 const editorText = () => document.querySelector('.stub-editor')?.textContent
 const isDirty = () => !!document.querySelector('.diff__dirty')
+const chips = () => Array.from(document.querySelectorAll('.chip')).map((c) => c.textContent)
 const button = (label: string) =>
   Array.from(document.querySelectorAll('button')).find((b) => b.textContent?.includes(label))!
 
@@ -138,17 +140,42 @@ describe('FileView', () => {
 
   it('keeps unsaved edits and asks before saving over what an agent wrote', async () => {
     await type('mine')
+    expect(chips()).not.toContain('editor.diskChanged')
+
     await show(false)
     io.disk = 'agent'
     await show(true)
 
     expect(editorText()).toBe('mine')
     expect(isDirty()).toBe(true)
+    expect(chips()).toContain('editor.diskChanged')
 
     await click('editor.save')
 
     expect(document.querySelector('.conflict')).not.toBeNull()
     expect(io.writes).toEqual([])
+  })
+
+  it('catches up when edits are undone after the disk moved on', async () => {
+    await type('mine')
+    io.disk = 'agent'
+    await act(async () => io.notify({ paths: ['/project/a.ts'], count: 1 }))
+    await type('before')
+
+    expect(editorText()).toBe('agent')
+    expect(isDirty()).toBe(false)
+    expect(chips()).not.toContain('editor.diskChanged')
+  })
+
+  it('clears the warning once the edits have been saved over the change', async () => {
+    await type('mine')
+    io.disk = 'agent'
+    await act(async () => io.notify({ paths: ['/project/a.ts'], count: 1 }))
+    await click('editor.save')
+    await act(async () => document.querySelector<HTMLElement>('.conflict')!.click())
+
+    expect(io.writes).toEqual(['mine'])
+    expect(chips()).not.toContain('editor.diskChanged')
   })
 
   it('reverts to what is on disk, not to the text the edits started from', async () => {
