@@ -10,8 +10,8 @@ import type { ConflictLabels } from './conflictMarkers'
  *
  * The theme is expressed entirely in `var(--…)` values, so the editor tracks
  * the app's theme with no re-initialisation — including its syntax colours,
- * which map Lezer tags onto the same `--syn-*` tokens the read-only viewer
- * and the diffs use.
+ * which map Lezer tags onto the same `--syn-*` tokens as the diffs and rendered
+ * Markdown.
  */
 
 interface Props {
