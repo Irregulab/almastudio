@@ -36,6 +36,9 @@ release cannot be cut without one.
 - A file deleted while open stays on screen, marked "Deleted from disk",
   instead of giving way to an error that also hid any unsaved edits. Saving
   them brings the file back, and the tab follows it if something else does.
+- The language shown above a file is the one colouring it. It came from a
+  separate list, so TOML said "ini", Scala said nothing, and GraphQL was named
+  while staying plain.
 - Saving a file keeps its line endings. Any edit to a file using CRLF, as many
   do on Windows, turned every line to LF, so a one-line change showed up in git
   as the whole file. A file mixing the two gets the one it mostly uses.

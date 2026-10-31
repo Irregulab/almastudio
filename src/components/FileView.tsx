@@ -13,7 +13,7 @@ import { findRanges } from '../lib/findText'
 import {
   allowPreview, gitMarkResolved, pathExists, readTextFile, readTextHead, writeTextFile,
 } from '../lib/ipc'
-import { languageOf, previewKindOf } from '../lib/syntax'
+import { previewKindOf } from '../lib/syntax'
 import { useSettings } from '../store/settings'
 import { useUi } from '../store/ui'
 import { useWorkspace } from '../store/workspace'
@@ -42,6 +42,8 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
   // Images and PDFs have no source worth showing; the rest toggle like Markdown.
   const viewOnly = kind === 'image' || kind === 'pdf'
   const [mode, setMode] = useState<Mode>(kind ? 'preview' : 'source')
+  /** The grammar colouring the file, so the toolbar never names one that is not. */
+  const [grammar, setGrammar] = useState<string | null>(null)
   /** Bumped when the file changes, so previews that read it from disk reload. */
   const [version, setVersion] = useState(0)
   const seen = useRef<string | null>(null)
@@ -61,6 +63,20 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
   /** There is text to show, which may be only the start of a very large file. */
   const readable = !!file && !file.binary
   const editable = !!file && !file.binary && !file.truncated
+
+  // From the editor's own chunk, which this tab is about to need anyway.
+  useEffect(() => {
+    if (viewOnly) return
+    let cancelled = false
+    import('../lib/editorLanguage')
+      .then(({ describeFile }) => {
+        if (!cancelled) setGrammar(describeFile(tab.path)?.name ?? null)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [tab.path, viewOnly])
 
   // A search result points at a line, which only the source shows.
   useEffect(() => {
@@ -199,7 +215,6 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
     }
   }
 
-  const language = languageOf(tab.path)
   const showSource = !kind || (!viewOnly && mode === 'source')
   /** Where ⌘F searches: the editor, the rendered Markdown, or nowhere. */
   const findTarget =
@@ -232,7 +247,7 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
           {tab.path}
           {dirty && <span className="diff__dirty" aria-label={t('editor.unsaved')}>●</span>}
         </span>
-        {language && <span className="chip">{language}</span>}
+        {grammar && <span className="chip">{grammar}</span>}
         {file && <span className="chip">{formatBytes(file.size)}</span>}
         {notice && <span className="chip chip--ok">{notice}</span>}
         {file?.truncated && showSource && !viewOnly && (

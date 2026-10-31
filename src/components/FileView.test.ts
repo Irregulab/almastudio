@@ -232,6 +232,31 @@ describe('FileView', () => {
     })
   })
 
+  describe('language chip', () => {
+    const chipsFor = async (path: string) => {
+      root.unmount()
+      root = createRoot(document.getElementById('host')!)
+      await act(async () => {
+        root.render(createElement(FileView, { tab: { ...tab, path }, visible: true, focused: true }))
+        await import('../lib/editorLanguage')
+      })
+      return chips()
+    }
+
+    it.each([
+      ['a.ts', 'TypeScript'],
+      ['Main.scala', 'Scala'],
+      ['Cargo.toml', 'TOML'],
+      ['Makefile', 'Shell'],
+    ])('names the grammar colouring %s', async (path, name) => {
+      expect(await chipsFor(path)).toContain(name)
+    })
+
+    it.each(['schema.graphql', 'notes.txt'])('names nothing for %s, which has none', async (path) => {
+      expect(await chipsFor(path)).toHaveLength(1)
+    })
+  })
+
   it('reports a file that could not be opened at all', async () => {
     root.unmount()
     io.gone = true
