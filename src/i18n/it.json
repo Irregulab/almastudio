@@ -281,7 +281,14 @@
     "overwrite": "Sovrascrivi",
     "discardTitle": "Modifiche non salvate",
     "discardBody": "“{name}” ha modifiche non salvate. Chiudere comunque?",
-    "closeAnyway": "Chiudi senza salvare"
+    "closeAnyway": "Chiudi senza salvare",
+    "diskChanged": "Cambiato su disco",
+    "diskChangedHint": "Il file è cambiato su disco dopo l'inizio delle tue modifiche. Salvando ti verrà chiesto quale versione tenere, e Ripristina carica quella su disco.",
+    "deleted": "Eliminato dal disco",
+    "deletedHint": "Questo file non esiste più su disco. Quello che vedi è l'ultima versione letta, e salvando le tue modifiche il file viene ricreato.",
+    "wordWrap": "A capo automatico",
+    "partial": "Inizio del file, sola lettura",
+    "tooLarge": "Questo file è troppo grande per essere aperto per intero. La vista sorgente ne mostra l'inizio, in sola lettura."
   },
   "exit": {
     "title": "Uscire da AlmaStudio?",
@@ -361,7 +368,7 @@
     "diffView": "Disposizione delle differenze",
     "contextLines": "Righe di contesto",
     "watch": "Monitora le modifiche sul filesystem",
-    "watchHint": "Aggiorna il pannello automaticamente. Disattiva su repository molto grandi.",
+    "watchHint": "Aggiorna il pannello e i file aperti automaticamente. Disattiva su repository molto grandi.",
     "restoreTabs": "Ripristina le schede all'avvio",
     "restoreScrollback": "Ripristina l'output precedente dei terminali",
     "autoStartTabs": "Avvia automaticamente le schede ripristinate",

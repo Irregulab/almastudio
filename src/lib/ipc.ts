@@ -205,6 +205,9 @@ export const listDir = (
 
 export const readTextFile = (path: string, root?: string) =>
   invoke<FileContent>('read_text_file', { path, root: root ?? null })
+/** The start of a file `readTextFile` calls too large, to show and never to save. */
+export const readTextHead = (path: string, root?: string) =>
+  invoke<FileContent>('read_text_head', { path, root: root ?? null })
 export const findFiles = (
   root: string, query: string, limit: number, showHidden: boolean, respectGitignore: boolean,
 ) => invoke<DirEntryInfo[]>('find_files', { root, query, limit, showHidden, respectGitignore })
@@ -214,8 +217,8 @@ export const writeProjectInstructions = (root: string, contents: string) =>
 
 // -------------------------------------------------------------- watcher ----
 
-export const watchStart = (id: string, path: string) =>
-  invoke<void>('watch_start', { id, path })
+export const watchStart = (id: string, path: string, recursive = true) =>
+  invoke<void>('watch_start', { id, path, recursive })
 export const watchStop = (id: string) => invoke<void>('watch_stop', { id })
 
 export interface ChangePayload {

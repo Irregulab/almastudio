@@ -1,10 +1,11 @@
-/** Syntax highlighting.
+/** Syntax highlighting for diffs and for code in rendered Markdown.
  *
  * highlight.js core plus an explicit language list, loaded on first use as its
  * own chunk — a workspace that only ever shows terminals never pays for it.
  * Output is converted into per-line token arrays rather than an HTML string so
- * the file view can render React elements and keep line numbers in a table,
- * with no `dangerouslySetInnerHTML` anywhere near file content.
+ * a diff can render React elements and keep line numbers in a table, with no
+ * `dangerouslySetInnerHTML`. The file editor has grammars of its own: see
+ * editorLanguage.ts.
  */
 
 import type { HLJSApi } from 'highlight.js'
@@ -94,7 +95,7 @@ const BY_FILENAME: Record<string, string> = {
   '.env': 'ini',
 }
 
-/** Best-guess language id for a path, or null when we have no grammar for it. */
+/** Best-guess highlight.js language for a path, or null when it has no grammar. */
 export function languageOf(path: string): string | null {
   const name = (path.split(/[/\\]/).pop() ?? '').toLowerCase()
   if (BY_FILENAME[name]) return BY_FILENAME[name]

@@ -1,13 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { convertFileSrc } from '@tauri-apps/api/core'
 import { openUrl, revealItemInDir } from '@tauri-apps/plugin-opener'
-import { ArrowDown, ArrowUp, Check, Code2, ExternalLink, Eye, RefreshCw, Save, Search, X } from 'lucide-react'
+import {
+  ArrowDown, ArrowUp, Check, Code2, ExternalLink, Eye, RefreshCw, Save, Search, WrapText, X,
+} from 'lucide-react'
 
 import { GIT_CHANGED_EVENT } from '../hooks/useAutoFetch'
+import { useFileChanges } from '../hooks/useFileChanges'
 import { findConflicts } from '../lib/conflicts'
+import { applyEdit, bufferOf, followDisk, type FileBuffer } from '../lib/fileBuffer'
 import { findRanges } from '../lib/findText'
-import { allowPreview, gitMarkResolved, readTextFile, writeTextFile } from '../lib/ipc'
-import { languageOf, previewKindOf } from '../lib/syntax'
+import {
+  allowPreview, gitMarkResolved, pathExists, readTextFile, readTextHead, writeTextFile,
+} from '../lib/ipc'
+import { previewKindOf } from '../lib/syntax'
+import { useSettings } from '../store/settings'
 import { useUi } from '../store/ui'
 import { useWorkspace } from '../store/workspace'
 import { useT } from '../i18n'
@@ -23,9 +30,9 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
   const setTabDirty = useUi((s) => s.setTabDirty)
   const pinTab = useWorkspace((s) => s.pinTab)
   const [file, setFile] = useState<FileContent | null>(null)
-  const [content, setContent] = useState('')
-  /** What is on disk as far as we know; the basis for both dirty and conflict. */
-  const [original, setOriginal] = useState('')
+  /** One state, so a read from disk sees the edits as they are when it lands. */
+  const [buffer, setBuffer] = useState<FileBuffer>(() => bufferOf(''))
+  const { content, original, diskChanged } = buffer
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -35,9 +42,17 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
   // Images and PDFs have no source worth showing; the rest toggle like Markdown.
   const viewOnly = kind === 'image' || kind === 'pdf'
   const [mode, setMode] = useState<Mode>(kind ? 'preview' : 'source')
+  /** The grammar colouring the file, so the toolbar never names one that is not. */
+  const [grammar, setGrammar] = useState<string | null>(null)
   /** Bumped when the file changes, so previews that read it from disk reload. */
   const [version, setVersion] = useState(0)
   const seen = useRef<string | null>(null)
+  /** Reads overlap now the watcher starts them too; only the newest counts. */
+  const latestRead = useRef(0)
+  /** It has been read once, so a failure now means it went, not that it never was. */
+  const opened = useRef(false)
+  /** The file has gone from the disk while open. */
+  const [deleted, setDeleted] = useState(false)
   /** Bumped to open the editor's search panel. */
   const [findNonce, setFindNonce] = useState(0)
   /** Non-zero while the preview's find bar is open; bumped to refocus it. */
@@ -45,7 +60,23 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
   const bodyRef = useRef<HTMLDivElement>(null)
 
   const dirty = content !== original
+  /** There is text to show, which may be only the start of a very large file. */
+  const readable = !!file && !file.binary
   const editable = !!file && !file.binary && !file.truncated
+
+  // From the editor's own chunk, which this tab is about to need anyway.
+  useEffect(() => {
+    if (viewOnly) return
+    let cancelled = false
+    import('../lib/editorLanguage')
+      .then(({ describeFile }) => {
+        if (!cancelled) setGrammar(describeFile(tab.path)?.name ?? null)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [tab.path, viewOnly])
 
   // A search result points at a line, which only the source shows.
   useEffect(() => {
@@ -71,8 +102,14 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
   const load = useCallback(
     async (discardEdits = false, force = false) => {
       setLoading(true)
+      const read = ++latestRead.current
       try {
-        const f = await readTextFile(absolute, tab.root)
+        const whole = await readTextFile(absolute, tab.root)
+        // Previews of images and PDFs read the file themselves.
+        const f = whole.truncated && !viewOnly ? await readTextHead(absolute, tab.root) : whole
+        if (read !== latestRead.current) return
+        opened.current = true
+        setDeleted(false)
         setFile(f)
         // Reload disk-backed previews only when the file changed (or on an
         // explicit refresh), so coming back to the tab keeps a PDF's page.
@@ -81,21 +118,41 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
         seen.current = signature
         setError(null)
         // Reloading must not silently throw away work in progress.
-        setOriginal(f.content)
-        setContent((prev) => (discardEdits || prev === '' ? f.content : prev))
+        setBuffer((b) => followDisk(b, f.content, discardEdits))
       } catch (e) {
+        // What was on screen stays there, unsaved edits above all: agents move
+        // and remove files, and saving brings this one back.
+        const gone = opened.current && !(await pathExists(absolute, tab.root).catch(() => true))
+        if (read !== latestRead.current) return
+        if (gone) {
+          setDeleted(true)
+          return
+        }
         setError(String(e))
         setFile(null)
       } finally {
         setLoading(false)
       }
     },
-    [absolute, tab.root],
+    [absolute, tab.root, viewOnly],
   )
 
   useEffect(() => {
     if (visible) void load(false)
   }, [visible, load])
+
+  // Edits undone back to a copy the disk has since left behind: with nothing
+  // left to protect, the tab can catch up.
+  useEffect(() => {
+    if (diskChanged && !dirty) void load(false)
+  }, [diskChanged, dirty, load])
+
+  // A tab behind another is read when it comes back, so only this one watches.
+  const watching = useSettings((s) => s.settings.panel.watch)
+  useFileChanges(absolute, visible && watching, () => void load(false))
+
+  const wordWrap = useSettings((s) => s.settings.editor.wordWrap)
+  const patchSettings = useSettings((s) => s.patch)
 
   useEffect(() => {
     setTabDirty(tab.id, dirty)
@@ -113,7 +170,9 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
     setSaving(true)
     try {
       await writeTextFile(absolute, content, tab.root)
-      setOriginal(content)
+      // Whatever was typed while this ran stays an edit.
+      setBuffer((b) => ({ ...b, original: content, diskChanged: false }))
+      setDeleted(false)
       seen.current = content
       setVersion((v) => v + 1)
       setNotice(t('editor.saved'))
@@ -128,7 +187,8 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
   }, [absolute, content, t, tab.root])
 
   const save = useCallback(async () => {
-    if (!dirty || saving) return
+    // Not `editable` means only part of the file is here to be written back.
+    if (!dirty || saving || !editable) return
     // Agents are editing these same files in the next tab along, so check what
     // is actually on disk before overwriting it.
     try {
@@ -141,7 +201,7 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
       // Unreadable now: fall through and let the write report the real error.
     }
     await write()
-  }, [absolute, dirty, original, saving, write])
+  }, [absolute, dirty, editable, original, saving, write])
 
   const markResolved = async () => {
     try {
@@ -155,10 +215,10 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
     }
   }
 
-  const language = languageOf(tab.path)
   const showSource = !kind || (!viewOnly && mode === 'source')
   /** Where ⌘F searches: the editor, the rendered Markdown, or nowhere. */
-  const findTarget = !editable ? null : showSource ? 'source' : kind === 'markdown' ? 'preview' : null
+  const findTarget =
+    !readable ? null : showSource ? 'source' : kind === 'markdown' && editable ? 'preview' : null
   const openFind = useCallback(() => {
     if (findTarget === 'source') setFindNonce((n) => n + 1)
     if (findTarget === 'preview') setPreviewFind((n) => n + 1)
@@ -187,9 +247,18 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
           {tab.path}
           {dirty && <span className="diff__dirty" aria-label={t('editor.unsaved')}>●</span>}
         </span>
-        {language && <span className="chip">{language}</span>}
+        {grammar && <span className="chip">{grammar}</span>}
         {file && <span className="chip">{formatBytes(file.size)}</span>}
         {notice && <span className="chip chip--ok">{notice}</span>}
+        {file?.truncated && showSource && !viewOnly && (
+          <span className="chip chip--dirty" title={t('editor.tooLarge')}>{t('editor.partial')}</span>
+        )}
+        {diskChanged && (
+          <span className="chip chip--dirty" title={t('editor.diskChangedHint')}>{t('editor.diskChanged')}</span>
+        )}
+        {deleted && (
+          <span className="chip chip--dirty" title={t('editor.deletedHint')}>{t('editor.deleted')}</span>
+        )}
         {inConflict && <span className="chip chip--dirty">{t('conflicts.count', { n: conflicts })}</span>}
         {hadConflicts && !inConflict && !dirty && (
           <button className="btn btn--sm btn--primary" onClick={() => void markResolved()}>
@@ -203,6 +272,15 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
           </>
         )}
         <span className="spacer" />
+        {showSource && readable && (
+          <button
+            className={`icon-btn${wordWrap ? ' icon-btn--on' : ''}`}
+            onClick={() => patchSettings('editor', { wordWrap: !wordWrap })}
+            aria-label={t('editor.wordWrap')} aria-pressed={wordWrap} title={t('editor.wordWrap')}
+          >
+            <WrapText size={13} />
+          </button>
+        )}
         {findTarget && (
           <button
             className="icon-btn" onClick={openFind}
@@ -231,7 +309,11 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
           </button>
         )}
         {editable && showSource && dirty && (
-          <button className="btn btn--sm" onClick={() => setContent(original)}>
+          <button
+            className="btn btn--sm"
+            // With no file to read, the last copy of it is all there is.
+            onClick={() => (deleted ? setBuffer((b) => bufferOf(b.original)) : void load(true))}
+          >
             {t('editor.revert')}
           </button>
         )}
@@ -263,20 +345,21 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
         {showSource ? (
           <>
             {file?.binary && <div className="empty">{t('diff.binary')}</div>}
-            {file?.truncated && <div className="empty">{t('diff.truncated')}</div>}
-            {editable && (
+            {readable && (
               <CodeEditor
                 value={content}
                 path={tab.path}
+                readOnly={!editable}
                 reveal={tab.reveal}
-                conflictLabels={{
+                conflictLabels={editable ? {
                   current: t('conflicts.acceptCurrent'),
                   incoming: t('conflicts.acceptIncoming'),
                   both: t('conflicts.acceptBoth'),
-                }}
-                onChange={setContent}
+                } : undefined}
+                onChange={(text) => setBuffer((b) => applyEdit(b, text))}
                 onSave={() => void save()}
                 findNonce={findNonce}
+                wordWrap={wordWrap}
               />
             )}
           </>
@@ -284,7 +367,7 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
           editable ? (
             <MarkdownPreview source={content} path={absolute} root={tab.root} />
           ) : (
-            file?.truncated && <div className="empty">{t('diff.truncated')}</div>
+            file?.truncated && <div className="empty">{t('editor.tooLarge')}</div>
           )
         ) : kind === 'svg' && editable ? (
           // From the editor's text, so the preview follows unsaved edits.
@@ -305,8 +388,7 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
           danger
           onCancel={() => {
             // Take what is on disk and drop our edits.
-            setOriginal(conflict)
-            setContent(conflict)
+            setBuffer(bufferOf(conflict))
             setConflict(null)
           }}
           onConfirm={() => void write()}

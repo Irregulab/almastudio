@@ -191,10 +191,12 @@ When a tab re-attaches to a session that is still running, it subscribes first,
 then takes a snapshot of the server-side ring buffer, and uses the offsets to
 discard exactly the batches the snapshot already covered.
 
-**Highlighting is lazy and themed.** highlight.js core plus an explicit
-language list loads as its own chunk on first use, so a session that only ever
-shows terminals never pays for it. Colours come from `--syn-*` theme tokens
-rather than a bundled stylesheet, which is why highlighting follows the theme.
+**Highlighting is lazy and themed.** Diffs use highlight.js core plus an
+explicit language list; the editor uses CodeMirror's catalogue of grammars,
+well over a hundred, each its own chunk. Both load on first use, so a session
+that only ever shows terminals never pays for them. Colours come from `--syn-*`
+theme tokens rather than a bundled stylesheet, which is why highlighting follows
+the theme.
 In diffs the syntax tokens and the word-level diff segments are two partitions
 of the same line, merged by cutting a run at every boundary from either side —
 so a renamed identifier shows as both changed *and* an identifier. Hunks are

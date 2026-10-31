@@ -9,6 +9,40 @@ release cannot be cut without one.
 
 ## [Unreleased]
 
+### Added
+
+- An open file follows the disk while you look at it, so an agent's edits
+  appear as they are made and your place in the file stays put. Unsaved edits
+  are left alone. It goes with the "Watch the filesystem for changes" setting.
+- The file editor highlights well over a hundred languages, loaded as needed.
+  Go, Kotlin, C#, Ruby, Swift, shell, TOML, INI, Lua, Dockerfile and many more
+  used to open as plain text there, and Vue, Sass, SCSS and Less now have
+  grammars of their own. Makefiles are coloured as shell; GraphQL stays plain.
+- A word wrap button in the file toolbar, for Markdown, JSON and logs with
+  long lines. The choice applies to every file and is remembered.
+- A file with unsaved edits says so when it changes on disk, with a "Changed
+  on disk" chip, rather than leaving you to find out on saving.
+- Files over 2 MB show their start, read-only, instead of only a notice, so a
+  large log or data file can be looked at without leaving the app. A large
+  binary file now says it is binary.
+
+### Fixed
+
+- A file tab shows what is on disk when you come back to it. If an agent had
+  changed the file in the meantime, the tab kept the old text, marked it as
+  unsaved, and saving replaced the agent's work without asking. Your own
+  unsaved edits are still kept, saving them still asks first, and Revert now
+  goes to what is on disk rather than to the text you started from.
+- A file deleted while open stays on screen, marked "Deleted from disk",
+  instead of giving way to an error that also hid any unsaved edits. Saving
+  them brings the file back, and the tab follows it if something else does.
+- The language shown above a file is the one colouring it. It came from a
+  separate list, so TOML said "ini", Scala said nothing, and GraphQL was named
+  while staying plain.
+- Saving a file keeps its line endings. Any edit to a file using CRLF, as many
+  do on Windows, turned every line to LF, so a one-line change showed up in git
+  as the whole file. A file mixing the two gets the one it mostly uses.
+
 ## [1.10.0] - 2026-10-31
 
 ### Added

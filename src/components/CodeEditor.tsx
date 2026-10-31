@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react'
+import type { ChangeSpec } from '@codemirror/state'
 import type { EditorView } from '@codemirror/view'
 
+import { changedRange } from '../lib/textChange'
 import type { FileReveal } from '../lib/types'
 import type { ConflictLabels } from './conflictMarkers'
 
@@ -8,8 +10,8 @@ import type { ConflictLabels } from './conflictMarkers'
  *
  * The theme is expressed entirely in `var(--…)` values, so the editor tracks
  * the app's theme with no re-initialisation — including its syntax colours,
- * which map Lezer tags onto the same `--syn-*` tokens the read-only viewer
- * and the diffs use.
+ * which map Lezer tags onto the same `--syn-*` tokens as the diffs and rendered
+ * Markdown.
  */
 
 interface Props {
@@ -24,57 +26,22 @@ interface Props {
   conflictLabels?: ConflictLabels
   /** Bumped to open the search panel (⌘F reaches the app menu, not the editor). */
   findNonce?: number
-}
-
-/** Dynamic import of just the grammar this file needs. */
-async function languageFor(path: string) {
-  const ext = (path.split('.').pop() ?? '').toLowerCase()
-  const name = (path.split(/[/\\]/).pop() ?? '').toLowerCase()
-
-  switch (ext) {
-    case 'ts': case 'mts': case 'cts':
-      return (await import('@codemirror/lang-javascript')).javascript({ typescript: true })
-    case 'tsx':
-      return (await import('@codemirror/lang-javascript')).javascript({ typescript: true, jsx: true })
-    case 'jsx':
-      return (await import('@codemirror/lang-javascript')).javascript({ jsx: true })
-    case 'js': case 'mjs': case 'cjs':
-      return (await import('@codemirror/lang-javascript')).javascript()
-    case 'json': case 'jsonc': case 'json5':
-      return (await import('@codemirror/lang-json')).json()
-    case 'rs':
-      return (await import('@codemirror/lang-rust')).rust()
-    case 'py': case 'pyi':
-      return (await import('@codemirror/lang-python')).python()
-    case 'md': case 'markdown': case 'mdx':
-      return (await import('@codemirror/lang-markdown')).markdown()
-    case 'yml': case 'yaml':
-      return (await import('@codemirror/lang-yaml')).yaml()
-    case 'html': case 'htm': case 'vue': case 'svelte':
-      return (await import('@codemirror/lang-html')).html()
-    case 'css': case 'scss': case 'less': case 'sass':
-      return (await import('@codemirror/lang-css')).css()
-    case 'sql':
-      return (await import('@codemirror/lang-sql')).sql()
-    case 'c': case 'h': case 'cpp': case 'cc': case 'hpp': case 'hh':
-      return (await import('@codemirror/lang-cpp')).cpp()
-    case 'java':
-      return (await import('@codemirror/lang-java')).java()
-    case 'php':
-      return (await import('@codemirror/lang-php')).php()
-    case 'xml': case 'svg':
-      return (await import('@codemirror/lang-xml')).xml()
-    default:
-      if (name.startsWith('dockerfile') || name === 'makefile') return null
-      return null
-  }
+  wordWrap?: boolean
 }
 
 export function CodeEditor({
-  value, path, onChange, onSave, readOnly, reveal, conflictLabels, findNonce,
+  value, path, onChange, onSave, readOnly, reveal, conflictLabels, findNonce, wordWrap,
 }: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
+  const valueRef = useRef(value)
+  valueRef.current = value
+  /** Applies text from outside the editor; set up with it. */
+  const applyExternalRef = useRef<((view: EditorView, changes: ChangeSpec) => void) | null>(null)
+  const wordWrapRef = useRef(wordWrap)
+  wordWrapRef.current = wordWrap
+  /** Turns wrapping on or off; set up with the editor. */
+  const setWrappingRef = useRef<((view: EditorView, on: boolean) => void) | null>(null)
   // The callbacks are read through refs so the editor is built once per file
   // rather than torn down whenever the parent re-renders.
   const onChangeRef = useRef(onChange)
@@ -128,7 +95,7 @@ export function CodeEditor({
 
     void (async () => {
       const [
-        { EditorState, Prec },
+        { Annotation, Compartment, EditorState, Prec, Transaction },
         { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection, rectangularSelection, crosshairCursor },
         { defaultKeymap, history, historyKeymap, indentWithTab },
         { HighlightStyle, syntaxHighlighting, indentOnInput, bracketMatching, foldGutter, foldKeymap },
@@ -136,6 +103,7 @@ export function CodeEditor({
         { closeBrackets, closeBracketsKeymap, autocompletion, completionKeymap },
         { tags },
         { conflictMarkers },
+        { languageFor },
       ] = await Promise.all([
         import('@codemirror/state'),
         import('@codemirror/view'),
@@ -145,6 +113,7 @@ export function CodeEditor({
         import('@codemirror/autocomplete'),
         import('@lezer/highlight'),
         import('./conflictMarkers'),
+        import('../lib/editorLanguage'),
       ])
       if (disposed) return
 
@@ -284,8 +253,12 @@ export function CodeEditor({
         { tag: tags.invalid, color: 'var(--red)' },
       ])
 
+      const external = Annotation.define<boolean>()
+      const wrapping = new Compartment()
+      const wrap = (on?: boolean) => (on ? EditorView.lineWrapping : [])
       const state = EditorState.create({
-        doc: value,
+        // The text may have changed while the editor was loading.
+        doc: valueRef.current,
         extensions: [
           lineNumbers(),
           highlightActiveLineGutter(),
@@ -303,6 +276,7 @@ export function CodeEditor({
           syntaxHighlighting(highlight),
           theme,
           language ? [language] : [],
+          wrapping.of(wrap(wordWrapRef.current)),
           conflictLabelsRef.current ? conflictMarkers(conflictLabelsRef.current) : [],
           EditorState.readOnly.of(!!readOnly),
           EditorView.editable.of(!readOnly),
@@ -329,7 +303,11 @@ export function CodeEditor({
             indentWithTab,
           ]),
           EditorView.updateListener.of((u) => {
-            if (u.docChanged) onChangeRef.current(u.state.doc.toString())
+            // Text from outside is not an edit, and reporting it back would
+            // make it one: the editor holds line ends as \n, so a CRLF file
+            // would come back different from the disk.
+            if (!u.docChanged || u.transactions.some((tr) => tr.annotation(external))) return
+            onChangeRef.current(u.state.doc.toString())
           }),
         ],
       })
@@ -337,6 +315,11 @@ export function CodeEditor({
       viewRef.current = new EditorView({ state, parent: host })
       viewClassRef.current = EditorView
       openSearchRef.current = openSearchPanel
+      // Out of the undo history, so undoing cannot take back an agent's edit.
+      applyExternalRef.current = (view, changes) =>
+        view.dispatch({ changes, annotations: [external.of(true), Transaction.addToHistory.of(false)] })
+      setWrappingRef.current = (view, on) =>
+        view.dispatch({ effects: wrapping.reconfigure(wrap(on)) })
       revealNow()
       openFindNow()
     })()
@@ -350,15 +333,19 @@ export function CodeEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [path, readOnly])
 
-  // External changes (a reload from disk) replace the document without
-  // disturbing the editor when the user is simply typing.
+  // External changes (a reload from disk) replace only what differs, so the
+  // view stays where it is, and do not disturb the user simply typing.
   useEffect(() => {
     const view = viewRef.current
     if (!view) return
     const current = view.state.doc.toString()
-    if (current === value) return
-    view.dispatch({ changes: { from: 0, to: current.length, insert: value } })
+    const next = value.replace(/\r\n?/g, '\n')
+    if (current !== next) applyExternalRef.current?.(view, changedRange(current, next))
   }, [value])
+
+  useEffect(() => {
+    if (viewRef.current) setWrappingRef.current?.(viewRef.current, !!wordWrap)
+  }, [wordWrap])
 
   // A new request on an editor that already exists; a first one is carried
   // out as the editor is built.

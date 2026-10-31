@@ -281,7 +281,14 @@
     "overwrite": "Overwrite",
     "discardTitle": "Unsaved changes",
     "discardBody": "“{name}” has unsaved changes. Close it anyway?",
-    "closeAnyway": "Close without saving"
+    "closeAnyway": "Close without saving",
+    "diskChanged": "Changed on disk",
+    "diskChangedHint": "The file changed on disk after you started editing it. Saving asks which version to keep, and Revert loads what is on disk.",
+    "deleted": "Deleted from disk",
+    "deletedHint": "This file no longer exists on disk. What you see is the last version read, and saving your edits brings the file back.",
+    "wordWrap": "Word wrap",
+    "partial": "Start of file, read-only",
+    "tooLarge": "This file is too large to open in full. The source view shows its start, read-only."
   },
   "exit": {
     "title": "Quit AlmaStudio?",
@@ -361,7 +368,7 @@
     "diffView": "Diff layout",
     "contextLines": "Diff context lines",
     "watch": "Watch the filesystem for changes",
-    "watchHint": "Refreshes the panel automatically. Turn off on very large repositories.",
+    "watchHint": "Refreshes the panel and open files automatically. Turn off on very large repositories.",
     "restoreTabs": "Restore tabs on start",
     "restoreScrollback": "Restore previous terminal output",
     "autoStartTabs": "Start restored tabs automatically",
