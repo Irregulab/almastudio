@@ -18,6 +18,7 @@ import { useSettings } from '../store/settings'
 import { useUi } from '../store/ui'
 import { useWorkspace } from '../store/workspace'
 import { useT } from '../i18n'
+import { AssetPreview, ImagePreview } from './AssetPreview'
 import { CodeEditor } from './CodeEditor'
 import { FileIcon } from './FileIcon'
 import { ConfirmDialog, Segmented } from './ui'
@@ -39,8 +40,8 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
   const [saving, setSaving] = useState(false)
   const [conflict, setConflict] = useState<string | null>(null)
   const kind = previewKindOf(tab.path)
-  // Images and PDFs have no source worth showing; the rest toggle like Markdown.
-  const viewOnly = kind === 'image' || kind === 'pdf'
+  // Media and PDFs have no source worth showing; the rest toggle like Markdown.
+  const viewOnly = kind === 'image' || kind === 'video' || kind === 'audio' || kind === 'pdf'
   const [mode, setMode] = useState<Mode>(kind ? 'preview' : 'source')
   /** The grammar colouring the file, so the toolbar never names one that is not. */
   const [grammar, setGrammar] = useState<string | null>(null)
@@ -237,8 +238,7 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
   }, [findTarget])
 
   // An SVG being edited is drawn from the editor's text instead (see below).
-  const assetKind =
-    kind === 'svg' ? 'image' : kind === 'image' || kind === 'pdf' || kind === 'html' ? kind : null
+  const assetKind = kind === 'svg' ? 'image' : viewOnly || kind === 'html' ? kind : null
   return (
     <div className="diff">
       <div className="diff__bar">
@@ -374,7 +374,7 @@ export function FileView({ tab, visible, focused }: { tab: FileTab; visible: boo
           <ImagePreview src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(content)}`} />
         ) : (
           assetKind && !error && (
-            <AssetPreview kind={assetKind} path={absolute} version={version} />
+            <AssetPreview kind={assetKind} path={absolute} version={version} active={visible} />
           )
         )}
       </div>
@@ -598,78 +598,6 @@ function resolveMarkdownImage(documentPath: string, source: string, root: string
     : normalizedResolved
   if (resolvedKey !== rootKey && !resolvedKey.startsWith(`${rootKey}/`)) return null
   return normalizedResolved
-}
-
-// ---------------------------------------------------- images, pdf, html ---
-
-/**
- * Images, PDFs and HTML pages, loaded straight from disk through the asset
- * protocol rather than copied over IPC: no size limit.
- */
-function AssetPreview({
-  kind, path, version,
-}: { kind: 'image' | 'pdf' | 'html'; path: string; version: number }) {
-  const t = useT()
-  const [url, setUrl] = useState<string | null>(null)
-  const [failed, setFailed] = useState<string | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    setFailed(null)
-    // Authorize only the selected file. The scope is shared by all webviews,
-    // so allowing an HTML directory would let a remote browser tab probe every
-    // file beneath it through image-load success/failure.
-    void allowPreview(path)
-      .then(() => !cancelled && setUrl(`${convertFileSrc(path)}?v=${version}`))
-      .catch((e) => !cancelled && setFailed(String(e)))
-    return () => {
-      cancelled = true
-    }
-  }, [kind, path, version])
-
-  if (failed) return <div className="empty">{failed}</div>
-  if (!url) return <div className="empty">{t('common.loading')}</div>
-  if (kind === 'image') return <ImagePreview src={url} />
-  if (kind === 'pdf') return <iframe className="preview-frame" src={url} title={path} />
-  // An empty sandbox: the page is shown, not run — no scripts, forms,
-  // pop-ups or navigating the app. Its own resources still load.
-  return (
-    <iframe className="preview-frame preview-frame--page" sandbox="" src={url} title={path} />
-  )
-}
-
-/** An image on a checkerboard; clicking switches between fit and actual size. */
-function ImagePreview({ src }: { src: string }) {
-  const t = useT()
-  const [fit, setFit] = useState(true)
-  const [size, setSize] = useState<{ w: number; h: number } | null>(null)
-  const [broken, setBroken] = useState(false)
-
-  useEffect(() => setBroken(false), [src])
-
-  if (broken) return <div className="empty">{t('view.imageError')}</div>
-  return (
-    <div className="imgview">
-      <div
-        className={`imgview__stage${fit ? ' imgview__stage--fit' : ''}`}
-        onClick={() => setFit((f) => !f)}
-      >
-        <img
-          src={src}
-          alt=""
-          draggable={false}
-          onLoad={(e) =>
-            setSize({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })
-          }
-          onError={() => setBroken(true)}
-        />
-      </div>
-      <span className="imgview__info">
-        {size && `${size.w} × ${size.h} · `}
-        {fit ? t('view.fit') : t('view.actualSize')}
-      </span>
-    </div>
-  )
 }
 
 function formatBytes(n: number): string {

@@ -1,7 +1,33 @@
 import { describe, expect, it } from 'vitest'
-import { isMarkdown, languageOf, mergeSyntaxAndWords, plainLines } from './syntax'
+import { isMarkdown, languageOf, mediaKindOf, mergeSyntaxAndWords, plainLines, previewKindOf } from './syntax'
 
 const text = (runs: { text: string }[]) => runs.map((r) => r.text).join('')
+
+describe('previewKindOf', () => {
+  it('recognises media whatever the case of the extension', () => {
+    expect(previewKindOf('docs/shot.PNG')).toBe('image')
+    expect(previewKindOf('docs/photo.heic')).toBe('image')
+    expect(previewKindOf('docs/demo.mp4')).toBe('video')
+    expect(previewKindOf('docs/Clip.MOV')).toBe('video')
+    expect(previewKindOf('docs/take.m4a')).toBe('audio')
+  })
+
+  it('leaves files it cannot show to the source view', () => {
+    expect(previewKindOf('archive.zip')).toBeNull()
+    expect(previewKindOf('mp4')).toBeNull()
+  })
+})
+
+describe('mediaKindOf', () => {
+  it('takes pictures and sound only', () => {
+    expect(mediaKindOf('a.png')).toBe('image')
+    expect(mediaKindOf('a.webm')).toBe('video')
+    expect(mediaKindOf('a.flac')).toBe('audio')
+    expect(mediaKindOf('a.pdf')).toBeNull()
+    expect(mediaKindOf('a.svg')).toBeNull()
+    expect(mediaKindOf('a.md')).toBeNull()
+  })
+})
 
 describe('languageOf', () => {
   it('maps common extensions', () => {

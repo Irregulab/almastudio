@@ -5,12 +5,13 @@ import { ExternalLink, FileText, Minus, Plus, RefreshCw, Undo2 } from 'lucide-re
 import { GIT_CHANGED_EVENT } from '../hooks/useAutoFetch'
 import { gitApplyHunk, gitDiffFile } from '../lib/ipc'
 import {
-  highlightLines, languageOf, mergeSyntaxAndWords, type MergedRun, type SynLine,
+  highlightLines, languageOf, mediaKindOf, mergeSyntaxAndWords, type MergedRun, type SynLine,
 } from '../lib/syntax'
 import { pairChangedLines, wordDiff, type Segment } from '../lib/wordDiff'
 import { useSettings } from '../store/settings'
 import { useWorkspace } from '../store/workspace'
 import { useT } from '../i18n'
+import { AssetPreview } from './AssetPreview'
 import { ConfirmDialog, Segmented } from './ui'
 import type { DiffHunk, DiffSide, DiffTab, FileDiff } from '../lib/types'
 
@@ -30,6 +31,8 @@ export function DiffView({ tab, visible }: { tab: DiffTab; visible: boolean }) {
   const [applying, setApplying] = useState(false)
   const [applyError, setApplyError] = useState<string | null>(null)
   const [confirmDiscard, setConfirmDiscard] = useState<number | null>(null)
+  /** Bumped by Refresh, so a media preview reads the file again. */
+  const [mediaVersion, setMediaVersion] = useState(0)
   const loadSeq = useRef(0)
 
   const load = useCallback(async () => {
@@ -60,6 +63,8 @@ export function DiffView({ tab, visible }: { tab: DiffTab; visible: boolean }) {
   }, [visible, load])
 
   const absolute = `${tab.root.replace(/\/+$/, '')}/${tab.path}`
+  // Only the working copy is on disk to show, which says nothing about a commit.
+  const mediaKind = !tab.target && diff?.binary ? mediaKindOf(tab.path) : null
 
   // Hunks are staged, unstaged or discarded from the working tree and staged
   // views; a commit's change, or everything against HEAD, is only looked at.
@@ -138,6 +143,7 @@ export function DiffView({ tab, visible }: { tab: DiffTab; visible: boolean }) {
             <span className="diff__stat-del">−{diff.deletions}</span>
           </span>
         )}
+        {mediaKind && side !== 'worktree' && <span className="chip">{t('view.workingCopy')}</span>}
         <span className="spacer" />
         {tab.target ? (
           // A commit's change has no working tree or index to switch between.
@@ -164,7 +170,11 @@ export function DiffView({ tab, visible }: { tab: DiffTab; visible: boolean }) {
           ]}
         />
         <button
-          className="icon-btn" onClick={() => void load()}
+          className="icon-btn"
+          onClick={() => {
+            setMediaVersion((v) => v + 1)
+            void load()
+          }}
           aria-label={t('panel.refresh')} title={t('panel.refresh')}
         >
           <RefreshCw size={13} className={loading ? 'spin' : undefined} />
@@ -190,7 +200,14 @@ export function DiffView({ tab, visible }: { tab: DiffTab; visible: boolean }) {
       <div className="diff__body">
         {error && <div className="empty">{error}</div>}
         {applyError && <div className="git__error git__error--block">{applyError}</div>}
-        {!error && diff?.binary && <div className="empty">{t('diff.binary')}</div>}
+        {!error && diff?.binary && (mediaKind ? (
+          <AssetPreview
+            kind={mediaKind} path={absolute} version={mediaVersion} active={visible}
+            fallback={<div className="empty">{t('diff.binary')}</div>}
+          />
+        ) : (
+          <div className="empty">{t('diff.binary')}</div>
+        ))}
         {!error && diff && !diff.binary && diff.hunks.length === 0 && (
           <div className="empty">{t('diff.noChanges')}</div>
         )}

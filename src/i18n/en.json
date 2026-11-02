@@ -268,8 +268,10 @@
     "fit": "Fit",
     "actualSize": "Actual size",
     "imageError": "This image could not be displayed.",
+    "mediaError": "This file could not be played here. Its format may not be supported on this system.",
     "noScripts": "Scripts off",
-    "savedOnly": "Showing the saved file"
+    "savedOnly": "Showing the saved file",
+    "workingCopy": "Showing the working copy"
   },
   "editor": {
     "save": "Save",

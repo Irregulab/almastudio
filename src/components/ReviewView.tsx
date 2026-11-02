@@ -9,11 +9,13 @@ import {
   COMMENT_KINDS, anchorLines, diffSignature, emptyReview, formatReview, lineAnchor,
   type CommentKind, type Review, type ReviewComment,
 } from '../lib/review'
+import { mediaKindOf } from '../lib/syntax'
 import { useReviews } from '../store/review'
 import { useSettings } from '../store/settings'
 import { useUi } from '../store/ui'
 import { useWorkspace } from '../store/workspace'
 import { useT } from '../i18n'
+import { AssetPreview } from './AssetPreview'
 import { UnifiedHunk, useDiffSyntax } from './DiffView'
 import { FileIcon } from './FileIcon'
 import { sessionLabel } from './Pane'
@@ -61,6 +63,8 @@ export function ReviewView({
   const [shown, setShown] = useState<{ path: string; diff: FileDiff } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [tick, setTick] = useState(0)
+  /** Bumped by Refresh only: `tick` follows every file saved, and would restart a video. */
+  const [mediaVersion, setMediaVersion] = useState(0)
   const [draft, setDraft] = useState<Draft | null>(null)
   const [finishing, setFinishing] = useState(false)
   const bodyRef = useRef<HTMLDivElement>(null)
@@ -80,6 +84,7 @@ export function ReviewView({
   const index = Math.max(0, files.findIndex((f) => f.path === selected))
   const path = files[index]?.path
   const diff = shown && shown.path === path ? shown.diff : null
+  const mediaKind = diff?.binary && path ? mediaKindOf(path) : null
   const syntax = useDiffSyntax(diff, path ?? '')
   const signature = useMemo(() => (diff ? diffSignature(diff) : null), [diff])
   const viewed = !!path && !!review.viewed[path]
@@ -354,7 +359,11 @@ export function ReviewView({
             {t('review.viewed')}
           </button>
           <button
-            className="icon-btn" onClick={() => setTick((n) => n + 1)}
+            className="icon-btn"
+            onClick={() => {
+              setMediaVersion((v) => v + 1)
+              setTick((n) => n + 1)
+            }}
             aria-label={t('panel.refresh')} title={t('panel.refresh')}
           >
             <RefreshCw size={13} />
@@ -368,7 +377,15 @@ export function ReviewView({
         <div className="diff__body" ref={bodyRef}>
           {error && <div className="empty">{error}</div>}
           {!error && status && files.length === 0 && <div className="empty">{t('panel.noChanges')}</div>}
-          {!error && diff?.binary && <div className="empty">{t('diff.binary')}</div>}
+          {!error && diff?.binary && (mediaKind && path ? (
+            <AssetPreview
+              key={path} kind={mediaKind} version={mediaVersion} active={visible}
+              path={`${root.replace(/\/+$/, '')}/${path}`}
+              fallback={<div className="empty">{t('diff.binary')}</div>}
+            />
+          ) : (
+            <div className="empty">{t('diff.binary')}</div>
+          ))}
           {!error && diff && detached.length > 0 && (
             <div className="review__detached">
               <div className="subtle">{t('review.outdated')}</div>

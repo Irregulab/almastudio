@@ -268,8 +268,10 @@
     "fit": "Adatta",
     "actualSize": "Dimensione reale",
     "imageError": "Impossibile mostrare questa immagine.",
+    "mediaError": "Impossibile riprodurre qui questo file. Il formato potrebbe non essere supportato su questo sistema.",
     "noScripts": "Script disattivati",
-    "savedOnly": "Mostra il file salvato"
+    "savedOnly": "Mostra il file salvato",
+    "workingCopy": "Mostra la copia di lavoro"
   },
   "editor": {
     "save": "Salva",

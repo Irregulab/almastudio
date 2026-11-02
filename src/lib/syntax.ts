@@ -107,9 +107,13 @@ export function languageOf(path: string): string | null {
 export const isMarkdown = (path: string) => languageOf(path) === 'markdown'
 
 /** What the file view can show besides a file's source. */
-export type PreviewKind = 'markdown' | 'html' | 'svg' | 'image' | 'pdf'
+export type PreviewKind = 'markdown' | 'html' | 'svg' | 'image' | 'video' | 'audio' | 'pdf'
 
-const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'bmp', 'ico'])
+const IMAGE_EXTENSIONS = new Set([
+  'png', 'apng', 'jpg', 'jpeg', 'jfif', 'gif', 'webp', 'avif', 'bmp', 'ico', 'tif', 'tiff', 'heic', 'heif',
+])
+const VIDEO_EXTENSIONS = new Set(['mp4', 'm4v', 'mov', 'webm', 'ogv'])
+const AUDIO_EXTENSIONS = new Set(['mp3', 'm4a', 'aac', 'wav', 'flac', 'ogg', 'oga', 'opus'])
 
 /** How a file can be previewed, or null when only its source makes sense. */
 export function previewKindOf(path: string): PreviewKind | null {
@@ -117,9 +121,17 @@ export function previewKindOf(path: string): PreviewKind | null {
   const ext = name.includes('.') ? name.split('.').pop()! : ''
   if (ext === 'pdf') return 'pdf'
   if (IMAGE_EXTENSIONS.has(ext)) return 'image'
+  if (VIDEO_EXTENSIONS.has(ext)) return 'video'
+  if (AUDIO_EXTENSIONS.has(ext)) return 'audio'
   if (ext === 'svg') return 'svg'
   if (ext === 'html' || ext === 'htm') return 'html'
   return isMarkdown(path) ? 'markdown' : null
+}
+
+/** Pictures and sound, which a diff cannot show as text but can show as they are. */
+export function mediaKindOf(path: string): 'image' | 'video' | 'audio' | null {
+  const kind = previewKindOf(path)
+  return kind === 'image' || kind === 'video' || kind === 'audio' ? kind : null
 }
 
 /**

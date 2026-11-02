@@ -25,6 +25,12 @@ release cannot be cut without one.
 - Files over 2 MB show their start, read-only, instead of only a notice, so a
   large log or data file can be looked at without leaving the app. A large
   binary file now says it is binary.
+- Video (MP4, M4V, MOV, WebM, OGV) and audio (MP3, M4A, AAC, WAV, FLAC, OGG,
+  Opus) open in a player instead of "binary file". TIFF, HEIC and JFIF images
+  join the image viewer where the system can draw them.
+- Changed images, video and audio show the file itself in the diff and in
+  Review, instead of "binary file". A commit's own change still shows no
+  preview, since only the working copy is on disk.
 
 ### Fixed
 
