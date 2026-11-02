@@ -10,8 +10,16 @@ import { randomBytes } from './random'
  */
 
 const DEVICE_KEY = 'almastudio.deviceKey'
-const DESKTOPS = 'almastudio.desktops'
+/**
+ * Readable while the phone is locked, as answering a notification from the
+ * lock screen or a watch needs; under the old name it was not, and the
+ * keychain keeps an item's protection when its value is replaced.
+ */
+const DESKTOPS = 'almastudio.desktops.v2'
+const DESKTOPS_V1 = 'almastudio.desktops'
 const PREFS = 'almastudio.prefs'
+
+const AFTER_FIRST_UNLOCK = { keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY }
 
 /** A desktop this device is paired with. */
 export interface Desktop {
@@ -65,9 +73,7 @@ export async function deviceKeyPair(): Promise<KeyPair> {
     return cachedKey
   }
   const pair = generateKeyPair(randomBytes)
-  await SecureStore.setItemAsync(DEVICE_KEY, toBase64Url(pair.privateKey), {
-    keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,
-  })
+  await SecureStore.setItemAsync(DEVICE_KEY, toBase64Url(pair.privateKey), AFTER_FIRST_UNLOCK)
   cachedKey = pair
   return pair
 }
@@ -75,14 +81,21 @@ export async function deviceKeyPair(): Promise<KeyPair> {
 export async function loadDesktops(): Promise<Desktop[]> {
   try {
     const raw = await SecureStore.getItemAsync(DESKTOPS)
-    return raw ? (JSON.parse(raw) as Desktop[]) : []
+    if (raw) return JSON.parse(raw) as Desktop[]
+    // Moved to the new name once, the old copy dropped only after.
+    const old = await SecureStore.getItemAsync(DESKTOPS_V1)
+    if (!old) return []
+    const desktops = JSON.parse(old) as Desktop[]
+    await saveDesktops(desktops)
+    await SecureStore.deleteItemAsync(DESKTOPS_V1).catch(() => {})
+    return desktops
   } catch {
     return []
   }
 }
 
 export async function saveDesktops(desktops: Desktop[]): Promise<void> {
-  await SecureStore.setItemAsync(DESKTOPS, JSON.stringify(desktops))
+  await SecureStore.setItemAsync(DESKTOPS, JSON.stringify(desktops), AFTER_FIRST_UNLOCK)
 }
 
 export async function loadPrefs(): Promise<Prefs> {
