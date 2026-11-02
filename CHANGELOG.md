@@ -9,6 +9,8 @@ release cannot be cut without one.
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-11-02
+
 ### Added
 
 - An open file follows the disk while you look at it, so an agent's edits

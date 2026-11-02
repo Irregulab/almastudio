@@ -1,9 +1,9 @@
 {
   "name": "almastudio",
   "private": true,
-  "version": "1.10.0",
+  "version": "1.11.0",
   "type": "module",
-  "description": "AlmaStudio \u2014 a multi-project desktop workspace for AI coding agents",
+  "description": "AlmaStudio — a multi-project desktop workspace for AI coding agents",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
