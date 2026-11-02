@@ -46,6 +46,8 @@ pub struct Notice {
     pub title: String,
     pub body: String,
     pub data: Value,
+    /// The app's category for the notification's buttons, if it has any.
+    pub category: Option<String>,
 }
 
 /// HTTPS here goes through rustls without a built-in crypto provider, so one
@@ -67,7 +69,7 @@ pub async fn send(tokens: Vec<String>, notice: Notice) -> Vec<String> {
     let messages: Vec<Value> = tokens
         .iter()
         .map(|to| {
-            json!({
+            let mut message = json!({
                 "to": to,
                 "title": notice.title,
                 "body": notice.body,
@@ -75,7 +77,11 @@ pub async fn send(tokens: Vec<String>, notice: Notice) -> Vec<String> {
                 "sound": "default",
                 "priority": "high",
                 "channelId": "agents",
-            })
+            });
+            if let Some(category) = &notice.category {
+                message["categoryId"] = json!(category);
+            }
+            message
         })
         .collect();
     let Ok(client) = reqwest::Client::builder()
@@ -142,7 +148,7 @@ mod tests {
     async fn reaches_the_push_service() {
         let gone = send(
             vec!["ExponentPushToken[not-a-real-token]".into()],
-            Notice { title: "t".into(), body: "b".into(), data: json!({}) },
+            Notice { title: "t".into(), body: "b".into(), data: json!({}), category: None },
         )
         .await;
         // A made-up token is refused, but the request itself goes through.

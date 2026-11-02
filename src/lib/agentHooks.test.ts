@@ -18,14 +18,18 @@ describe.skipIf(process.platform === 'win32')('agent event hooks', () => {
     sh(['-c', AGENT_EVENT_HOOK], '{"hook_event_name":"Notification","message":"hi"}', file)
     const lines = readFileSync(file, 'utf8').trim().split('\n')
     expect(lines.map((l) => JSON.parse(l).hook_event_name)).toEqual(['Stop', 'Notification'])
+    // It prints nothing: as a PermissionRequest hook that decides nothing,
+    // so Claude still asks.
+    expect(sh(['-c', AGENT_EVENT_HOOK], '{"hook_event_name":"PermissionRequest"}', file).length).toBe(0)
     // With nowhere to write it still exits 0, so Claude is never held up.
     expect(() => sh(['-c', AGENT_EVENT_HOOK], '{}', '')).not.toThrow()
   })
 
-  it('registers the hook for Notification and Stop', () => {
+  it('registers the hook for Notification, Stop and PermissionRequest', () => {
     const hooks = JSON.parse(claudeSessionSettings()).hooks
     expect(hooks.Notification[0].hooks[0].command).toBe(AGENT_EVENT_HOOK)
     expect(hooks.Stop[0].hooks[0].command).toBe(AGENT_EVENT_HOOK)
+    expect(hooks.PermissionRequest[0].hooks[0].command).toBe(AGENT_EVENT_HOOK)
   })
 
   it('gives Codex a notify program that writes its event as a line', () => {

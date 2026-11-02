@@ -70,6 +70,37 @@ Leave *enhanced push security* off in the Expo project: the computer sends
 without an access token, since a token shipped with the desktop app would not
 stay secret.
 
+### Answering from a notification
+
+On iOS an agent's notification has buttons: **Allow** and **Deny** on a
+permission prompt, **Reply** on an agent that finished or waits at its
+prompt — on the lock screen, or on an Apple Watch, where Reply takes
+dictation. Each asks for the phone to be unlocked first; a watch on the
+wrist counts.
+
+- The app wakes in the background, reaches the computer and asks it to type
+  the answer (`agent.answer`): Enter on the prompt for Allow, Escape for
+  Deny, the text and then Enter for Reply. The computer types it only while
+  the tab still waits on that very event — nothing typed into it since, from
+  anywhere, and the same run of the program — and refuses a late answer
+  rather than type it into whatever is on screen by then. The app says so in
+  a notification.
+- What a permission is for comes from Claude Code's PermissionRequest hook,
+  as in `Bash: git push`. A prompt whose request is unclear, a question
+  (AskUserQuestion, leaving plan mode), or a computer set to hide project
+  names gets no buttons.
+- iOS runs the app's JavaScript for a button while the app is suspended, but
+  not once it has been quit: with the scene life cycle React Native starts
+  only with a window. The answer then goes out the next time the app opens,
+  and the computer still refuses it if the tab moved on.
+  `modules/background-work` holds the app awake for the seconds an answer
+  takes, since iOS may suspend it as soon as expo-notifications has passed
+  the button on.
+- The list of paired computers is kept readable while the phone is locked,
+  as the device key already was, so a locked phone can answer.
+- Android shows no buttons: there an action runs straight from the lock
+  screen, without unlocking.
+
 ## Build and ship with EAS
 
 The app is the EAS project `@irregulab/almastudio-companion`; its id is in

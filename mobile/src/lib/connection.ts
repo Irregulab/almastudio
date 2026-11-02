@@ -56,7 +56,8 @@ interface ConnectionState {
   clearAttention: (tabId: string) => void
 }
 
-function hello(token?: string): Hello {
+/** What this device tells a desktop about itself when it connects. */
+export function hello(token?: string): Hello {
   return {
     name: Device.deviceName || Device.modelName || (Platform.OS === 'ios' ? 'iPhone' : 'Android'),
     platform: Platform.OS,

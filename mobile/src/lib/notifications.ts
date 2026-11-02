@@ -5,12 +5,14 @@ import * as Device from 'expo-device'
 import * as Notifications from 'expo-notifications'
 import { router } from 'expo-router'
 
+import { handleAction, showAgentNotice } from './agentActions'
 import { useConnection } from './connection'
 
 /**
  * Push notifications: an agent finished, or waits for permission or input.
  * They come from the desktop through Expo's push service while the app is
- * not connected — while it is, the desktop tells it directly instead.
+ * not connected — while it is, the desktop tells it directly instead. Their
+ * buttons are answered in `agentActions`.
  */
 
 Notifications.setNotificationHandler({
@@ -77,35 +79,20 @@ export function useNotifications() {
     if (!conn || !enabled) return
     return conn.on('agent', (e) => {
       const s = useConnection.getState()
-      if (e.tabId === s.tabId) return
-      const project = s.workspace?.projects.find((p) => p.id === e.projectId)
-      const tab = project?.tabs.find((t) => t.id === e.tabId)
-      const who = tab?.title ?? 'An agent'
-      const body =
-        e.kind === 'permission' ? e.message ?? `${who} needs your permission`
-          : e.kind === 'needs-input' ? `${who} is waiting for you`
-            : `${who} finished`
-      void Notifications.requestPermissionsAsync()
-        .then(async ({ status }) => {
-          if (status !== 'granted') return
-          await Notifications.scheduleNotificationAsync({
-          content: {
-            title: project?.name ?? 'AlmaStudio',
-            body,
-            data: { desktopId: s.activeId, projectId: e.projectId, tabId: e.tabId },
-          },
-            trigger: null,
-          })
-        })
-        .catch(() => {})
+      if (e.tabId === s.tabId || !s.activeId) return
+      showAgentNotice(s.activeId, e, s.workspace)
     })
   }, [conn, enabled])
 
-  // A notification tapped opens its tab, whether the app was running or not.
+  // A notification tapped opens its tab, whether the app was running or not;
+  // one of its buttons answers the agent instead.
   useEffect(() => {
     if (!booted) return
-    void Notifications.getLastNotificationResponseAsync().then(openFrom)
-    const sub = Notifications.addNotificationResponseReceivedListener(openFrom)
+    const respond = (r: Notifications.NotificationResponse | null) => {
+      if (r && !handleAction(r)) openFrom(r)
+    }
+    void Notifications.getLastNotificationResponseAsync().then(respond)
+    const sub = Notifications.addNotificationResponseReceivedListener(respond)
     return () => sub.remove()
   }, [booted])
 }

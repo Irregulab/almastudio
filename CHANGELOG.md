@@ -13,6 +13,12 @@ release cannot be cut without one.
 
 ### Added
 
+- Agents can be answered from the companion app's notifications on an iPhone
+  or Apple Watch, without opening the app: Allow or Deny a permission prompt,
+  or Reply to an agent that finished or is waiting. The notification says what
+  the permission is for, such as `Bash: git push`. An answer is typed into the
+  tab only if it still waits on that prompt; a late one is refused, and the
+  app says so.
 - An open file follows the disk while you look at it, so an agent's edits
   appear as they are made and your place in the file stays put. Unsaved edits
   are left alone. It goes with the "Watch the filesystem for changes" setting.

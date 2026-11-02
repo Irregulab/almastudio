@@ -72,8 +72,9 @@ of blocked threads — no Electron, no per-tab browser process.
 - **Updates** — signed over-the-air updates served from almaware.net.
 - **Companion app** — an iPhone, iPad and Android app (`mobile/`) that drives
   the computer's terminals and agents: watch and type into any tab, open and
-  restart harnesses, get notified when an agent needs you, and browse files,
-  git and search. Paired by QR code, end-to-end encrypted, on the local
+  restart harnesses, get notified when an agent needs you — and on an iPhone
+  or Apple Watch allow, deny or reply right from the notification — and
+  browse files, git and search. Paired by QR code, end-to-end encrypted, on the local
   network or through the relay (`relay/`). Get it on
   [Google Play](https://play.google.com/store/apps/details?id=com.irregulab.almastudio.app);
   the App Store release is in review. See [mobile/README.md](mobile/README.md).
