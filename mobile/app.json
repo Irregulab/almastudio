@@ -25,7 +25,7 @@
         "ITSAppUsesNonExemptEncryption": false
       },
       "appleTeamId": "TH963HHSMC",
-      "buildNumber": "7"
+      "buildNumber": "8"
     },
     "android": {
       "package": "com.irregulab.almastudio.app",
@@ -37,7 +37,7 @@
       },
       "softwareKeyboardLayoutMode": "resize",
       "predictiveBackGestureEnabled": false,
-      "versionCode": 7
+      "versionCode": 8
     },
     "plugins": [
       "expo-router",
