@@ -277,10 +277,12 @@ impl RemoteHub {
         self.broadcast(event_msg(
             "agent",
             json!({
+                "id": event.id,
                 "tabId": event.tab_id,
                 "projectId": project_id,
                 "kind": event.kind,
                 "message": event.message,
+                "answers": event.answers,
             }),
         ));
 
@@ -472,7 +474,24 @@ fn word_notice(
     push::Notice {
         title,
         body,
-        data: json!({ "desktopId": desktop_id, "projectId": project_id, "tabId": e.tab_id }),
+        data: json!({
+            "desktopId": desktop_id,
+            "projectId": project_id,
+            "tabId": e.tab_id,
+            "eventId": e.id,
+        }),
+        category: answer_category(e.answers, hide).map(String::from),
+    }
+}
+
+/// The notification category — the app's buttons — for what an event can be
+/// answered with. Allowing what the notification may not show is left out.
+fn answer_category(answers: agent_events::Answers, hide: bool) -> Option<&'static str> {
+    use agent_events::Answers;
+    match answers {
+        Answers::Decision if !hide => Some("agentPermission"),
+        Answers::Reply => Some("agentReply"),
+        _ => None,
     }
 }
 

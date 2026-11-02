@@ -60,9 +60,12 @@ export function claudeSessionSettings(): string {
         },
       ],
       // When a turn ends or Claude waits on the user, so the companion app
-      // can say so; see remote/agent_events.rs.
+      // can say so; see remote/agent_events.rs. PermissionRequest only
+      // records what is asked for — it prints no decision, so Claude still
+      // asks — which the permission's notification then shows and answers.
       Notification: [{ hooks: [{ type: 'command', command: AGENT_EVENT_HOOK }] }],
       Stop: [{ hooks: [{ type: 'command', command: AGENT_EVENT_HOOK }] }],
+      PermissionRequest: [{ hooks: [{ type: 'command', command: AGENT_EVENT_HOOK }] }],
     },
   })
 }

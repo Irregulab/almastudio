@@ -173,7 +173,30 @@ pub struct Session {
     desktop_pixels: (u16, u16),
     /// The remote client the pty is currently sized for, if any.
     remote_owner: Option<u64>,
+    /// Which run of the tab this is: a restart under the same id is another.
+    serial: u64,
+    /// Writes that carried something typed; see `InputMark`.
+    typed: u64,
 }
+
+/// Where a tab's input stands: unchanged between two looks means nobody has
+/// typed into it in between — from the desktop, the app or anywhere else —
+/// and it is the same run of the program. The terminal's own answers to the
+/// program's queries (focus, cursor position, colours) do not count.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct InputMark {
+    serial: u64,
+    typed: u64,
+}
+
+#[cfg(test)]
+impl InputMark {
+    pub fn at(serial: u64, typed: u64) -> Self {
+        InputMark { serial, typed }
+    }
+}
+
+static NEXT_SERIAL: AtomicU64 = AtomicU64::new(1);
 
 impl Session {
     pub fn is_alive(&self) -> bool {
@@ -270,6 +293,8 @@ impl PtyManager {
                 desktop_size: (opts.cols, opts.rows),
                 desktop_pixels: (0, 0),
                 remote_owner: None,
+                serial: NEXT_SERIAL.fetch_add(1, Ordering::Relaxed),
+                typed: 0,
             },
         );
         Ok(())
@@ -280,9 +305,17 @@ impl PtyManager {
         let s = guard
             .get_mut(id)
             .ok_or_else(|| anyhow::anyhow!("no session {id}"))?;
+        if is_typed(data) {
+            s.typed += 1;
+        }
         s.writer.write_all(data)?;
         s.writer.flush()?;
         Ok(())
+    }
+
+    /// Where the session's input stands now; None when it is not running.
+    pub fn input_mark(&self, id: &str) -> Option<InputMark> {
+        self.sessions.lock().get(id).map(|s| InputMark { serial: s.serial, typed: s.typed })
     }
 
     /// A resize from the desktop terminal. While a remote client owns the
@@ -388,6 +421,67 @@ impl PtyManager {
             .get(id)
             .map(|s| (s.is_alive(), s.exit_code.load(Ordering::Relaxed)))
     }
+}
+
+/// Whether input for a pty holds anything a person typed or pasted, rather
+/// than only the terminal answering the program: focus changes, cursor,
+/// device, mode and window reports, mouse reports, and OSC / DCS / APC
+/// replies (colours, capabilities, image acknowledgements). A sequence cut
+/// off before its end counts as typed, as Escape on its own is a key.
+pub fn is_typed(data: &[u8]) -> bool {
+    const ESC: u8 = 0x1b;
+    let mut i = 0;
+    while i < data.len() {
+        if data[i] != ESC {
+            return true;
+        }
+        let Some(&kind) = data.get(i + 1) else { return true };
+        match kind {
+            b'[' => {
+                // CSI: parameter bytes, intermediate bytes, one final byte.
+                let mut j = i + 2;
+                let params_at = j;
+                while data.get(j).is_some_and(|b| (0x30..=0x3f).contains(b)) {
+                    j += 1;
+                }
+                let params = &data[params_at..j];
+                let inter_at = j;
+                while data.get(j).is_some_and(|b| (0x20..=0x2f).contains(b)) {
+                    j += 1;
+                }
+                let inter = &data[inter_at..j];
+                let Some(&last) = data.get(j) else { return true };
+                let private = params.first().copied();
+                let report = match last {
+                    b'I' | b'O' => params.is_empty() && inter.is_empty(),
+                    // Cursor position, and status: no key sends these.
+                    b'R' | b'n' | b't' => inter.is_empty(),
+                    b'c' => matches!(private, Some(b'?' | b'>')),
+                    b'y' => inter == b"$",
+                    b'M' | b'm' => private == Some(b'<'),
+                    _ => false,
+                };
+                if !report {
+                    return true;
+                }
+                i = j + 1;
+            }
+            // OSC (ended by BEL or ST), DCS, APC and PM (ended by ST).
+            b']' | b'P' | b'_' | b'^' => {
+                let mut j = i + 2;
+                i = loop {
+                    match data.get(j) {
+                        None => return true,
+                        Some(0x07) if kind == b']' => break j + 1,
+                        Some(&ESC) if data.get(j + 1) == Some(&b'\\') => break j + 2,
+                        Some(_) => j += 1,
+                    }
+                };
+            }
+            _ => return true,
+        }
+    }
+    false
 }
 
 fn apply_size(s: &Session, cols: u16, rows: u16, pixels: (u16, u16)) -> anyhow::Result<()> {
@@ -799,6 +893,27 @@ mod tests {
     use super::*;
     use std::io::Read;
 
+    #[test]
+    fn tells_typing_from_terminal_reports() {
+        for typed in [
+            "a", "\r", "\x03", "\x1b", "\x1b[A", "\x1b[1;5C", "\x1b[15~", "\x1bp",
+            "\x1b[200~hi\x1b[201~", "\x1b[Ia",
+            // Cut off: Alt+Shift+P, or a reply that never ended.
+            "\x1bP", "\x1b]11;rgb:0/0/0", "\x1b[",
+        ] {
+            assert!(is_typed(typed.as_bytes()), "{typed:?} is typed");
+        }
+        for report in [
+            "", "\x1b[I", "\x1b[O", "\x1b[I\x1b[O", "\x1b[12;40R", "\x1b[?1;2c",
+            "\x1b[>0;276;0c", "\x1b[0n", "\x1b[?2004;1$y", "\x1b[8;24;80t",
+            "\x1b[<0;10;5M", "\x1b[<0;10;5m",
+            "\x1b]11;rgb:1e1e/1e1e/1e1e\x1b\\", "\x1b]10;rgb:ffff/ffff/ffff\x07",
+            "\x1b_Gi=1;OK\x1b\\", "\x1bP1+r544e\x1b\\",
+        ] {
+            assert!(!is_typed(report.as_bytes()), "{report:?} is a report");
+        }
+    }
+
     fn opts(program: &str, args: &[&str], login: bool) -> SpawnOptions {
         SpawnOptions {
             id: "t".into(),
@@ -898,7 +1013,30 @@ mod tests {
             desktop_size: (cols, rows),
             desktop_pixels: (0, 0),
             remote_owner: None,
+            serial: NEXT_SERIAL.fetch_add(1, Ordering::Relaxed),
+            typed: 0,
         }
+    }
+
+    /// The mark moves with typing, not with the terminal's own reports, and
+    /// a new run of the tab never matches the old one.
+    #[test]
+    #[cfg(not(windows))]
+    fn input_mark_follows_typing() {
+        let mgr = PtyManager::default();
+        assert_eq!(mgr.input_mark("t"), None);
+        mgr.sessions.lock().insert("t".into(), bare_session(80, 24));
+        let start = mgr.input_mark("t").unwrap();
+        mgr.write("t", b"\x1b[I\x1b[12;1R").unwrap();
+        assert_eq!(mgr.input_mark("t"), Some(start));
+        mgr.write("t", b"y").unwrap();
+        let typed = mgr.input_mark("t").unwrap();
+        assert_ne!(typed, start);
+        mgr.kill("t");
+        mgr.sessions.lock().insert("t".into(), bare_session(80, 24));
+        assert_ne!(mgr.input_mark("t").unwrap(), start);
+        assert_ne!(mgr.input_mark("t").unwrap(), typed);
+        mgr.kill_all();
     }
 
     #[cfg(not(windows))]

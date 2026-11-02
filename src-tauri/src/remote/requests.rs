@@ -184,6 +184,30 @@ fn dispatch(app: &AppHandle, client: u64, method: &str, p: Value) -> Result<Valu
             hub.register_push(app, client, None)?;
             Ok(Value::Null)
         }
+        "agent.answer" => {
+            use super::agent_events::{self, Answer};
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct AnswerParams {
+                tab_id: String,
+                event_id: u64,
+                answer: String,
+                #[serde(default)]
+                text: Option<String>,
+            }
+            let a: AnswerParams = params(p)?;
+            let answer = match a.answer.as_str() {
+                "allow" => Answer::Allow,
+                "deny" => Answer::Deny,
+                "reply" => Answer::Reply(
+                    agent_events::reply_text(a.text.as_deref().unwrap_or(""))
+                        .ok_or("nothing to send")?,
+                ),
+                other => return Err(format!("unknown answer {other}")),
+            };
+            let outcome = agent_events::answer(app, &a.tab_id, a.event_id, answer);
+            Ok(json!({ "outcome": outcome }))
+        }
         "git.repos" => {
             let ProjectParams { project_id, .. } = params(p)?;
             let root = resolve_root(&hub, &project_id, None)?;

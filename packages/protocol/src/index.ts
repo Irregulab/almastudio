@@ -153,6 +153,11 @@ export interface Methods {
     r: null
   }
   'push.unregister': { p: Record<string, never>; r: null }
+  /** Answers an agent event from its notification; see `AnswerOutcome`. */
+  'agent.answer': {
+    p: { tabId: string; eventId: number; answer: AgentAnswer; text?: string }
+    r: { outcome: AnswerOutcome }
+  }
   'git.status': { p: { projectId: string; root?: string }; r: import('../../../src/lib/types').RepoStatus }
   'git.repos': { p: { projectId: string }; r: RepoEntry[] }
   'git.diff': {
@@ -200,13 +205,36 @@ export interface SearchResults {
 
 export type AgentEventKind = 'needs-input' | 'permission' | 'finished'
 
+/**
+ * What an agent event can be answered with from its notification: allow or
+ * deny a permission prompt, or a message for an agent at its prompt.
+ */
+export type AgentAnswers = 'none' | 'decision' | 'reply'
+
+export type AgentAnswer = 'allow' | 'deny' | 'reply'
+
+/**
+ * What became of an answer: typed into the tab; the same answer already
+ * was; the tab no longer waits on that event (answered, or typed into since);
+ * the tab is not running; a prompt is open — a permission, or a form — that a
+ * message would be typed into.
+ */
+export type AnswerOutcome = 'sent' | 'already' | 'stale' | 'gone' | 'asking'
+
+/** The notification categories — sets of buttons — named in pushes. */
+export const AGENT_CATEGORY = { decision: 'agentPermission', reply: 'agentReply' } as const
+
 export interface Events {
   workspace: RemoteWorkspace
   'term.data': { tabId: string; b64: string; end: number }
   'term.exit': { tabId: string; code: number }
   'term.owner': { tabId: string } & Owner
   activity: { tabId: string; busy: boolean }
-  agent: { tabId: string; projectId: string; kind: AgentEventKind; message?: string }
+  /** `id` and `answers` come from desktops that take answers. */
+  agent: {
+    tabId: string; projectId: string; kind: AgentEventKind; message?: string
+    id?: number; answers?: AgentAnswers
+  }
 }
 
 export type EventName = keyof Events
