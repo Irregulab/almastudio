@@ -10,9 +10,7 @@ export const site = {
   releases: 'https://github.com/Irregulab/almastudio/releases/latest',
   issues: 'https://github.com/Irregulab/almastudio/issues',
   license: 'https://github.com/Irregulab/almastudio/blob/main/LICENSE',
-  // The App Store link (https://apps.apple.com/app/id<APP_ID>) once the app
-  // passes review; until then the button shows "coming soon".
-  appStore: null as string | null,
+  appStore: 'https://apps.apple.com/app/id6822382135',
   googlePlay: 'https://play.google.com/store/apps/details?id=com.irregulab.almastudio.app',
   updatesHost: 'almaware.net',
   // The date the legal pages were last changed.

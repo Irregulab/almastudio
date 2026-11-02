@@ -16,8 +16,8 @@ npm run typecheck
 ```
 
 Every outside link (GitHub, releases, App Store, Google Play, contact email)
-and the date of the legal pages live in `src/config.ts`. The App Store link
-is a placeholder until the app is live.
+and the date of the legal pages live in `src/config.ts`. The companion app is
+available on the App Store for iPhone and iPad, and on Google Play for Android.
 
 ## Build
 

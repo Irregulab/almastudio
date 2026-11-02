@@ -51,7 +51,7 @@ export const desktopApp = {
   publisher: { '@id': organization['@id'] },
 }
 
-const stores = [site.googlePlay, site.appStore].filter((url): url is string => Boolean(url))
+const stores = [site.googlePlay, site.appStore]
 
 /** The companion app, on its own page. */
 export const companionApp = {
