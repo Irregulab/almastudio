@@ -9,7 +9,7 @@ release cannot be cut without one.
 
 ## [Unreleased]
 
-## [1.11.0] - 2026-11-02
+## [1.12.0] - 2026-11-02
 
 ### Added
 
@@ -19,6 +19,20 @@ release cannot be cut without one.
   the permission is for, such as `Bash: git push`. An answer is typed into the
   tab only if it still waits on that prompt; a late one is refused, and the
   app says so.
+- The companion app shows big arrow keys, Esc and Choose when an agent waits
+  on a menu, such as a permission prompt or a question with options, with
+  the options as buttons that move the highlight. A new key bar button shows
+  the arrow keys at any time.
+
+### Fixed
+
+- Swiping in the companion app scrolls agents with a full-screen UI, which
+  used to ignore it.
+
+## [1.11.0] - 2026-11-02
+
+### Added
+
 - An open file follows the disk while you look at it, so an agent's edits
   appear as they are made and your place in the file stays put. Unsaved edits
   are left alone. It goes with the "Watch the filesystem for changes" setting.
