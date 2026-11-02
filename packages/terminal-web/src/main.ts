@@ -6,6 +6,7 @@
  *   page → app   ReactNativeWebView.postMessage(JSON)
  *                { t: 'ready' } | { t: 'size', cols, rows } | { t: 'data', data }
  *                | { t: 'text', text } | { t: 'tap' }
+ *                | { t: 'choice', choice: { options, selected } | null }
  *
  * Built into one inline HTML string by scripts/build-terminal-web.mjs.
  */
@@ -15,6 +16,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import { Unicode11Addon } from '@xterm/addon-unicode11'
 import '@xterm/xterm/css/xterm.css'
 import './page.css'
+import { findChoice } from './choice'
 
 declare global {
   interface Window {
@@ -104,15 +106,37 @@ function layout() {
 
 new ResizeObserver(() => layout()).observe(host)
 
-// Touch scrolling through the scrollback, which xterm does not do by itself.
+// Touch scrolling, which xterm does not do by itself. Over the scrollback
+// the page scrolls it; on the alternate screen, or for a program that reads
+// the mouse — an agent's full-screen UI — there is no scrollback to move, so
+// the swipe goes to xterm as wheel turns: it reports them to the program, or
+// sends arrow keys, as a mouse wheel on the desktop would.
 let touchY: number | null = null
+let touchX = 0
 let moved = false
 let carry = 0
+
+function wheel(lines: number) {
+  const target = host.querySelector('.xterm-screen') ?? host
+  const step = lines > 0 ? 1 : -1
+  for (let i = 0; i < Math.abs(lines); i++) {
+    target.dispatchEvent(new WheelEvent('wheel', {
+      deltaY: step,
+      deltaMode: WheelEvent.DOM_DELTA_LINE,
+      clientX: touchX,
+      clientY: touchY ?? 0,
+      bubbles: true,
+      cancelable: true,
+    }))
+  }
+}
+
 host.addEventListener('touchstart', (e) => {
   touchY = e.touches[0].clientY
+  touchX = e.touches[0].clientX
   moved = false
   carry = 0
-}, { passive: true })
+}, { passive: true, capture: true })
 host.addEventListener('touchmove', (e) => {
   if (touchY === null) return
   const y = e.touches[0].clientY
@@ -123,14 +147,39 @@ host.addEventListener('touchmove', (e) => {
   if (lines !== 0) {
     moved = true
     carry -= lines * lineHeight
-    term.scrollLines(lines)
+    const app = term.buffer.active.type === 'alternate' || term.modes.mouseTrackingMode !== 'none'
+    if (app) wheel(lines)
+    else term.scrollLines(lines)
   }
   e.preventDefault()
-}, { passive: false })
+}, { passive: false, capture: true })
 host.addEventListener('touchend', () => {
   if (!moved) post({ t: 'tap' })
   touchY = null
-})
+}, { capture: true })
+
+function screenLines(): string[] {
+  const buf = term.buffer.active
+  const lines: string[] = []
+  for (let i = 0; i < term.rows; i++) lines.push(buf.getLine(buf.baseY + i)?.translateToString(true) ?? '')
+  return lines
+}
+
+let lastChoice = 'null'
+let choiceTimer: ReturnType<typeof setTimeout> | null = null
+function checkChoice() {
+  if (choiceTimer) return
+  choiceTimer = setTimeout(() => {
+    choiceTimer = null
+    const choice = findChoice(screenLines())
+    const key = JSON.stringify(choice)
+    if (key === lastChoice) return
+    lastChoice = key
+    post({ t: 'choice', choice })
+  }, 120)
+}
+term.onWriteParsed(checkChoice)
+term.onResize(checkChoice)
 
 function decode(b64: string): Uint8Array {
   const bin = atob(b64)
@@ -150,6 +199,7 @@ const api = {
   },
   reset() {
     term.reset()
+    checkChoice()
   },
   setTheme(theme: ITheme, background: string) {
     term.options.theme = theme

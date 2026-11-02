@@ -28,6 +28,14 @@ interface Props {
   onCtrlUsed: () => void
   /** The session is running; otherwise its last output is shown. */
   onState: (s: { alive: boolean; exitCode: number }) => void
+  /** A menu on screen waits for a choice, or none does any more. */
+  onChoice: (choice: Choice | null) => void
+}
+
+/** A menu an agent waits on, as the terminal page reads it off the screen. */
+export interface Choice {
+  options: string[]
+  selected: number
 }
 
 /** Bytes in a base64 string, without decoding it. */
@@ -41,7 +49,7 @@ function b64Length(b64: string): number {
  * scrollback, then streams its output into xterm.js in a WebView.
  */
 export const TerminalPane = forwardRef<TerminalHandle, Props>(function TerminalPane(
-  { conn, tabId, prefs, ctrl, onCtrlUsed, onState },
+  { conn, tabId, prefs, ctrl, onCtrlUsed, onState, onChoice },
   ref,
 ) {
   const palette = usePalette()
@@ -185,9 +193,12 @@ export const TerminalPane = forwardRef<TerminalHandle, Props>(function TerminalP
         case 'tap':
           run('T.focus()')
           break
+        case 'choice':
+          onChoice((msg.choice as Choice | null) ?? null)
+          break
       }
     },
-    [claimSize, onCtrlUsed, run, send],
+    [claimSize, onChoice, onCtrlUsed, run, send],
   )
 
   const sizedElsewhere = prefs.fitMode === 'phone' && owner && !owner.mine && alive.current

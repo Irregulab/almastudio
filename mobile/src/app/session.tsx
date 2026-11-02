@@ -8,9 +8,10 @@ import { Stack, router } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 
 import type { HarnessKind, RemoteTab } from '@almastudio/protocol'
+import { ChoicePad, ARROW } from '../components/ChoicePad'
 import { ComposeSheet } from '../components/ComposeSheet'
 import { KeyBar } from '../components/KeyBar'
-import { TerminalPane, type TerminalHandle } from '../components/TerminalPane'
+import { TerminalPane, type Choice, type TerminalHandle } from '../components/TerminalPane'
 import { useConnection } from '../lib/connection'
 import { HARNESS_ICON, HARNESS_LABEL } from '../lib/harness'
 import { usePalette, type Palette } from '../lib/theme'
@@ -52,6 +53,43 @@ export default function Session() {
     }
   }, [])
   const [state, setState] = useState<{ alive: boolean; exitCode: number } | null>(null)
+
+  // The arrow pad: up by itself while an agent's menu is on screen — unless
+  // put away for that menu — and on request from the key bar.
+  // Kept with the tab it was read in, so another tab starts without one.
+  const [read, setRead] = useState<{ tabId: string; choice: Choice | null } | null>(null)
+  const choice = read && read.tabId === tabId ? read.choice : null
+  const [padPinned, setPadPinned] = useState(false)
+  const [dismissed, setDismissed] = useState<string | null>(null)
+  const choiceKey = choice ? `${tabId}\n${choice.options.join('\n')}` : null
+  const padOpen = padPinned || (choiceKey !== null && choiceKey !== dismissed)
+  const closePad = useCallback(() => {
+    setPadPinned(false)
+    setDismissed(choiceKey)
+  }, [choiceKey])
+
+  // Steps the highlight to an option one press at a time: a menu reads a
+  // burst of arrows as a single key it does not know.
+  const stepping = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => {
+    if (stepping.current) clearTimeout(stepping.current)
+  }, [])
+  const pick = useCallback(
+    (index: number) => {
+      if (!choice) return
+      if (stepping.current) clearTimeout(stepping.current)
+      const delta = index - choice.selected
+      const seq = delta > 0 ? ARROW.down : ARROW.up
+      let left = Math.abs(delta)
+      const step = () => {
+        if (left-- <= 0) return
+        term.current?.send(seq)
+        stepping.current = setTimeout(step, 60)
+      }
+      step()
+    },
+    [choice],
+  )
 
   const project = workspace?.projects.find((x) => x.id === projectId) ?? null
   const tab = project?.tabs.find((t) => t.id === tabId) ?? null
@@ -199,6 +237,7 @@ export default function Session() {
               ctrl={ctrl}
               onCtrlUsed={() => setCtrl(false)}
               onState={setState}
+              onChoice={(c) => setRead({ tabId: tab.id, choice: c })}
             />
           ) : (
             <Empty p={p} workspace={!!workspace} project={project?.name} harnesses={workspace?.harnesses ?? []} onOpen={openTab} />
@@ -219,12 +258,22 @@ export default function Session() {
         </View>
         {tab && (
           <SafeAreaView edges={['bottom']} style={{ backgroundColor: p.panel }}>
+            {padOpen && (
+              <ChoicePad
+                choice={choice}
+                onKey={(seq) => term.current?.send(seq)}
+                onPick={pick}
+                onClose={closePad}
+              />
+            )}
             <KeyBar
               ctrl={ctrl}
               onCtrl={() => setCtrl((c) => !c)}
               onKey={(seq) => term.current?.send(seq)}
               onEnter={() => term.current?.send('\r')}
               onCompose={() => setCompose(true)}
+              padOpen={padOpen}
+              onPad={() => (padOpen ? closePad() : setPadPinned(true))}
               keyboardOpen={keyboardOpen}
               onKeyboard={() => {
                 // The keyboard belongs to the terminal's text field inside the

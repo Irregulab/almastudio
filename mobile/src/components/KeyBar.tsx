@@ -27,13 +27,16 @@ interface Props {
   onCtrl: () => void
   onKey: (seq: string) => void
   onCompose: () => void
+  /** The arrow pad for an agent's menus is up: the button then hides it. */
+  padOpen: boolean
+  onPad: () => void
   /** The soft keyboard is up: the button then puts it away. */
   keyboardOpen: boolean
   onKeyboard: () => void
   onEnter: () => void
 }
 
-export function KeyBar({ ctrl, onCtrl, onKey, onCompose, keyboardOpen, onKeyboard, onEnter }: Props) {
+export function KeyBar({ ctrl, onCtrl, onKey, onCompose, padOpen, onPad, keyboardOpen, onKeyboard, onEnter }: Props) {
   const p = usePalette()
   const tap = (fn: () => void) => () => {
     void Haptics.selectionAsync().catch(() => {})
@@ -74,6 +77,13 @@ export function KeyBar({ ctrl, onCtrl, onKey, onCompose, keyboardOpen, onKeyboar
           )
         })}
       </ScrollView>
+      <Pressable
+        style={styles.icon}
+        onPress={tap(onPad)}
+        accessibilityLabel={padOpen ? 'Hide arrow keys' : 'Show arrow keys'}
+      >
+        <Ionicons name="swap-vertical" size={19} color={padOpen ? p.accent : p.muted} />
+      </Pressable>
       <Pressable style={styles.icon} onPress={tap(onCompose)} accessibilityLabel="Write a prompt">
         <Ionicons name="create-outline" size={19} color={p.muted} />
       </Pressable>
