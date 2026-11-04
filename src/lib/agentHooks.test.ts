@@ -5,11 +5,38 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
-import { AGENT_EVENT_HOOK, claudeSessionSettings, codexNotifyArgs } from './harness'
+import { AGENT_EVENT_HOOK, SESSION_RECORD_HOOK, claudeSessionSettings, codexNotifyArgs } from './harness'
 
 /** Runs a command the way Claude Code and Codex do: through `sh -c`. */
 const sh = (args: string[], input: string, file: string) =>
   execFileSync('sh', args, { input, env: { ...process.env, ALMASTUDIO_EVENTS_FILE: file } })
+
+describe.skipIf(process.platform === 'win32')('session record hook', () => {
+  const record = (input: string, file: string, kind?: string) => {
+    const env: NodeJS.ProcessEnv = { ...process.env, ALMASTUDIO_SESSION_FILE: file }
+    delete env.CLAUDE_CODE_SESSION_KIND
+    if (kind) env.CLAUDE_CODE_SESSION_KIND = kind
+    execFileSync('sh', ['-c', SESSION_RECORD_HOOK], { input, env })
+  }
+
+  it('records the tab\'s own session, and not a background one started from it', () => {
+    const file = join(mkdtempSync(join(tmpdir(), 'alma-')), 'sessions', 'tab.json')
+    record('{"session_id":"tab-session","source":"startup"}', file)
+    expect(JSON.parse(readFileSync(file, 'utf8')).session_id).toBe('tab-session')
+
+    // Claude Code's daemon starts these with the tab's environment and settings.
+    record('{"session_id":"bg-session","source":"startup"}', file, 'bg')
+    expect(JSON.parse(readFileSync(file, 'utf8')).session_id).toBe('tab-session')
+
+    record('{"session_id":"after-clear","source":"clear"}', file, 'interactive')
+    expect(JSON.parse(readFileSync(file, 'utf8')).session_id).toBe('after-clear')
+  })
+
+  it('is the SessionStart hook', () => {
+    const hooks = JSON.parse(claudeSessionSettings()).hooks
+    expect(hooks.SessionStart[0].hooks[0].command).toBe(SESSION_RECORD_HOOK)
+  })
+})
 
 describe.skipIf(process.platform === 'win32')('agent event hooks', () => {
   it('appends each Claude hook input as one line, and always succeeds', () => {

@@ -48,17 +48,7 @@ export function claudeSessionFile(stateDir: string, tabId: string): string {
 export function claudeSessionSettings(): string {
   return JSON.stringify({
     hooks: {
-      SessionStart: [
-        {
-          hooks: [
-            {
-              type: 'command',
-              command:
-                'mkdir -p "$(dirname "$ALMASTUDIO_SESSION_FILE")" && cat > "$ALMASTUDIO_SESSION_FILE"',
-            },
-          ],
-        },
-      ],
+      SessionStart: [{ hooks: [{ type: 'command', command: SESSION_RECORD_HOOK }] }],
       // When a turn ends or Claude waits on the user, so the companion app
       // can say so; see remote/agent_events.rs. PermissionRequest only
       // records what is asked for — it prints no decision, so Claude still
@@ -69,6 +59,21 @@ export function claudeSessionSettings(): string {
     },
   })
 }
+
+/**
+ * Saves the SessionStart input to the tab's record. Claude Code's background
+ * sessions, which its daemon starts from inside the tab, inherit the tab's
+ * environment and these settings, so their SessionStart fires here too and
+ * would replace the tab's session with one the tab is not on. They say what
+ * they are in CLAUDE_CODE_SESSION_KIND (`bg`); the tab's own session leaves
+ * it unset. Only that one is recorded. Stdin is read either way, so Claude
+ * never writes the input into a closed pipe.
+ */
+export const SESSION_RECORD_HOOK =
+  'case "${CLAUDE_CODE_SESSION_KIND:-interactive}" in ' +
+  'interactive) mkdir -p "$(dirname "$ALMASTUDIO_SESSION_FILE")" && cat > "$ALMASTUDIO_SESSION_FILE" ;; ' +
+  '*) cat > /dev/null ;; ' +
+  'esac'
 
 /**
  * Appends a hook's input, as one line, to the file the backend gives every
