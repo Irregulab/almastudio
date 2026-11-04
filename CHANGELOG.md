@@ -9,6 +9,18 @@ release cannot be cut without one.
 
 ## [Unreleased]
 
+## [1.12.1] - 2026-11-04
+
+### Fixed
+
+- Claude tabs come back from a restart on the conversation they were on.
+  A tab in a project you did not open during a run used to start a new
+  session the next time, and so did a tab where Claude Code had started
+  background sessions.
+- Background sessions that Claude Code starts from a tab no longer show up
+  as that tab's prompts and notifications, so the companion app no longer
+  says a tab is waiting on a prompt that is not on its screen.
+
 ## [1.12.0] - 2026-11-02
 
 ### Added
