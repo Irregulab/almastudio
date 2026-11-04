@@ -48,17 +48,7 @@ export function claudeSessionFile(stateDir: string, tabId: string): string {
 export function claudeSessionSettings(): string {
   return JSON.stringify({
     hooks: {
-      SessionStart: [
-        {
-          hooks: [
-            {
-              type: 'command',
-              command:
-                'mkdir -p "$(dirname "$ALMASTUDIO_SESSION_FILE")" && cat > "$ALMASTUDIO_SESSION_FILE"',
-            },
-          ],
-        },
-      ],
+      SessionStart: [{ hooks: [{ type: 'command', command: SESSION_RECORD_HOOK }] }],
       // When a turn ends or Claude waits on the user, so the companion app
       // can say so; see remote/agent_events.rs. PermissionRequest only
       // records what is asked for — it prints no decision, so Claude still
@@ -71,11 +61,30 @@ export function claudeSessionSettings(): string {
 }
 
 /**
+ * Ends a hook run by anything but the tab's own session. Claude Code's
+ * background sessions, which its daemon starts from inside the tab, inherit
+ * the tab's environment and these settings, so every hook here fires for
+ * them too: they would replace the tab's session record with one the tab is
+ * not on, and their turns and prompts would read as the tab's. They say what
+ * they are in CLAUDE_CODE_SESSION_KIND (`bg`); the tab's own session leaves
+ * it unset. Stdin is read before leaving, so Claude never writes the input
+ * into a closed pipe, and the exit is 0, so nothing in Claude is held up.
+ */
+const TAB_SESSION_ONLY =
+  'case "${CLAUDE_CODE_SESSION_KIND:-interactive}" in interactive) ;; *) cat > /dev/null; exit 0 ;; esac; '
+
+/** Saves the SessionStart input to the tab's record. */
+export const SESSION_RECORD_HOOK =
+  TAB_SESSION_ONLY +
+  'mkdir -p "$(dirname "$ALMASTUDIO_SESSION_FILE")" && cat > "$ALMASTUDIO_SESSION_FILE"'
+
+/**
  * Appends a hook's input, as one line, to the file the backend gives every
  * tab in ALMASTUDIO_EVENTS_FILE. Always exits 0: a failing Stop hook would
  * keep Claude from stopping.
  */
 export const AGENT_EVENT_HOOK =
+  TAB_SESSION_ONLY +
   '[ -n "$ALMASTUDIO_EVENTS_FILE" ] && mkdir -p "$(dirname "$ALMASTUDIO_EVENTS_FILE")" && ' +
   '{ tr -d \'\\n\'; echo; } >> "$ALMASTUDIO_EVENTS_FILE"; exit 0'
 

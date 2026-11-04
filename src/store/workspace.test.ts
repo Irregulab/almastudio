@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { migrateWorkspace, useWorkspace } from './workspace'
+import { migrateWorkspace, restoreTerminalTab, useWorkspace } from './workspace'
 import { allTabIds, findLeafOfTab } from '../lib/layout'
 import type { Project, TerminalTab } from '../lib/types'
 
@@ -374,5 +374,34 @@ describe('categories and pinned repositories', () => {
     expect(byName('b').pinnedRepos).toBeUndefined()
     useWorkspace.getState().togglePinnedRepo('p-a', '/tmp/a/api')
     expect(byName('a').pinnedRepos).toEqual(['/tmp/a/web'])
+  })
+})
+
+describe('restoreTerminalTab', () => {
+  const saved = (status: TerminalTab['status'], resumeOnRestore: boolean): TerminalTab => ({
+    id: 'tab-1',
+    projectId: 'p',
+    kind: 'claude',
+    cwd: '/work',
+    title: '',
+    status,
+    resumeOnRestore,
+    restored: true,
+  })
+  /** A tab carried through one more run in which it never started. */
+  const throughUnopenedRun = (tab: TerminalTab) => restoreTerminalTab(restoreTerminalTab(tab))
+
+  it('resumes a tab that was running when the app went away', () => {
+    const tab = restoreTerminalTab(saved('running', false))
+    expect(tab).toMatchObject({ status: 'idle', resumeOnRestore: true, restored: true })
+  })
+
+  it('still resumes it after a run in which its project was never opened', () => {
+    expect(throughUnopenedRun(saved('running', false)).resumeOnRestore).toBe(true)
+  })
+
+  it('does not resume a tab that exited, or one that was never started', () => {
+    expect(restoreTerminalTab(saved('exited', true)).resumeOnRestore).toBe(false)
+    expect(throughUnopenedRun(saved('idle', false)).resumeOnRestore).toBe(false)
   })
 })

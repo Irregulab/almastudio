@@ -763,6 +763,28 @@ export function migrateWorkspace(raw: unknown, exists: (tabId: string) => boolea
   return ws
 }
 
+/**
+ * A terminal tab as saved by the last run, brought back for this one.
+ * Processes never survive a restart, so it comes back idle whatever it was.
+ * It resumes when it was alive at the end of that run — asking an agent to
+ * continue a conversation that never started just makes it error out — and
+ * also when that run never started it at all: only the tabs of projects
+ * opened in a run start, so a tab whose project stayed closed is saved idle,
+ * and starting it afresh next time would drop the conversation it was on.
+ * `idle` is a tab's status only until its first start in a run.
+ */
+export function restoreTerminalTab(tab: TerminalTab): TerminalTab {
+  const wasAlive = tab.status === 'running' || tab.status === 'starting'
+  const neverStarted = tab.status === 'idle' && tab.resumeOnRestore === true
+  return {
+    ...tab,
+    resumeOnRestore: wasAlive || neverStarted,
+    status: 'idle',
+    exitCode: undefined,
+    restored: true,
+  }
+}
+
 export async function loadWorkspace(): Promise<void> {
   try {
     const raw = await stateLoad(STATE_KEY)
@@ -771,23 +793,11 @@ export async function loadWorkspace(): Promise<void> {
       return
     }
     const parsed = JSON.parse(raw) as WorkspaceState
-    // Processes never survive a restart, so every terminal tab comes back idle
-    // regardless of how it was recorded when the app went away. Only tabs that
-    // were actually alive are worth resuming: asking an agent to continue a
-    // conversation that never started just makes it error out.
     const tabs: Record<string, Tab> = {}
     for (const [id, tab] of Object.entries(parsed.tabs ?? {})) {
       // 1.2.0 showed VS Code in a tab, from a server that is no longer started.
       if (tab.kind === 'browser' && 'vscodeFolder' in tab) continue
-      tabs[id] = isTerminalTab(tab)
-        ? {
-            ...tab,
-            resumeOnRestore: tab.status === 'running' || tab.status === 'starting',
-            status: 'idle',
-            exitCode: undefined,
-            restored: true,
-          }
-        : tab
+      tabs[id] = isTerminalTab(tab) ? restoreTerminalTab(tab) : tab
     }
     const workspaces: Record<string, ProjectWorkspace> = {}
     for (const [id, ws] of Object.entries(parsed.workspaces ?? {})) {
