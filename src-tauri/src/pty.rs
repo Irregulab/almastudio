@@ -661,33 +661,32 @@ fn now_ms() -> u64 {
 /// One thread for the whole application rather than a timer per session, and
 /// it emits only on change — a terminal that has been quiet for an hour costs
 /// four comparisons a second and no IPC at all.
+///
+/// The transitions are only collected under the sessions lock and reported
+/// after it is released. Reporting reaches into other modules, and one of them
+/// comes back for this lock: an opencode tab going idle dispatches an agent
+/// event, which reads the tab's input mark. The lock is not reentrant, so this
+/// thread blocked on itself while holding it, and the next keystroke froze the
+/// main thread on it for good.
 pub fn spawn_activity_monitor(app: AppHandle) {
     thread::spawn(move || loop {
         let Some(mgr) = app.try_state::<PtyManager>() else { break };
-        let mut any = false;
-        {
+        let (any, changed) = {
             let sessions = mgr.sessions.lock();
-            any = any || !sessions.is_empty();
             let now = now_ms();
+            let mut changed = Vec::new();
             for (id, s) in sessions.iter() {
-                if !s.is_alive() {
-                    if s.busy.swap(false, Ordering::Relaxed) {
-                        let _ = app.emit(
-                            "pty://activity",
-                            ActivityPayload { id: id.clone(), busy: false },
-                        );
-                        crate::remote::on_activity(&app, id, false);
-                    }
-                    continue;
-                }
-                let quiet_for = now.saturating_sub(s.last_output.load(Ordering::Relaxed));
-                let busy = quiet_for < BUSY_WINDOW_MS;
+                let busy = s.is_alive()
+                    && now.saturating_sub(s.last_output.load(Ordering::Relaxed)) < BUSY_WINDOW_MS;
                 if s.busy.swap(busy, Ordering::Relaxed) != busy {
-                    let _ = app
-                        .emit("pty://activity", ActivityPayload { id: id.clone(), busy });
-                    crate::remote::on_activity(&app, id, busy);
+                    changed.push((id.clone(), busy));
                 }
             }
+            (!sessions.is_empty(), changed)
+        };
+        for (id, busy) in changed {
+            let _ = app.emit("pty://activity", ActivityPayload { id: id.clone(), busy });
+            crate::remote::on_activity(&app, &id, busy);
         }
         // Back right off when nothing is running.
         thread::sleep(Duration::from_millis(if any { ACTIVITY_TICK_MS } else { 2000 }));
