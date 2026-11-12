@@ -9,6 +9,15 @@ release cannot be cut without one.
 
 ## [Unreleased]
 
+## [1.12.2] - 2026-11-12
+
+### Fixed
+
+- The app no longer freezes after an OpenCode tab goes quiet. Since 1.12.0,
+  once OpenCode had printed for 20 seconds or more and then stopped, the
+  next key press or window resize could hang AlmaStudio until it was
+  force-quit.
+
 ## [1.12.1] - 2026-11-04
 
 ### Fixed
