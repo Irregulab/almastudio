@@ -41,12 +41,20 @@ const NOISY_DIRS: &[&str] = &[
     "vendor/bundle",
 ];
 
-fn is_noise(path: &Path) -> bool {
-    let s = path.to_string_lossy().replace('\\', "/");
+/// True for churn the panel never needs to hear about.
+///
+/// Only what lives *inside* a noisy directory counts: the directory itself
+/// appearing or disappearing (a build script creating `build/`) is exactly
+/// the kind of change the tree has to show. The match runs on the path
+/// relative to the watched root, so watching a folder that happens to sit
+/// inside `build/` or `dist/` does not silence it entirely.
+fn is_noise(path: &Path, root: &Path) -> bool {
+    let rel = path.strip_prefix(root).unwrap_or(path);
+    let s = format!("/{}", rel.to_string_lossy().replace('\\', "/"));
     if s.ends_with("~") || s.ends_with(".swp") || s.ends_with(".tmp") || s.ends_with("/.DS_Store") {
         return true;
     }
-    NOISY_DIRS.iter().any(|d| s.contains(&format!("/{d}/")) || s.ends_with(&format!("/{d}")))
+    NOISY_DIRS.iter().any(|d| s.contains(&format!("/{d}/")))
 }
 
 /// `.git` writes that matter (a commit, a branch switch, a staging operation)
@@ -116,6 +124,7 @@ impl WatchManager {
         watcher.watch(&root, mode)?;
 
         let app = app.clone();
+        let root_for_filter = root.clone();
         let event_name = format!("fs://changed/{id}");
         let watch_id = id.clone();
         thread::spawn(move || {
@@ -136,7 +145,7 @@ impl WatchManager {
                                   count: &mut usize| {
                     let Ok(ev) = ev else { return };
                     for p in ev.paths {
-                        if recursive && is_noise(&p) {
+                        if recursive && is_noise(&p, &root_for_filter) {
                             continue;
                         }
                         if is_git_meta(&p) {
@@ -194,4 +203,48 @@ pub fn watch_start(
 #[tauri::command]
 pub fn watch_stop(mgr: tauri::State<'_, WatchManager>, id: String) {
     mgr.stop(&id);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn noise(path: &str) -> bool {
+        is_noise(Path::new(path), Path::new("/work/proj"))
+    }
+
+    #[test]
+    fn a_noisy_folder_appearing_is_not_noise() {
+        assert!(!noise("/work/proj/app/build"));
+        assert!(!noise("/work/proj/dist"));
+        assert!(!noise("/work/proj/.gradle"));
+        assert!(!noise("/work/proj/target/debug"));
+    }
+
+    #[test]
+    fn what_happens_inside_a_noisy_folder_is_noise() {
+        assert!(noise("/work/proj/app/build/outputs/app.apk"));
+        assert!(noise("/work/proj/node_modules/x/index.js"));
+        assert!(noise("/work/proj/.git/objects/ab/cdef"));
+    }
+
+    #[test]
+    fn editor_leftovers_are_noise() {
+        assert!(noise("/work/proj/src/main.rs~"));
+        assert!(noise("/work/proj/src/.main.rs.swp"));
+        assert!(noise("/work/proj/.DS_Store"));
+    }
+
+    #[test]
+    fn real_files_pass() {
+        assert!(!noise("/work/proj/src/main.rs"));
+        assert!(!noise("/work/proj/builder/mod.rs"));
+    }
+
+    #[test]
+    fn a_root_inside_a_noisy_folder_still_reports() {
+        let root = Path::new("/work/proj/build");
+        assert!(!is_noise(Path::new("/work/proj/build/new.txt"), root));
+        assert!(is_noise(Path::new("/work/proj/build/node_modules/x"), root));
+    }
 }

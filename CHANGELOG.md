@@ -9,6 +9,13 @@ release cannot be cut without one.
 
 ## [Unreleased]
 
+### Fixed
+
+- The Files panel now shows a folder that something else creates, such as a
+  `build` folder made by a script, without a restart. Folders like `build`,
+  `dist` and `.gradle` were ignored by the watcher altogether; now only what
+  happens inside them is.
+
 ## [1.12.2] - 2026-11-12
 
 ### Fixed
