@@ -244,6 +244,9 @@ export const createFile = (path: string, root?: string) =>
   invoke<string>('create_file', { path, root: root ?? null })
 export const renamePath = (from: string, to: string, root?: string) =>
   invoke<string>('rename_path', { from, to, root: root ?? null })
+/** Copies files or folders from anywhere into a folder; returns the new paths. */
+export const copyInto = (sources: string[], destDir: string, root?: string) =>
+  invoke<string[]>('copy_into', { sources, destDir, root: root ?? null })
 /** Moves to the OS trash rather than deleting outright. */
 export const trashPath = (path: string, root?: string) =>
   invoke<void>('trash_path', { path, root: root ?? null })

@@ -394,6 +394,7 @@ pub fn run() {
             fsx::create_file,
             fsx::rename_path,
             fsx::trash_path,
+            fsx::copy_into,
             fsx::write_text_file,
             fsx::read_file_base64,
             fsx::read_terminal_image,

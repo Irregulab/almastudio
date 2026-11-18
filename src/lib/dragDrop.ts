@@ -44,6 +44,8 @@ interface DragState {
   y: number
   /** Terminal tab that a file dragged in from outside would be dropped into. */
   fileDropTab: string | null
+  /** Folder in the Files panel that a file dragged in from outside would be copied into. */
+  fileDropDir: string | null
   /**
    * Project or tab that a file dragged in from outside is held over: kept
    * there for `SPRING_DELAY` it comes to the front, so the file can then be
@@ -63,6 +65,7 @@ export const useDrag = create<DragState>(() => ({
   x: 0,
   y: 0,
   fileDropTab: null,
+  fileDropDir: null,
   springTarget: null,
 }))
 

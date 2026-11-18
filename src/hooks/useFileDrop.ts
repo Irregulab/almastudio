@@ -8,7 +8,8 @@ import { useUi } from '../store/ui'
 import { useWorkspace } from '../store/workspace'
 
 /**
- * Files dragged in from Finder or Explorer. Dropped on a terminal — a shell
+ * Files dragged in from Finder or Explorer. Dropped on the Files panel they are
+ * copied into the folder under the pointer (see FilesView). Dropped on a terminal — a shell
  * or a harness — their paths are typed into it the way a native terminal
  * does; dropped anywhere else they are ignored. Without this the webview's
  * default would navigate to the file, replacing the whole app with it.
@@ -30,6 +31,14 @@ export function useFileDrop() {
     const terminalAt = (position: { x: number; y: number }) => {
       const { x, y } = toCss(position)
       return document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-terminal-tab]') ?? null
+    }
+    /** The Files panel folder under the point: a folder row, or the row's parent. */
+    const dropDirAt = (position: { x: number; y: number }) => {
+      const { x, y } = toCss(position)
+      const el = document.elementFromPoint(x, y)
+      const dir = el?.closest<HTMLElement>('[data-drop-dir]')?.dataset.dropDir
+      const root = el?.closest<HTMLElement>('[data-drop-root]')?.dataset.dropRoot
+      return dir && root ? { dir, root } : null
     }
     /** The project or tab under the point, unless it is already in front. */
     const springAt = (position: { x: number; y: number }): SpringTarget | null => {
@@ -73,17 +82,28 @@ export function useFileDrop() {
             carryingFiles = payload.paths.length > 0
             useDrag.setState({
               fileDropTab: carryingFiles ? terminalAt(payload.position)?.dataset.terminalTab ?? null : null,
+              fileDropDir: carryingFiles ? dropDirAt(payload.position)?.dir ?? null : null,
             })
             spring(carryingFiles ? springAt(payload.position) : null)
             break
           case 'over':
             if (!carryingFiles) break
-            useDrag.setState({ fileDropTab: terminalAt(payload.position)?.dataset.terminalTab ?? null })
+            useDrag.setState({
+              fileDropTab: terminalAt(payload.position)?.dataset.terminalTab ?? null,
+              fileDropDir: dropDirAt(payload.position)?.dir ?? null,
+            })
             spring(springAt(payload.position))
             break
           case 'drop': {
             spring(null)
-            useDrag.setState({ fileDropTab: null })
+            useDrag.setState({ fileDropTab: null, fileDropDir: null })
+            const into = payload.paths.length > 0 ? dropDirAt(payload.position) : null
+            if (into) {
+              window.dispatchEvent(
+                new CustomEvent('almastudio:copy-in', { detail: { ...into, paths: payload.paths } }),
+              )
+              break
+            }
             const term = terminalAt(payload.position)
             const tabId = term?.dataset.terminalTab
             if (!term || !tabId || payload.paths.length === 0) break
@@ -98,7 +118,7 @@ export function useFileDrop() {
           }
           case 'leave':
             spring(null)
-            useDrag.setState({ fileDropTab: null })
+            useDrag.setState({ fileDropTab: null, fileDropDir: null })
             break
         }
       })

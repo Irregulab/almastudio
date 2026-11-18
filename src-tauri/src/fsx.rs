@@ -413,6 +413,81 @@ pub fn rename_path(from: String, to: String, root: Option<String>) -> Result<Str
     Ok(dst.to_string_lossy().to_string())
 }
 
+/// A name that is free in `dir`, Finder style: `a.txt` becomes `a copy.txt`,
+/// then `a copy 2.txt`. Dropping a file never overwrites what is already there.
+fn free_name(dir: &Path, name: &std::ffi::OsStr) -> PathBuf {
+    let first = dir.join(name);
+    if fs::symlink_metadata(&first).is_err() {
+        return first;
+    }
+    let as_path = Path::new(name);
+    let stem = as_path.file_stem().unwrap_or(name).to_string_lossy().to_string();
+    let ext = as_path.extension().map(|e| format!(".{}", e.to_string_lossy())).unwrap_or_default();
+    for n in 1u32.. {
+        let label = if n == 1 { " copy".to_string() } else { format!(" copy {n}") };
+        let candidate = dir.join(format!("{stem}{label}{ext}"));
+        if fs::symlink_metadata(&candidate).is_err() {
+            return candidate;
+        }
+    }
+    unreachable!()
+}
+
+/// Copies a file, a folder (recursively) or a symlink (as a link, never
+/// followed, so a link cannot pull in files from elsewhere).
+fn copy_tree(src: &Path, dst: &Path) -> std::io::Result<()> {
+    let ty = fs::symlink_metadata(src)?.file_type();
+    if ty.is_symlink() {
+        #[cfg(unix)]
+        return std::os::unix::fs::symlink(fs::read_link(src)?, dst);
+        #[cfg(not(unix))]
+        return fs::copy(src, dst).map(|_| ());
+    }
+    if ty.is_dir() {
+        fs::create_dir(dst)?;
+        for entry in fs::read_dir(src)? {
+            let entry = entry?;
+            copy_tree(&entry.path(), &dst.join(entry.file_name()))?;
+        }
+        return Ok(());
+    }
+    fs::copy(src, dst).map(|_| ())
+}
+
+/// Copies files or folders from anywhere on disk into `dest_dir`, which must
+/// lie inside `root`. Used when something is dragged in from Finder. Existing
+/// names are kept: the copy gets a free one instead. Returns the new paths.
+#[tauri::command]
+pub fn copy_into(
+    sources: Vec<String>,
+    dest_dir: String,
+    root: Option<String>,
+) -> Result<Vec<String>, String> {
+    let dest = scoped(root.as_deref(), &dest_dir)?;
+    if !dest.is_dir() {
+        return Err(format!("{} is not a folder", dest.display()));
+    }
+    let dest_real = fs::canonicalize(&dest).map_err(|e| e.to_string())?;
+    let mut created = Vec::new();
+    for source in &sources {
+        let src = checked(source)?;
+        let name = src.file_name().ok_or_else(|| format!("{source} has no name"))?;
+        let meta = fs::symlink_metadata(&src).map_err(|e| format!("{source}: {e}"))?;
+        // A folder dropped into itself (or below itself) would recurse forever.
+        if meta.is_dir() {
+            if let Ok(real) = fs::canonicalize(&src) {
+                if dest_real.starts_with(&real) {
+                    return Err(format!("cannot copy {} into itself", src.display()));
+                }
+            }
+        }
+        let target = free_name(&dest, name);
+        copy_tree(&src, &target).map_err(|e| format!("{}: {e}", src.display()))?;
+        created.push(target.to_string_lossy().to_string());
+    }
+    Ok(created)
+}
+
 /// Moves to the OS trash. Recovering a mistake should not need a backup.
 #[tauri::command]
 pub fn trash_path(path: String, root: Option<String>) -> Result<(), String> {
@@ -624,5 +699,67 @@ mod tests {
         let mut all = find("", true);
         all.sort();
         assert_eq!(all, [".env", ".gitignore", "main.rs"]);
+    }
+
+    #[test]
+    fn copy_into_keeps_existing_files_and_numbers_the_copies() {
+        let src = tempfile::tempdir().unwrap();
+        let dst = tempfile::tempdir().unwrap();
+        fs::write(src.path().join("a.txt"), "new").unwrap();
+        fs::write(dst.path().join("a.txt"), "old").unwrap();
+        let from = src.path().join("a.txt").to_string_lossy().to_string();
+        let to = dst.path().to_string_lossy().to_string();
+
+        let first = copy_into(vec![from.clone()], to.clone(), Some(to.clone())).unwrap();
+        let second = copy_into(vec![from], to.clone(), Some(to)).unwrap();
+
+        assert!(first[0].ends_with("a copy.txt"));
+        assert!(second[0].ends_with("a copy 2.txt"));
+        assert_eq!(fs::read_to_string(dst.path().join("a.txt")).unwrap(), "old");
+        assert_eq!(fs::read_to_string(&first[0]).unwrap(), "new");
+    }
+
+    #[test]
+    fn copy_into_copies_folders_recursively() {
+        let src = tempfile::tempdir().unwrap();
+        let dst = tempfile::tempdir().unwrap();
+        fs::create_dir_all(src.path().join("pkg/sub")).unwrap();
+        fs::write(src.path().join("pkg/sub/x.rs"), "x").unwrap();
+        let from = src.path().join("pkg").to_string_lossy().to_string();
+        let to = dst.path().to_string_lossy().to_string();
+
+        copy_into(vec![from], to.clone(), Some(to)).unwrap();
+
+        assert_eq!(fs::read_to_string(dst.path().join("pkg/sub/x.rs")).unwrap(), "x");
+    }
+
+    #[test]
+    fn copy_into_refuses_a_destination_outside_the_root() {
+        let src = tempfile::tempdir().unwrap();
+        let root = tempfile::tempdir().unwrap();
+        let elsewhere = tempfile::tempdir().unwrap();
+        fs::write(src.path().join("a.txt"), "").unwrap();
+        let from = src.path().join("a.txt").to_string_lossy().to_string();
+
+        let err = copy_into(
+            vec![from],
+            elsewhere.path().to_string_lossy().to_string(),
+            Some(root.path().to_string_lossy().to_string()),
+        );
+
+        assert!(err.is_err());
+    }
+
+    #[test]
+    fn copy_into_refuses_a_folder_into_itself() {
+        let root = tempfile::tempdir().unwrap();
+        fs::create_dir_all(root.path().join("a/b")).unwrap();
+        let a = root.path().join("a").to_string_lossy().to_string();
+        let b = root.path().join("a/b").to_string_lossy().to_string();
+
+        let err = copy_into(vec![a], b, Some(root.path().to_string_lossy().to_string()));
+
+        assert!(err.is_err());
+        assert!(!root.path().join("a/b/a").exists());
     }
 }

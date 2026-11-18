@@ -7,9 +7,10 @@ import {
 } from 'lucide-react'
 
 import {
-  createDir, createFile, findFiles, gitDiscard, gitStage, gitStatus, gitUnstage, listDir,
+  copyInto, createDir, createFile, findFiles, gitDiscard, gitStage, gitStatus, gitUnstage, listDir,
   onFsChange, renamePath, trashPath, watchStart, watchStop,
 } from '../lib/ipc'
+import { useDrag } from '../lib/dragDrop'
 import { GIT_CHANGED_EVENT } from '../hooks/useAutoFetch'
 import { useSettings } from '../store/settings'
 import { useWorkspace } from '../store/workspace'
@@ -578,6 +579,7 @@ function FilesView({
   const [menu, setMenu] = useState<{ anchor: HTMLElement; target: FsTarget } | null>(null)
   const [dialog, setDialog] = useState<FsDialog | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const rootDrop = useDrag((s) => s.fileDropDir === root)
 
   // A non-empty filter switches the tree out for a flat ranked search.
   useEffect(() => {
@@ -609,6 +611,18 @@ function FilesView({
     },
     [onChanged, t],
   )
+
+  // Files dragged in from Finder (see useFileDrop) land in the folder they were
+  // dropped on. The panel owns the copy so a failure shows in its error bar.
+  useEffect(() => {
+    const onCopyIn = (e: Event) => {
+      const { root: target, dir, paths } = (e as CustomEvent<{ root: string; dir: string; paths: string[] }>).detail
+      if (target !== root) return
+      void run(copyInto(paths, dir, root))
+    }
+    window.addEventListener('almastudio:copy-in', onCopyIn)
+    return () => window.removeEventListener('almastudio:copy-in', onCopyIn)
+  }, [root, run])
 
   const join = (dir: string, name: string) => `${dir.replace(/\/+$/, '')}/${name}`
 
@@ -654,7 +668,10 @@ function FilesView({
 
       {error && <div className="files__error">{error}</div>}
 
-      <div className="files__tree">
+      <div
+        className={`files__tree${rootDrop ? ' files__tree--drop' : ''}`}
+        data-drop-dir={root} data-drop-root={root}
+      >
         {results ? (
           results.length === 0 ? (
             <div className="empty">{t('panel.emptyFolder')}</div>
@@ -815,6 +832,8 @@ function TreeNode({
   const [open, setOpen] = useState(!!defaultOpen)
   const [entries, setEntries] = useState<DirEntryInfo[] | null>(null)
   const loadedFor = useRef('')
+  /** An outside file is held over this folder: it is where the drop would go. */
+  const dropTarget = useDrag((s) => name !== undefined && s.fileDropDir === dir)
   /** The last command carried out, so it is not carried out twice. */
   const applied = useRef(0)
 
@@ -845,7 +864,9 @@ function TreeNode({
     <>
       {name !== undefined && (
         <button
-          className="treerow" style={{ paddingLeft: 6 + depth * 12 }}
+          className={`treerow${dropTarget ? ' treerow--drop' : ''}`}
+          style={{ paddingLeft: 6 + depth * 12 }}
+          data-drop-dir={dir}
           onClick={() => setOpen((o) => !o)}
           onContextMenu={(ev) => {
             ev.preventDefault()
@@ -869,6 +890,7 @@ function TreeNode({
             <button
               key={e.path} className="treerow"
               style={{ paddingLeft: 6 + childDepth * 12 + 14 }}
+              data-drop-dir={dir}
               // A click previews the file, a double click keeps it open, as in VS Code.
               onClick={() => openFileTab({ projectId, root, path: e.rel, preview: true })}
               onDoubleClick={() => openFileTab({ projectId, root, path: e.rel })}

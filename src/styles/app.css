@@ -532,6 +532,9 @@
   min-width: 0;
 }
 .treerow:hover { background: var(--bg-hover); }
+/* A file dragged in from outside is held over this folder (or the root). */
+.treerow--drop { box-shadow: inset 0 0 0 1px var(--accent); background: var(--bg-hover); }
+.files__tree--drop { box-shadow: inset 0 0 0 1px var(--accent); }
 
 .git { padding-bottom: var(--sp-5); }
 .git__branch {

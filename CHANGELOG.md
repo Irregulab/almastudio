@@ -9,6 +9,14 @@ release cannot be cut without one.
 
 ## [Unreleased]
 
+### Added
+
+- Files dragged in from Finder, Explorer or another app can be dropped on the
+  Files panel to copy them into a folder: onto a folder row, onto a file
+  (its folder), or onto the empty space for the top folder. The target is
+  outlined while you drag. A name that is already taken is never overwritten:
+  the copy is called `name copy.ext`, then `name copy 2.ext`.
+
 ### Fixed
 
 - The Files panel now shows a folder that something else creates, such as a
