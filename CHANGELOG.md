@@ -9,6 +9,8 @@ release cannot be cut without one.
 
 ## [Unreleased]
 
+## [1.13.0] - 2026-11-18
+
 ### Added
 
 - Files dragged in from Finder, Explorer or another app can be dropped on the
