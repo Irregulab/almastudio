@@ -9,6 +9,16 @@ release cannot be cut without one.
 
 ## [Unreleased]
 
+## [1.13.1] - 2026-11-25
+
+### Added
+
+- A Claude Code tab's menu can switch it between Claude's standard view and
+  its fullscreen view. Fullscreen passes the mouse on to Claude Code, which
+  the buttons under pictures, videos and documents it shows (View, Save to
+  Downloads, Original and Updated) need to answer clicks. The switch restarts
+  into the same conversation and is remembered for new tabs.
+
 ## [1.13.0] - 2026-11-18
 
 ### Added
