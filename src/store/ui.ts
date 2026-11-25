@@ -15,6 +15,12 @@ interface UiState {
    * backend re-derives it as soon as a session starts.
    */
   busyTabs: Record<string, boolean>
+  /**
+   * Claude Code tabs showing its fullscreen view (the alternate screen, with
+   * the mouse reported to it) rather than the standard one. Read off the
+   * terminal itself, so it follows `/tui` however it was run.
+   */
+  fullscreenTabs: Record<string, boolean>
   /** Tabs with unsaved edits, so the tab strip can mark them. */
   dirtyTabs: Record<string, boolean>
   /**
@@ -37,6 +43,7 @@ interface UiState {
   setSettingsSection: (section: SettingsSection) => void
   setNewProjectOpen: (v: boolean) => void
   setTabBusy: (id: string, busy: boolean) => void
+  setTabFullscreen: (id: string, fullscreen: boolean) => void
   clearTabBusy: (id: string) => void
   setTabDirty: (id: string, dirty: boolean) => void
   pushOverlay: () => void
@@ -49,6 +56,7 @@ export const useUi = create<UiState>((set) => ({
   settingsSection: 'appearance',
   newProjectOpen: false,
   busyTabs: {},
+  fullscreenTabs: {},
   dirtyTabs: {},
   overlays: 0,
   zoom: 1,
@@ -62,6 +70,14 @@ export const useUi = create<UiState>((set) => ({
   setNewProjectOpen: (v) => set({ newProjectOpen: v }),
   setTabBusy: (id, busy) =>
     set((s) => (s.busyTabs[id] === busy ? s : { busyTabs: { ...s.busyTabs, [id]: busy } })),
+  setTabFullscreen: (id, fullscreen) =>
+    set((s) => {
+      if (!!s.fullscreenTabs[id] === fullscreen) return s
+      const next = { ...s.fullscreenTabs }
+      if (fullscreen) next[id] = true
+      else delete next[id]
+      return { fullscreenTabs: next }
+    }),
   clearTabBusy: (id) =>
     set((s) => {
       if (!(id in s.busyTabs)) return s

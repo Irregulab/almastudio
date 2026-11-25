@@ -2,10 +2,10 @@ import { useCallback, useState } from 'react'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import {
   Bot, ChevronDown, Columns2, FileDiff, FileText, FolderOpen, GitGraph, Globe, Loader2,
-  MessageSquareDiff, PanelsTopLeft, RotateCw, Rows2, Sparkles, Square, SquareCode, Terminal, X,
+  MessageSquareDiff, Maximize2, Minimize2, PanelsTopLeft, RotateCw, Rows2, Sparkles, Square, SquareCode, Terminal, X,
 } from 'lucide-react'
 
-import { ptyKill } from '../lib/ipc'
+import { ptyKill, ptyWrite } from '../lib/ipc'
 import { useDrag } from '../lib/dragDrop'
 import { defaultTabTitle } from '../lib/harness'
 import { isLeaf } from '../lib/layout'
@@ -187,6 +187,21 @@ export function SessionMenuItems({
 }: { tab: Tab; onPick: () => void; onRename: () => void }) {
   const t = useT()
   const setTabCwd = useWorkspace((s) => s.setTabCwd)
+  const fullscreen = useUi((s) => !!s.fullscreenTabs[tab.id])
+  const busy = useUi((s) => !!s.busyTabs[tab.id])
+
+  /**
+   * Claude Code's own `/tui` switches its view — and restarts into the same
+   * session — so it is typed at the prompt. Fullscreen is the view that
+   * reports the mouse, which the buttons on its previews need. Ctrl+U first,
+   * so a half-written prompt is not sent along with it.
+   */
+  const switchView = () => {
+    void ptyWrite(tab.id, '\x15').catch(() => {})
+    window.dispatchEvent(new CustomEvent('almastudio:paste', {
+      detail: { tabId: tab.id, text: `/tui ${fullscreen ? 'classic' : 'fullscreen'}`, submit: true },
+    }))
+  }
 
   const changeFolder = async () => {
     if (!isTerminalTab(tab)) return
@@ -204,6 +219,14 @@ export function SessionMenuItems({
             label={t('tabs.changeFolder')}
             onClick={() => { onPick(); void changeFolder() }}
           />
+          {tab.kind === 'claude' && (
+            <MenuItem
+              icon={fullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+              label={t(fullscreen ? 'tabs.standardView' : 'tabs.fullscreenView')}
+              disabled={tab.status !== 'running' || busy}
+              onClick={() => { onPick(); switchView() }}
+            />
+          )}
           <MenuSeparator />
           <MenuItem
             icon={<RotateCw size={13} />}

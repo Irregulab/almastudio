@@ -99,6 +99,8 @@
     "restart": "Riavvia",
     "stop": "Ferma",
     "changeFolder": "Cambia cartella…",
+    "fullscreenView": "Passa alla vista a schermo intero",
+    "standardView": "Passa alla vista standard",
     "splitRight": "Dividi a destra",
     "splitDown": "Dividi in basso",
     "closeOthers": "Chiudi le altre",

@@ -99,6 +99,8 @@
     "restart": "Restart",
     "stop": "Stop",
     "changeFolder": "Change folder…",
+    "fullscreenView": "Switch to fullscreen view",
+    "standardView": "Switch to standard view",
     "splitRight": "Split right",
     "splitDown": "Split down",
     "closeOthers": "Close others",

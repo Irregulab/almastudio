@@ -23,6 +23,7 @@ import { useDrag } from '../lib/dragDrop'
 import { useSettings } from '../store/settings'
 import { useWorkspace } from '../store/workspace'
 import { useRemote } from '../store/remote'
+import { useUi } from '../store/ui'
 import { useTheme } from '../hooks/useTheme'
 import { useT } from '../i18n'
 import { TerminalImages } from '../lib/terminalImages'
@@ -202,6 +203,11 @@ export function TerminalView({ tab, visible, focused }: Props) {
     term.open(host)
 
     termRef.current = term
+    // Claude Code's fullscreen view lives on the alternate screen; the pane
+    // menu offers the switch the other way round.
+    const watchScreen = tab.kind === 'claude'
+      ? term.buffer.onBufferChange((b) => useUi.getState().setTabFullscreen(tab.id, b.type === 'alternate'))
+      : null
     fitRef.current = fit
     searchRef.current = search
     const searchResults = search.onDidChangeResults((r) =>
@@ -510,6 +516,8 @@ export function TerminalView({ tab, visible, focused }: Props) {
       markSized()
       osc7.dispose()
       onData.dispose()
+      watchScreen?.dispose()
+      useUi.getState().setTabFullscreen(tab.id, false)
       onResize.dispose()
       searchResults.dispose()
       for (const un of unlisteners) un()
