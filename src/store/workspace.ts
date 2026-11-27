@@ -3,6 +3,7 @@ import {
   browserClose, ptyKill, scrollbackForget, scrollbackPrune, stateLoad, stateSave,
 } from '../lib/ipc'
 import { uid } from '../lib/id'
+import { MAX_PIN_LENGTH, normalize } from '../lib/pinnedMessages'
 import { categoryOf } from '../lib/projectGroups'
 import { useUi } from './ui'
 import {
@@ -109,6 +110,15 @@ interface WorkspaceStore extends WorkspaceState {
   setTabCwd: (tabId: string, cwd: string) => void
   setTabStatus: (tabId: string, status: TerminalStatus, exitCode?: number) => void
   setTabResume: (tabId: string, resume: boolean) => void
+  /**
+   * Keeps a message in view above a terminal: a request to Claude Code, or
+   * with `selection` text selected in the terminal. Pinning one already
+   * pinned does nothing.
+   */
+  pinMessage: (tabId: string, text: string, selection?: boolean) => void
+  unpinMessage: (tabId: string, pinId: string) => void
+  /** Unpins every message of a terminal, whose conversation has started over. */
+  clearPins: (tabId: string) => void
 
   // tabs in the strip
   setActiveGroup: (groupId: string) => void
@@ -586,6 +596,34 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
       const tab = s.tabs[tabId]
       if (!tab || !isTerminalTab(tab)) return {}
       return { tabs: { ...s.tabs, [tabId]: { ...tab, resumeOnRestore: resume } } }
+    }),
+
+  pinMessage: (tabId, text, selection) =>
+    set((s) => {
+      const tab = s.tabs[tabId]
+      const kept = text.trim().slice(0, MAX_PIN_LENGTH)
+      if (!tab || !isTerminalTab(tab) || !kept) return {}
+      const pins = tab.pins ?? []
+      if (pins.some((p) => normalize(p.text) === normalize(kept))) return {}
+      const pin = { id: uid('pin'), text: kept, at: Date.now(), ...(selection && { selection }) }
+      return { tabs: { ...s.tabs, [tabId]: { ...tab, pins: [...pins, pin] } } }
+    }),
+
+  unpinMessage: (tabId, pinId) =>
+    set((s) => {
+      const tab = s.tabs[tabId]
+      if (!tab || !isTerminalTab(tab) || !tab.pins?.some((p) => p.id === pinId)) return {}
+      const pins = tab.pins.filter((p) => p.id !== pinId)
+      return {
+        tabs: { ...s.tabs, [tabId]: { ...tab, pins: pins.length ? pins : undefined } },
+      }
+    }),
+
+  clearPins: (tabId) =>
+    set((s) => {
+      const tab = s.tabs[tabId]
+      if (!tab || !isTerminalTab(tab) || !tab.pins) return {}
+      return { tabs: { ...s.tabs, [tabId]: { ...tab, pins: undefined } } }
     }),
 
   // ------------------------------------------------------- tabs in the strip --

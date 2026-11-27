@@ -171,8 +171,8 @@ pub fn scrollback_of(app: &AppHandle, mgr: &PtyManager, id: &str) -> Result<Scro
     })
 }
 
-/// Drops scrollback, and Claude session records, for tabs the workspace no
-/// longer contains.
+/// Drops scrollback, Claude session records and request histories, for tabs
+/// the workspace no longer contains.
 #[tauri::command]
 pub fn scrollback_prune(app: AppHandle, keep: Vec<String>) -> Result<(), String> {
     let dir = scrollback_dir(&app).map_err(|e| e.to_string())?;
@@ -182,6 +182,9 @@ pub fn scrollback_prune(app: AppHandle, keep: Vec<String>) -> Result<(), String>
     }
     if let Ok(dir) = state_dir(&app) {
         prune_dir(&dir.join("events"), "jsonl", &keep);
+    }
+    if let Ok(dir) = crate::prompt_history::prompts_dir(&app) {
+        prune_dir(&dir, "jsonl", &keep);
     }
     Ok(())
 }
@@ -207,6 +210,9 @@ pub fn scrollback_forget(app: AppHandle, id: String) -> Result<(), String> {
     }
     if let Ok(dir) = state_dir(&app) {
         let _ = fs::remove_file(dir.join("events").join(format!("{}.jsonl", safe_key(&id))));
+    }
+    if let Ok(dir) = crate::prompt_history::prompts_dir(&app) {
+        let _ = fs::remove_file(dir.join(format!("{}.jsonl", safe_key(&id))));
     }
     Ok(())
 }

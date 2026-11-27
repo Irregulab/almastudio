@@ -136,6 +136,23 @@
     "results": "{i} di {n}",
     "noResults": "Nessun risultato"
   },
+  "pins": {
+    "pin": "Fissa il messaggio",
+    "pinSelection": "Fissa la selezione",
+    "unpin": "Togli dai fissati",
+    "show": "Mostra nel terminale",
+    "seeking": "Lo cerco nella conversazione…",
+    "lost": "Non lo trovo più",
+    "all": "Tutti i messaggi fissati"
+  },
+  "history": {
+    "title": "Richieste inviate",
+    "search": "Cerca nelle richieste…",
+    "none": "Nessuna richiesta trovata",
+    "insert": "Rimetti nel prompt",
+    "copy": "Copia",
+    "copied": "Copiato"
+  },
   "panel": {
     "changes": "Modifiche",
     "files": "File",

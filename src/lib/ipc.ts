@@ -4,7 +4,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import type {
   AppInfo, BranchInfo, ChangedFile, CommitDetails, CommitFile, DiffSide, DirEntryInfo,
-  FileContent, FileDiff, GraphCommit, RepoStatus, StashInfo, TagInfo,
+  FileContent, FileDiff, GraphCommit, RepoStatus, SentPrompt, StashInfo, TagInfo,
 } from './types'
 
 // ------------------------------------------------------------------ app ----
@@ -93,6 +93,17 @@ export const scrollbackLoad = async (id: string): Promise<Scrollback> => {
 }
 export const scrollbackPrune = (keep: string[]) => invoke<void>('scrollback_prune', { keep })
 export const scrollbackForget = (id: string) => invoke<void>('scrollback_forget', { id })
+
+/** The requests sent to Claude Code from a tab, oldest first. */
+export const promptHistory = (id: string) => invoke<SentPrompt[]>('prompt_history', { id })
+/** A request sent from any tab, as soon as its hook has run. */
+export const onAgentPrompt = (
+  cb: (p: { tabId: string; prompt: SentPrompt }) => void,
+): Promise<UnlistenFn> =>
+  listen<{ tabId: string; prompt: SentPrompt }>('agent://prompt', (e) => cb(e.payload))
+/** A tab's Claude conversation started over — afresh or after /clear — and its requests were dropped. */
+export const onConversationReset = (cb: (tabId: string) => void): Promise<UnlistenFn> =>
+  listen<{ tabId: string }>('agent://conversation-reset', (e) => cb(e.payload.tabId))
 
 // ------------------------------------------------------------------ git ----
 

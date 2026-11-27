@@ -48,7 +48,14 @@ export function claudeSessionFile(stateDir: string, tabId: string): string {
 export function claudeSessionSettings(): string {
   return JSON.stringify({
     hooks: {
-      SessionStart: [{ hooks: [{ type: 'command', command: SESSION_RECORD_HOOK }] }],
+      SessionStart: [{
+        hooks: [
+          { type: 'command', command: SESSION_RECORD_HOOK },
+          // Also as an event: a conversation started afresh or after /clear
+          // takes the tab's pins and requests with it; see prompt_history.rs.
+          { type: 'command', command: AGENT_EVENT_HOOK },
+        ],
+      }],
       // When a turn ends or Claude waits on the user, so the companion app
       // can say so; see remote/agent_events.rs. PermissionRequest only
       // records what is asked for — it prints no decision, so Claude still
@@ -56,6 +63,9 @@ export function claudeSessionSettings(): string {
       Notification: [{ hooks: [{ type: 'command', command: AGENT_EVENT_HOOK }] }],
       Stop: [{ hooks: [{ type: 'command', command: AGENT_EVENT_HOOK }] }],
       PermissionRequest: [{ hooks: [{ type: 'command', command: AGENT_EVENT_HOOK }] }],
+      // Each request sent, for the tab's list of them; see prompt_history.rs.
+      // It prints nothing: what this hook prints goes to Claude with the request.
+      UserPromptSubmit: [{ hooks: [{ type: 'command', command: AGENT_EVENT_HOOK }] }],
     },
   })
 }

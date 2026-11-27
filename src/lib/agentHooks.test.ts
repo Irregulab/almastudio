@@ -75,11 +75,21 @@ describe.skipIf(process.platform === 'win32')('agent event hooks', () => {
     expect(lines.map((l) => JSON.parse(l).session_id)).toEqual(['tab', 'tab'])
   })
 
-  it('registers the hook for Notification, Stop and PermissionRequest', () => {
+  it('registers the hook for Notification, Stop, PermissionRequest and UserPromptSubmit', () => {
     const hooks = JSON.parse(claudeSessionSettings()).hooks
     expect(hooks.Notification[0].hooks[0].command).toBe(AGENT_EVENT_HOOK)
     expect(hooks.Stop[0].hooks[0].command).toBe(AGENT_EVENT_HOOK)
     expect(hooks.PermissionRequest[0].hooks[0].command).toBe(AGENT_EVENT_HOOK)
+    expect(hooks.UserPromptSubmit[0].hooks[0].command).toBe(AGENT_EVENT_HOOK)
+    // After the session record, so a new conversation can be told from one going on.
+    expect(hooks.SessionStart[0].hooks[1].command).toBe(AGENT_EVENT_HOOK)
+  })
+
+  it('records a request sent, printing nothing that would go to Claude with it', () => {
+    const file = join(mkdtempSync(join(tmpdir(), 'alma-')), 'events', 'tab.jsonl')
+    const input = JSON.stringify({ hook_event_name: 'UserPromptSubmit', prompt: 'two\nlines' }, null, 2)
+    expect(sh(['-c', AGENT_EVENT_HOOK], input, file).length).toBe(0)
+    expect(JSON.parse(readFileSync(file, 'utf8').trim()).prompt).toBe('two\nlines')
   })
 
   it('gives Codex a notify program that writes its event as a line', () => {

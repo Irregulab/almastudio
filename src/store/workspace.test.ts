@@ -405,3 +405,77 @@ describe('restoreTerminalTab', () => {
     expect(throughUnopenedRun(saved('idle', false)).resumeOnRestore).toBe(false)
   })
 })
+
+describe('pinned messages', () => {
+  const pid = 'p-x'
+  const store = () => useWorkspace.getState()
+  const pins = (tabId: string) => (store().tabs[tabId] as TerminalTab).pins
+
+  beforeEach(() => {
+    useWorkspace.setState({
+      projects: [project('x')],
+      tabs: {},
+      workspaces: {},
+      activeProjectId: pid,
+      loaded: true,
+    })
+  })
+
+  it('keeps pins in the order they were pinned, each once whatever its wrapping', () => {
+    const tab = store().addTerminalTab({ projectId: pid, kind: 'claude', cwd: '/tmp/x' })
+    store().pinMessage(tab.id, 'fix the\nlogin page')
+    store().pinMessage(tab.id, 'and the signup one')
+    store().pinMessage(tab.id, '  fix the login   page ')
+    expect(pins(tab.id)?.map((p) => p.text)).toEqual(['fix the\nlogin page', 'and the signup one'])
+  })
+
+  it('unpins all of a tab\'s messages at once, when its conversation starts over', () => {
+    const tab = store().addTerminalTab({ projectId: pid, kind: 'claude', cwd: '/tmp/x' })
+    store().pinMessage(tab.id, 'one')
+    store().pinMessage(tab.id, 'two')
+    store().clearPins(tab.id)
+    expect(pins(tab.id)).toBeUndefined()
+    const before = store().tabs
+    store().clearPins(tab.id)
+    store().clearPins('no-such-tab')
+    expect(store().tabs).toBe(before)
+  })
+
+  it('pins nothing blank, and nothing on a tab that is not a terminal', () => {
+    const tab = store().addTerminalTab({ projectId: pid, kind: 'shell', cwd: '/tmp/x' })
+    store().pinMessage(tab.id, ' \n ')
+    expect(pins(tab.id)).toBeUndefined()
+    const before = store().tabs
+    store().pinMessage('no-such-tab', 'text')
+    expect(store().tabs).toBe(before)
+  })
+
+  it('remembers which pins are selections, to find them by their words', () => {
+    const tab = store().addTerminalTab({ projectId: pid, kind: 'shell', cwd: '/tmp/x' })
+    store().pinMessage(tab.id, 'a request')
+    store().pinMessage(tab.id, 'npm run build', true)
+    expect(pins(tab.id)?.map((p) => p.selection)).toEqual([undefined, true])
+  })
+
+  it('unpins one, and leaves no empty list behind', () => {
+    const tab = store().addTerminalTab({ projectId: pid, kind: 'claude', cwd: '/tmp/x' })
+    store().pinMessage(tab.id, 'one')
+    store().pinMessage(tab.id, 'two')
+    const [one, two] = pins(tab.id)!
+    store().unpinMessage(tab.id, one.id)
+    expect(pins(tab.id)).toEqual([two])
+    store().unpinMessage(tab.id, two.id)
+    expect(pins(tab.id)).toBeUndefined()
+  })
+
+  it('does not carry pins into the session a split opens', () => {
+    const tab = store().addTerminalTab({ projectId: pid, kind: 'claude', cwd: '/tmp/x' })
+    store().pinMessage(tab.id, 'one')
+    const pane = store().workspaces[pid].groups[0].layout
+    if (pane.type !== 'leaf') throw new Error('expected one pane')
+    store().splitPane(pane.id, 'row')
+    const others = Object.values(store().tabs).filter((t) => t.id !== tab.id)
+    expect(others).toHaveLength(1)
+    expect((others[0] as TerminalTab).pins).toBeUndefined()
+  })
+})
