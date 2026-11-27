@@ -9,6 +9,8 @@ release cannot be cut without one.
 
 ## [Unreleased]
 
+## [1.13.2] - 2026-11-27
+
 ### Added
 
 - Messages can be pinned above a terminal. Hovering a request in a Claude
