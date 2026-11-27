@@ -6,7 +6,9 @@
 //! PermissionRequest hooks, and Codex's `notify` program, append one JSON
 //! line there (see `harness.ts`). This watches the folder, reads what was
 //! appended and turns it into an `AgentEvent`: shown in the app when it is
-//! connected, pushed to the paired devices that are not.
+//! connected, pushed to the paired devices that are not. Claude Code's
+//! UserPromptSubmit and SessionStart hooks write there too: the requests
+//! sent, and conversations started over, which go to `prompt_history`.
 //!
 //! OpenCode has no such hook, so for it a long stretch of output followed by
 //! silence counts as a finished turn (`on_activity`).
@@ -380,6 +382,19 @@ fn read_new(app: &AppHandle, path: &Path) {
         buf
     };
     for line in text.lines().filter(|l| !l.trim().is_empty()) {
+        // A conversation started over takes its requests with it; one
+        // resumed or compacted goes on. Neither is an event to tell of.
+        if let Some(fresh) = crate::prompt_history::session_start(line) {
+            if fresh {
+                crate::prompt_history::forget(app, &tab_id);
+            }
+            continue;
+        }
+        // A request sent: for the tab's history, not an event to tell of.
+        if let Some(prompt) = crate::prompt_history::parse(line, super::now_ms()) {
+            crate::prompt_history::record(app, &tab_id, &prompt);
+            continue;
+        }
         if let Some(request) = parse_request(line) {
             state.requests.lock().entry(tab_id.clone()).or_default().push((request, Instant::now()));
             continue;

@@ -58,6 +58,31 @@ export interface TerminalTab extends TabBase {
    * auto-start setting.
    */
   restored?: boolean
+  /** Messages kept in view above the terminal, oldest first. */
+  pins?: PinnedMessage[]
+}
+
+/**
+ * A message kept in view above a terminal: a request sent to Claude Code, or
+ * any text selected in the terminal. Only the text is kept, so a pin outlives
+ * the output it came from; it is found there again by its words.
+ */
+export interface PinnedMessage {
+  id: string
+  text: string
+  /** When it was pinned, in ms. */
+  at: number
+  /** Text selected in the terminal, rather than a request: found by its words wherever they are. */
+  selection?: boolean
+}
+
+/** A request sent to Claude Code from a tab, as its UserPromptSubmit hook gave it. */
+export interface SentPrompt {
+  text: string
+  /** When it was sent, in ms. */
+  at: number
+  /** The Claude Code session it was sent in. */
+  session?: string
 }
 
 /**

@@ -9,6 +9,22 @@ release cannot be cut without one.
 
 ## [Unreleased]
 
+### Added
+
+- Messages can be pinned above a terminal. Hovering a request in a Claude
+  Code tab shows a pin button at its right, and text selected in any
+  terminal can be pinned the same way. The latest pin stays in a bar above
+  the terminal and the others are in a list under it; clicking one scrolls
+  back to it, paging through Claude Code's fullscreen view when it has to.
+- The requests sent from a Claude Code tab are listed in the same bar,
+  newest first, with a search box. Each one can be shown in the
+  conversation, pinned, put back in the prompt to be sent again, or copied.
+  The list starts with the first request sent after the tab is started by
+  this version.
+- A Claude Code conversation that starts over, after `/clear` or on a fresh
+  start, takes its pins and its list of requests with it; one that is
+  resumed or compacted keeps them.
+
 ## [1.13.1] - 2026-11-25
 
 ### Added

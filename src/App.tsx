@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { locale as osLocale, platform as osPlatform } from '@tauri-apps/plugin-os'
 import { PanelLeft, PanelRight } from 'lucide-react'
 
-import { applyMenu, onPtyActivity, signalReady } from './lib/ipc'
+import { applyMenu, onConversationReset, onPtyActivity, signalReady } from './lib/ipc'
 import { findLeaf } from './lib/layout'
 import { isTerminalTab } from './lib/types'
 import { loadSettings, startSettingsPersistence, useSettings } from './store/settings'
@@ -82,6 +82,24 @@ export default function App() {
       (un) => (unlisten = un),
     )
     return () => unlisten?.()
+  }, [])
+
+  // A Claude conversation started over — afresh or after /clear — takes the
+  // messages pinned to its tab with it, whether the tab is on screen or not.
+  useEffect(() => {
+    let live = true
+    let unlisten: (() => void) | undefined
+    void onConversationReset((tabId) => {
+      // One left listening after it was taken off; see TerminalView.
+      if (live) useWorkspace.getState().clearPins(tabId)
+    }).then((un) => {
+      if (live) unlisten = un
+      else void Promise.resolve(un()).catch(() => {})
+    })
+    return () => {
+      live = false
+      void Promise.resolve(unlisten?.()).catch(() => {})
+    }
   }, [])
 
   // Keep the language reactive to the setting and to the OS preference.

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowDown, ArrowUp, Smartphone, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, Pin, Smartphone, X } from 'lucide-react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { SearchAddon } from '@xterm/addon-search'
@@ -11,8 +11,8 @@ import { platform } from '@tauri-apps/plugin-os'
 import '@xterm/xterm/css/xterm.css'
 
 import {
-  onPtyData, onPtyExit, onPtySizeOwner, ptyClaim, ptyResize, ptySizeOwnerRemote, ptySpawn,
-  ptyStatus, ptyWrite, scrollbackLoad,
+  onAgentPrompt, onConversationReset, onPtyData, onPtyExit, onPtySizeOwner, promptHistory,
+  ptyClaim, ptyResize, ptySizeOwnerRemote, ptySpawn, ptyStatus, ptyWrite, scrollbackLoad,
 } from '../lib/ipc'
 import { buildSpawnOptions, harnessCommandLabel } from '../lib/harness'
 import { claudeSessionFor } from '../lib/claudeSession'
@@ -28,7 +28,11 @@ import { useTheme } from '../hooks/useTheme'
 import { useT } from '../i18n'
 import { TerminalImages } from '../lib/terminalImages'
 import { nextStep, promptRows, type Cell, type Point, type RowReader } from '../lib/clickCursor'
-import type { TerminalTab } from '../lib/types'
+import {
+  findPinned, messageAt, messageFrom, normalize, type PinCell, type PinRowReader,
+} from '../lib/pinnedMessages'
+import type { PinnedMessage, SentPrompt, TerminalTab } from '../lib/types'
+import { PinnedBar } from './PinnedBar'
 
 /**
  * What returns a terminal to its default modes after it has replayed the
@@ -46,6 +50,81 @@ function defaultModes(term: Terminal): string {
   // reporting, bracketed paste, cursor keys, a hidden cursor, scroll region.
   return '\x18' + altScreen + '\x1b[?1000l\x1b[!p'
 }
+
+/** The rows of the buffer on screen now, with what finding a pinned message needs. */
+function pinReader(term: Terminal): PinRowReader {
+  const buffer = term.buffer.active
+  const scratch = buffer.getNullCell()
+  return (y) => {
+    const line = buffer.getLine(y)
+    if (!line) return undefined
+    const cells: PinCell[] = []
+    for (let x = 0; x < term.cols; x++) {
+      const c = line.getCell(x, scratch)
+      cells.push(
+        c
+          ? {
+              chars: c.getChars(),
+              width: c.getWidth(),
+              // The mode keeps palette colour 1 apart from RGB #000001.
+              bg: c.isBgDefault() ? -1 : c.getBgColorMode() + c.getBgColor(),
+            }
+          : { chars: '', width: 1, bg: -1 },
+      )
+    }
+    return { cells, wrapped: line.isWrapped }
+  }
+}
+
+/**
+ * Resolves once the program has redrawn after a key — nothing more written
+ * for `quietMs` — or after `limitMs` when it does not.
+ */
+function redrawn(term: Terminal, quietMs = 30, limitMs = 400): Promise<void> {
+  return new Promise<void>((resolve) => {
+    let quiet: number | undefined
+    const done = () => {
+      sub.dispose()
+      window.clearTimeout(quiet)
+      window.clearTimeout(limit)
+      resolve()
+    }
+    const sub = term.onWriteParsed(() => {
+      window.clearTimeout(quiet)
+      quiet = window.setTimeout(done, quietMs)
+    })
+    const limit = window.setTimeout(done, limitMs)
+  })
+}
+
+/** The top half of the screen: what paging changes, and a spinner below does not. */
+function screenTop(term: Terminal): string {
+  const b = term.buffer.active
+  let s = ''
+  for (let y = 0; y < Math.ceil(term.rows / 2); y++) {
+    s += (b.getLine(b.viewportY + y)?.translateToString(true) ?? '') + '\n'
+  }
+  return s
+}
+
+/** Where the button pinning a message sits: a row of the terminal, and the text. */
+interface PinSpot {
+  /** The row's middle, in pixels from the top of the terminal's body. */
+  y: number
+  text: string
+  /** A selection, rather than a request sent to Claude Code. */
+  selection: boolean
+}
+
+/** How long a message shown from its pin stays marked. */
+const PIN_FLASH_MS = 1200
+/** The keys Claude Code's fullscreen view pages through the conversation with. */
+const PAGE_UP = '\x1b[5~'
+const PAGE_DOWN = '\x1b[6~'
+/** How many pages a search for a pinned message turns, each way, at most. */
+const MAX_PAGES = 300
+/** How many of the requests sent from a tab its list shows; as many as the backend keeps. */
+const MAX_HISTORY = 500
 
 interface Props {
   tab: TerminalTab
@@ -74,6 +153,14 @@ export function TerminalView({ tab, visible, focused }: Props) {
   const project = useWorkspace((s) => s.projects.find((p) => p.id === tab.projectId))
   const setTabStatus = useWorkspace((s) => s.setTabStatus)
   const setTabCwd = useWorkspace((s) => s.setTabCwd)
+  const pinMessage = useWorkspace((s) => s.pinMessage)
+  const unpinMessage = useWorkspace((s) => s.unpinMessage)
+  const bodyRef = useRef<HTMLDivElement>(null)
+  const [pinSpot, setPinSpot] = useState<PinSpot | null>(null)
+  /** The requests sent from a Claude tab, oldest first. */
+  const [history, setHistory] = useState<SentPrompt[]>([])
+  /** Bumped by each search for a pinned message, and by a key or click, which end the one before. */
+  const pinWalk = useRef(0)
   const [needsStart, setNeedsStart] = useState(false)
   // The custom key handler is attached once, so it reads current values
   // through refs rather than closing over the first render's.
@@ -710,6 +797,216 @@ export function TerminalView({ tab, visible, focused }: Props) {
     return () => sub.dispose()
   }, [settings.terminal.copyOnSelect])
 
+  // ------------------------------------------------------------- pins ---
+  // A button at the right of the row: on the request to Claude Code under
+  // the mouse, or at the end of a selection, in any terminal.
+  useEffect(() => {
+    const term = termRef.current
+    const body = bodyRef.current
+    if (!term || !body) return
+
+    /** Where the mouse is, while it is over the terminal. */
+    let mouseY: number | null = null
+    let frame = 0
+
+    const spot = (): PinSpot | null => {
+      const range = term.getSelectionPosition()
+      // Nothing to pin: spares the layout reads on every write of output.
+      if (!range && (tab.kind !== 'claude' || mouseY === null)) return null
+      const screen = term.element?.querySelector('.xterm-screen')
+      if (!screen) return null
+      const r = screen.getBoundingClientRect()
+      if (r.height === 0) return null
+      const cellH = r.height / term.rows
+      const top = r.top - body.getBoundingClientRect().top
+      const viewport = term.buffer.active.viewportY
+      const at = (y: number) => top + (y - viewport + 0.5) * cellH
+      const onScreen = (y: number) => y >= viewport && y < viewport + term.rows
+
+      if (range) {
+        const text = term.getSelection().trim()
+        const end = Math.max(range.start.y, range.end.y)
+        return text && onScreen(end) ? { y: at(end), text, selection: true } : null
+      }
+      if (mouseY === null) return null
+      const row = Math.floor((mouseY - r.top) / cellH)
+      if (row < 0 || row >= term.rows) return null
+      const message = messageAt(pinReader(term), viewport + row)
+      if (!message?.text.trim()) return null
+      // On its first row, or the top one on screen when that has scrolled away.
+      return { y: at(Math.max(message.first, viewport)), text: message.text, selection: false }
+    }
+
+    const update = () => {
+      frame = 0
+      const next = spot()
+      setPinSpot((prev) =>
+        prev && next && prev.y === next.y && prev.text === next.text &&
+          prev.selection === next.selection
+          ? prev
+          : next,
+      )
+    }
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(update)
+    }
+
+    // Captured: a program reading the mouse has xterm stop the events there.
+    const onMove = (e: MouseEvent) => {
+      mouseY = e.clientY
+      schedule()
+    }
+    const onLeave = () => {
+      mouseY = null
+      schedule()
+    }
+    body.addEventListener('mousemove', onMove, true)
+    body.addEventListener('mouseleave', onLeave)
+    // Using the terminal ends a search for a pinned message still paging.
+    const stopWalk = () => {
+      pinWalk.current++
+    }
+    for (const type of ['keydown', 'mousedown', 'wheel']) body.addEventListener(type, stopWalk, true)
+    // What is under a still mouse changes as output scrolls or is redrawn.
+    const subs = [
+      term.onScroll(schedule),
+      term.onSelectionChange(schedule),
+      term.onWriteParsed(schedule),
+      term.onResize(schedule),
+      term.buffer.onBufferChange(schedule),
+    ]
+    return () => {
+      cancelAnimationFrame(frame)
+      body.removeEventListener('mousemove', onMove, true)
+      body.removeEventListener('mouseleave', onLeave)
+      for (const type of ['keydown', 'mousedown', 'wheel']) body.removeEventListener(type, stopWalk, true)
+      pinWalk.current++
+      for (const s of subs) s.dispose()
+    }
+  }, [tab.id, tab.kind])
+
+  // The requests sent from the tab: those kept, then each as it is sent,
+  // until the conversation starts over.
+  useEffect(() => {
+    setHistory([])
+    if (tab.kind !== 'claude') return
+    let live = true
+    const unlisten: Array<() => void> = []
+    // Tauri can fail to take a listener off the moment it is in place — as
+    // React's StrictMode does to every effect — and leave it listening, so
+    // the listeners check they are still wanted.
+    const keep = (u: () => void) => {
+      if (live) unlisten.push(u)
+      else void Promise.resolve(u()).catch(() => {})
+    }
+    void onAgentPrompt(({ tabId, prompt }) => {
+      if (!live || tabId !== tab.id) return
+      setHistory((h) =>
+        h.some((p) => p.at === prompt.at && p.text === prompt.text)
+          ? h
+          : [...h, prompt].slice(-MAX_HISTORY),
+      )
+    }).then(keep)
+    void onConversationReset((tabId) => {
+      if (live && tabId === tab.id) setHistory([])
+    }).then(keep)
+    void promptHistory(tab.id)
+      .then((kept) => {
+        if (!live) return
+        // Any sent while they were read is in them, or after them.
+        const end = kept[kept.length - 1]?.at ?? 0
+        setHistory((h) => [...kept, ...h.filter((p) => p.at > end)].slice(-MAX_HISTORY))
+      })
+      .catch(() => {})
+    return () => {
+      live = false
+      for (const u of unlisten) void Promise.resolve(u()).catch(() => {})
+    }
+  }, [tab.id, tab.kind])
+
+  /** Puts a request back in the prompt, to be changed and sent again. */
+  const insertRequest = useCallback((text: string) => {
+    const term = termRef.current
+    if (!term) return
+    // As a paste, which Claude Code takes whole. A program that has not asked
+    // for pastes marked as such would take each newline for Enter.
+    term.paste(term.modes.bracketedPasteMode ? text : text.replace(/\s*\n\s*/g, ' '))
+    term.focus()
+  }, [])
+
+  const pinned = (text: string) =>
+    tab.pins?.find((p) => normalize(p.text) === normalize(text))
+
+  const togglePin = () => {
+    const term = termRef.current
+    if (!pinSpot || !term) return
+    const existing = pinned(pinSpot.text)
+    if (existing) unpinMessage(tab.id, existing.id)
+    else pinMessage(tab.id, pinSpot.text, pinSpot.selection)
+    if (pinSpot.selection) term.clearSelection()
+    term.focus()
+  }
+
+  /**
+   * Scrolls to a pinned message and marks it for a moment. False when it is
+   * gone; true too when a key or click in the terminal cut the search short.
+   */
+  const showPin = useCallback(async (pin: PinnedMessage): Promise<boolean> => {
+    const term = termRef.current
+    if (!term) return false
+    const id = ++pinWalk.current
+    const fullscreen = tab.kind === 'claude' && term.buffer.active.type === 'alternate'
+    // Scrolled back, Claude Code's fullscreen view keeps the request of the
+    // turn on screen in its top row after its own row has gone by: a request
+    // there is taken only once there is nothing further back.
+    const top = fullscreen && !pin.selection ? 1 : 0
+    const find = (from = top) =>
+      findPinned(pinReader(term), from, term.buffer.active.length - 1, pin)
+    let y = find()
+
+    // That view keeps the conversation to itself and puts one screen of it in
+    // the terminal, so it is paged through: back first, where a pinned
+    // request nearly always is, then forward, each way until the page stops
+    // changing.
+    if (y === null && fullscreen) {
+      for (const key of [PAGE_UP, PAGE_DOWN]) {
+        for (let i = 0; i < MAX_PAGES && y === null; i++) {
+          if (id !== pinWalk.current) return true
+          const before = screenTop(term)
+          const wait = redrawn(term, 40, 600)
+          void ptyWrite(tab.id, key).catch(() => {})
+          await wait
+          // Slow to redraw while it works: once more before taking it for the end.
+          if (screenTop(term) === before) await redrawn(term, 40, 600)
+          if (screenTop(term) === before) {
+            // The start of the conversation: its top row is its own.
+            if (key === PAGE_UP) y = find(0)
+            break
+          }
+          y = find()
+        }
+        if (y !== null) break
+      }
+      if (id !== pinWalk.current) return true
+    }
+    if (y === null) return false
+
+    const read = pinReader(term)
+    const b = term.buffer.active
+    // A couple of rows of what led to it above.
+    term.scrollToLine(Math.max(0, y - 2))
+    const rows = (messageFrom(read, y)?.last ?? y) - y + 1
+    const marker = term.registerMarker(y - (b.baseY + b.cursorY))
+    const mark = marker && term.registerDecoration({ marker, width: term.cols, height: rows })
+    mark?.onRender((el) => el.classList.add('term__pin-flash'))
+    window.setTimeout(() => {
+      mark?.dispose()
+      marker?.dispose()
+    }, PIN_FLASH_MS)
+    term.focus()
+    return true
+  }, [tab.id, tab.kind])
+
   // ------------------------------------------------- click to move caret --
   // A plain click in Claude Code's prompt takes its caret there, as the
   // mouse does in Codex and OpenCode; see lib/clickCursor. Never while the
@@ -743,23 +1040,6 @@ export function TerminalView({ tab, visible, focused }: Props) {
       term.buffer.active.type === 'normal' &&
       term.modes.mouseTrackingMode === 'none'
 
-    /** Resolves once the program has redrawn after a key, or gave up on it. */
-    const redrawn = () =>
-      new Promise<void>((resolve) => {
-        let quiet: number | undefined
-        const done = () => {
-          sub.dispose()
-          window.clearTimeout(quiet)
-          window.clearTimeout(limit)
-          resolve()
-        }
-        const sub = term.onWriteParsed(() => {
-          window.clearTimeout(quiet)
-          quiet = window.setTimeout(done, 30)
-        })
-        const limit = window.setTimeout(done, 400)
-      })
-
     /** Bumped by every click and key, which each end the walk before. */
     let walk = 0
     const moveTo = async (target: Point) => {
@@ -772,7 +1052,7 @@ export function TerminalView({ tab, visible, focused }: Props) {
         if (promptRows(read, from.y)?.first !== start.first) return
         const keys = nextStep(read, from, target, term.modes.applicationCursorKeysMode)
         if (!keys) return
-        const wait = redrawn()
+        const wait = redrawn(term)
         void ptyWrite(tab.id, keys).catch(() => {})
         await wait
         const to = caret()
@@ -866,8 +1146,35 @@ export function TerminalView({ tab, visible, focused }: Props) {
           {t('remote.sizedForPhone')}
         </button>
       )}
-      <div className="term__body">
+      <PinnedBar
+        pins={tab.pins ?? []}
+        history={history}
+        onShow={showPin}
+        onPin={(text) => pinMessage(tab.id, text)}
+        onUnpin={(id) => unpinMessage(tab.id, id)}
+        onInsert={insertRequest}
+      />
+      <div ref={bodyRef} className="term__body">
         <div ref={hostRef} className="term__host" />
+        {pinSpot && (() => {
+          const on = !!pinned(pinSpot.text)
+          const label = on
+            ? t('pins.unpin')
+            : pinSpot.selection ? t('pins.pinSelection') : t('pins.pin')
+          return (
+            <button
+              className={`term__pin${on ? ' term__pin--on' : ''}`}
+              style={{ top: pinSpot.y }}
+              aria-label={label}
+              title={label}
+              // Keeps the focus, and the selection, in the terminal.
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={togglePin}
+            >
+              <Pin size={13} />
+            </button>
+          )
+        })()}
         {fileDropTarget && <div className="dropzone dropzone--center" aria-hidden />}
         {findOpen && (
           <div className="findbar">

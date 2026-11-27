@@ -136,6 +136,23 @@
     "results": "{i} of {n}",
     "noResults": "No results"
   },
+  "pins": {
+    "pin": "Pin message",
+    "pinSelection": "Pin selection",
+    "unpin": "Unpin",
+    "show": "Show in the terminal",
+    "seeking": "Looking for it in the conversation…",
+    "lost": "Can no longer find it",
+    "all": "All pinned messages"
+  },
+  "history": {
+    "title": "Requests sent",
+    "search": "Search the requests…",
+    "none": "No request matches",
+    "insert": "Put back in the prompt",
+    "copy": "Copy",
+    "copied": "Copied"
+  },
   "panel": {
     "changes": "Changes",
     "files": "Files",

@@ -373,6 +373,154 @@
 }
 .term__start-hint { margin: 0; font-size: 11.5px; color: var(--fg-subtle); line-height: 1.5; }
 
+/* Pins a request to Claude Code, or a selection: at the right of its row,
+   clear of the scrollbar. */
+.term__pin {
+  position: absolute;
+  right: 16px;
+  transform: translateY(-50%);
+  z-index: 20;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-raised);
+  color: var(--fg-muted);
+  box-shadow: var(--shadow-1);
+  cursor: pointer;
+}
+.term__pin:hover { color: var(--fg); border-color: var(--project-accent, var(--accent)); }
+.term__pin--on, .term__pin--on:hover { color: var(--project-accent, var(--accent)); }
+/* A pinned message, for a moment after it was shown from its pin. Drawn by
+   xterm as a decoration over the rows; clicks go through to the text. */
+.term__pin-flash {
+  pointer-events: none;
+  background: color-mix(in srgb, var(--project-accent, var(--accent)) 28%, transparent);
+  animation: term-pin-flash 1.2s var(--ease) forwards;
+}
+@keyframes term-pin-flash {
+  0%, 40% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* Messages pinned to a terminal, above it. In the flow, as only pinning the
+   first one or unpinning the last resizes the terminal; the list of all of
+   them opens over it instead. */
+.pinbar {
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  height: 28px;
+  padding: 0 var(--sp-2) 0 var(--sp-3);
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.pinbar__icon { flex: 0 0 auto; color: var(--project-accent, var(--accent)); }
+.pinbar__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  text-align: left;
+  padding: 2px 4px;
+  border-radius: var(--radius-sm);
+  color: var(--fg);
+  cursor: pointer;
+}
+.pinbar__text:hover, .pinbar__item-text:hover { background: var(--bg-hover); }
+.pinbar__count {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 20px;
+  padding: 0 4px 0 6px;
+  border-radius: var(--radius-sm);
+  color: var(--fg-muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+.pinbar__count:hover, .pinbar__count[aria-expanded='true'] { background: var(--bg-hover); color: var(--fg); }
+.pinbar__list {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 6px;
+  right: 6px;
+  /* Above xterm's own layers, which reach z-index 11. */
+  z-index: 20;
+  max-height: 50vh;
+  overflow-y: auto;
+  padding: 4px;
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-2);
+}
+.pinbar__item { display: flex; align-items: flex-start; gap: var(--sp-1); }
+.pinbar__item + .pinbar__item { border-top: 1px solid var(--border); }
+.pinbar__item-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 5px 6px;
+  border-radius: var(--radius-sm);
+  text-align: left;
+  color: var(--fg);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+  /* A long one in a few lines; all of it is in the terminal. */
+  display: -webkit-box;
+  -webkit-line-clamp: 6;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  cursor: pointer;
+}
+.pinbar__item .icon-btn { margin-top: 3px; }
+/* With nothing pinned, the room the latest pin would have. */
+.pinbar__status { flex: 1 1 auto; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; padding: 2px 4px; }
+.pinbar__history { gap: 4px; }
+.pinbar__list--history { padding-top: 0; }
+/* Stays at the top while the requests scroll under it. */
+.pinbar__search {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 0 0 4px;
+  box-shadow: 0 -4px 0 var(--bg-raised), 0 4px 0 var(--bg-raised);
+}
+.pinbar__list--history .pinbar__search { margin-top: 4px; }
+.pinbar__entry {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 5px 6px;
+  border-radius: var(--radius-sm);
+  text-align: left;
+  color: var(--fg);
+  cursor: pointer;
+}
+.pinbar__entry:hover { background: var(--bg-hover); }
+.pinbar__entry-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.pinbar__entry-time { font-size: 11px; color: var(--fg-muted); }
+.pinbar__empty { margin: 0; padding: 8px 6px; }
+
 /* --------------------------------------------------------------- panel --- */
 
 .panel {

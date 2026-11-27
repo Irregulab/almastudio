@@ -7,6 +7,7 @@ mod git;
 mod git_cli;
 mod harness;
 mod menu;
+mod prompt_history;
 mod pty;
 mod remote;
 mod search;
@@ -330,6 +331,7 @@ pub fn run() {
             pty::pty_status,
             pty::pty_claim,
             pty::pty_size_owner_remote,
+            prompt_history::prompt_history,
             remote::remote_configure,
             remote::remote_status,
             remote::remote_pairing,
